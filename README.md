@@ -1,5 +1,7 @@
 # Senada Mobile
 
+**Senada Mobile masih dalam pengembangan awal.**
+
 Senada Mobile adalah proyek aplikasi musik untuk **Android dan iOS**, dikembangkan dengan **Kotlin Multiplatform dan Compose Multiplatform**.
 
 Repositori proyek: [Zeeynrs/Senada-Mobile](https://github.com/Zeeynrs/Senada-Mobile).
