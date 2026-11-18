@@ -122,12 +122,18 @@ public final class PlaybackProbe extends Instrumentation {
         return false;
     }
 
-    private void tap(String text) throws Exception { tap(text, 0.5); }
+    private void tap(String text) throws Exception {
+        waitFor("enabled " + text, () -> labels(text).stream().anyMatch(AccessibilityNodeInfo::isEnabled));
+        for (AccessibilityNodeInfo node : labels(text)) {
+            if (node.isEnabled() && node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return;
+        }
+        tap(text, 0.5);
+    }
 
     private void tap(String text, double fromLeft) throws Exception {
         waitForLabel(text);
         Rect bounds = new Rect();
-        labels(text).get(0).getBoundsInScreen(bounds);
+        labels(text).stream().filter(AccessibilityNodeInfo::isEnabled).findFirst().orElseThrow(AssertionError::new).getBoundsInScreen(bounds);
         shell("input tap " + (bounds.left + Math.round(bounds.width() * fromLeft)) + " " + bounds.centerY());
     }
 
