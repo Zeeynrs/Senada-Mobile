@@ -51,6 +51,14 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
 3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali. Antrean demo direset saat sesi aplikasi berakhir.
 
+## Uji audio contoh
+
+1. Buka **Uji audio** dan tekan **Putar lokal**. Sampel *Selepas Hujan* selama 12 detik ikut di dalam aplikasi.
+2. Saat audio terdengar, tekan **Jeda**, lalu **Putar lokal** lagi. Audio melanjutkan dari posisi terakhir.
+3. Dengan koneksi internet aktif, tekan **Putar HTTPS**. Aplikasi memulai sampel yang sama dari awal. Setelah selesai, tekan **Putar HTTPS** lagi untuk mengulang dari awal.
+
+Sampel AAC-LC dalam `.m4a` ini dibuat untuk pengujian. Versi HTTPS merujuk ke salinan file yang dipatok ke commit di repo. Pemutar dijeda saat aplikasi masuk latar belakang. Uji audio menggunakan satu sampel; antrean demo bisa diuji secara terpisah.
+
 ## Pemeriksaan di GitHub
 
 Workflow [Mobile checks](../.github/workflows/check.yml) menjalankan build dan tes Android di Linux serta tes dan build simulator iOS di macOS ketika pull request dibuka atau diperbarui. Build simulator dapat diperiksa dari Linux lewat log GitHub. Pemasangan pada iPhone dan uji audio memerlukan pengujian perangkat tersendiri.

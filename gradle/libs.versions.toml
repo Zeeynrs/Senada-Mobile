@@ -4,10 +4,13 @@ kotlin = "2.2.21"
 compose = "1.9.3"
 activityCompose = "1.10.1"
 lifecycle = "2.9.6"
+media3 = "1.7.1"
 
 [libraries]
 lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

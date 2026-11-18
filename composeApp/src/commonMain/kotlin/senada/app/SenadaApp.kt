@@ -20,11 +20,21 @@ import androidx.compose.material.TextButton
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import senada.model.Track
+import senada.playback.SampleAudioPlayer
 
 private val sampleTracks = listOf(
     Track("demo:track:hujan", "Selepas Hujan", listOf("Senada"), source = "demo"),
@@ -35,6 +45,24 @@ private val sampleTracks = listOf(
 fun SenadaApp() {
     val model = viewModel { QueueViewModel() }
     val queue = model.queue
+    val audioOutput = rememberSampleAudioOutput()
+    val audio = remember(audioOutput) { SampleAudioPlayer(audioOutput) }
+    var audioState by remember(audio) { mutableStateOf(audio.state) }
+
+    DisposableEffect(audioOutput) {
+        onDispose { audioOutput.release() }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        audio.pause()
+        audioState = audio.state
+    }
+    LaunchedEffect(audio, audioState.isActive) {
+        while (audioState.isActive) {
+            delay(250)
+            audio.refresh()
+            audioState = audio.state
+        }
+    }
 
     MaterialTheme(colors = if (isSystemInDarkTheme()) darkColors() else lightColors()) {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -48,6 +76,20 @@ fun SenadaApp() {
                     TrackRow(track) {
                         Button(onClick = { model.add(track) }) { Text("Tambah") }
                     }
+                }
+                item {
+                    SampleAudioControls(
+                        title = sampleTracks.first().title,
+                        state = audioState,
+                        onPlay = { source ->
+                            audio.play(source)
+                            audioState = audio.state
+                        },
+                        onPause = {
+                            audio.pause()
+                            audioState = audio.state
+                        },
+                    )
                 }
                 item { Text("Antrean", style = MaterialTheme.typography.h6) }
                 if (queue.entries.isEmpty()) {

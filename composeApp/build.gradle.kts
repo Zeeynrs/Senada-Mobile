@@ -22,15 +22,22 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(compose.material)
+            implementation(compose.components.resources)
+            implementation(libs.lifecycle.runtime.compose)
             implementation(libs.lifecycle.viewmodel.compose)
         }
         androidMain.dependencies {
             implementation(libs.activity.compose)
+            implementation(libs.media3.exoplayer)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "senada.resources"
 }
 
 android {
