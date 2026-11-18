@@ -1,0 +1,47 @@
+name: Android playback smoke
+on:
+  push:
+    branches: [qa/android-playback-smoke]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  device-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Senada-Android-debug-8.1
+          run-id: 44297756509
+          github-token: ${{ github.token }}
+          path: qa-build
+      - name: Boot Android 14 emulator
+        run: |
+          test -c /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' | sort -V | tail -n 1)
+          image='system-images;android-34;default;x86_64'
+          "$sdkmanager" --install emulator "$image"
+          "${sdkmanager%/*}/avdmanager" create avd -n SenadaQA -k "$image" --force <<< no
+          "$ANDROID_HOME/emulator/emulator" -avd SenadaQA -no-window -no-snapshot -no-boot-anim -no-audio -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          timeout 210 adb wait-for-device
+          timeout 210 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          adb shell input keyevent 82
+          adb shell wm size 1080x2400
+          adb shell wm density 380
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Install Senada and run the playback checks
+        run: bash .github/qa/android-smoke.sh
+      - name: Show emulator diagnostics
+        if: failure()
+        run: |
+          tail -n 100 "$RUNNER_TEMP/emulator.log" || true
+          adb logcat -d -s AndroidRuntime || true
