@@ -51,7 +51,10 @@ public final class PlaybackProbe extends Instrumentation {
         tap("Tambah");
         tap("Putar");
         waitForLabel("Sebelum Pagi · Memutar file lokal");
+        report("Before pause: " + playbackSnapshot());
         tap("Jeda");
+        SystemClock.sleep(450);
+        report("After pause tap: " + playbackSnapshot());
         waitForLabel("Sebelum Pagi · Dijeda");
         tap("Posisi pemutaran", 0.55);
         waitFor("seek while paused", () -> !labels("Sebelum Pagi · Dijeda").isEmpty() && playedSeconds() >= 5);
@@ -101,6 +104,28 @@ public final class PlaybackProbe extends Instrumentation {
         return matches;
     }
 
+    private void report(String message) {
+        Bundle result = new Bundle();
+        result.putString("stream", message + "\n");
+        sendStatus(0, result);
+    }
+
+    private List<String> playbackSnapshot() {
+        List<String> snapshot = new ArrayList<>();
+        visit(automation.getRootInActiveWindow(), node -> {
+            if (node.getText() != null) {
+                String text = node.getText().toString();
+                if (text.contains(" · ") || PROGRESS.matcher(text).matches() || text.equals("Jeda")) {
+                    Rect bounds = new Rect();
+                    node.getBoundsInScreen(bounds);
+                    snapshot.add(text + " " + bounds + " enabled=" + node.isEnabled() + " clickable=" + node.isClickable());
+                }
+            }
+            return false;
+        });
+        return snapshot;
+    }
+
     private int playedSeconds() {
         int[] result = {-1};
         visit(automation.getRootInActiveWindow(), node -> {
@@ -125,7 +150,15 @@ public final class PlaybackProbe extends Instrumentation {
     private void tap(String text) throws Exception {
         waitFor("enabled " + text, () -> labels(text).stream().anyMatch(AccessibilityNodeInfo::isEnabled));
         for (AccessibilityNodeInfo node : labels(text)) {
-            if (node.isEnabled() && node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return;
+            node.refresh();
+            if (node.isEnabled() && node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                if (text.equals("Jeda")) {
+                    Rect bounds = new Rect();
+                    node.getBoundsInScreen(bounds);
+                    report("Clicked " + node.getClassName() + " " + bounds);
+                }
+                return;
+            }
         }
         tap(text, 0.5);
     }
