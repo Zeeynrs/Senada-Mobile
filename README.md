@@ -8,7 +8,7 @@ Repositori proyek: [Zeeynrs/Senada-Mobile](https://github.com/Zeeynrs/Senada-Mob
 
 ## Status
 
-Prototipe Android sudah diuji di emulator. Kamu bisa menambahkan dua lagu contoh ke antrean, memasukkan lagu yang sama lebih dari sekali, dan menghapus satu entri. Pemutaran audio dan pencarian katalog menjadi tahap berikutnya. Host iOS sudah tersedia dan masih menunggu verifikasi build.
+Prototipe Android sudah diuji di emulator. Kamu bisa menambahkan dua lagu contoh ke antrean, memasukkan lagu yang sama lebih dari sekali, dan menghapus satu entri. Pemutaran audio dan pencarian katalog menjadi tahap berikutnya. Build simulator iOS lulus di CI. Pemasangan dan pembaruan di iPhone fisik masih perlu diuji dengan [paket uji perangkat](docs/setup.md#uji-di-iphone-dari-windows).
 
 [Panduan build, struktur kode, dan pengujian](docs/setup.md)
 
