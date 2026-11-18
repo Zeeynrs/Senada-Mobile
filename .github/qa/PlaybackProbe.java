@@ -56,7 +56,7 @@ public final class PlaybackProbe extends Instrumentation {
         SystemClock.sleep(450);
         report("After pause tap: " + playbackSnapshot());
         waitForLabel("Sebelum Pagi · Dijeda");
-        tap("Posisi pemutaran", 0.55);
+        seek(0.55f);
         waitFor("seek while paused", () -> !labels("Sebelum Pagi · Dijeda").isEmpty() && playedSeconds() >= 5);
         int pausedAt = playedSeconds();
         SystemClock.sleep(1200);
@@ -150,14 +150,16 @@ public final class PlaybackProbe extends Instrumentation {
     private void tap(String text) throws Exception {
         waitFor("enabled " + text, () -> labels(text).stream().anyMatch(AccessibilityNodeInfo::isEnabled));
         for (AccessibilityNodeInfo node : labels(text)) {
-            node.refresh();
-            if (node.isEnabled() && node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                if (text.equals("Jeda")) {
-                    Rect bounds = new Rect();
-                    node.getBoundsInScreen(bounds);
-                    report("Clicked " + node.getClassName() + " " + bounds);
+            for (AccessibilityNodeInfo target = node; target != null; target = target.getParent()) {
+                if (!target.refresh() || !target.isEnabled()) break;
+                if (target.isClickable() && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    if (text.equals("Jeda")) {
+                        Rect bounds = new Rect();
+                        target.getBoundsInScreen(bounds);
+                        report("Clicked " + target.getClassName() + " " + bounds);
+                    }
+                    return;
                 }
-                return;
             }
         }
         tap(text, 0.5);
@@ -166,8 +168,22 @@ public final class PlaybackProbe extends Instrumentation {
     private void tap(String text, double fromLeft) throws Exception {
         waitForLabel(text);
         Rect bounds = new Rect();
-        labels(text).stream().filter(AccessibilityNodeInfo::isEnabled).findFirst().orElseThrow(AssertionError::new).getBoundsInScreen(bounds);
+        AccessibilityNodeInfo node = labels(text).stream()
+            .filter(target -> target.refresh() && target.isEnabled() && target.isVisibleToUser())
+            .findFirst().orElseThrow(AssertionError::new);
+        node.getBoundsInScreen(bounds);
         shell("input tap " + (bounds.left + Math.round(bounds.width() * fromLeft)) + " " + bounds.centerY());
+    }
+
+    private void seek(float fraction) throws Exception {
+        waitForLabel("Posisi pemutaran");
+        Bundle args = new Bundle();
+        args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, fraction);
+        int action = AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId();
+        for (AccessibilityNodeInfo node : labels("Posisi pemutaran")) {
+            if (node.refresh() && node.performAction(action, args)) return;
+        }
+        tap("Posisi pemutaran", fraction);
     }
 
     private void shell(String command) throws Exception {
