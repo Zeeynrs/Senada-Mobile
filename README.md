@@ -6,7 +6,9 @@ Repositori proyek: [Zeeynrs/Senada-Mobile](https://github.com/Zeeynrs/Senada-Mob
 
 ## Status
 
-Proyek berada pada tahap perencanaan dan pembuktian teknis. Kode aplikasi dan paket instalasi belum tersedia di repositori ini.
+Fondasi aplikasi tersedia dalam satu modul Kotlin Multiplatform dengan host Android dan iOS. Layar awal memakai dua lagu contoh untuk menguji tambah dan hapus entri antrean. Pemutaran audio dan integrasi katalog masuk tahap pembuktian berikutnya.
+
+[Panduan build, struktur kode, dan pengujian](docs/setup.md)
 
 Pengembangan awal berfokus pada keandalan audio, library lokal, lirik tersinkron, dan penggunaan sumber daya yang diukur pada perangkat nyata. Distribusi awal ditujukan untuk komunitas kecil di luar Google Play dan App Store.
 
@@ -28,7 +30,7 @@ Pengembangan awal berfokus pada keandalan audio, library lokal, lirik tersinkron
 | Audio iOS | AVPlayer/AVQueuePlayer |
 | Build iOS | Mesin macOS, termasuk layanan CI |
 
-Versi dependency akan dikunci setelah build Android dan iOS berhasil dibuktikan. Integrasi katalog serta resolver audio masih memerlukan pengujian pada kedua platform. Penambahan Rust bergantung pada kebutuhan yang ditemukan melalui profiling.
+Versi dasar Kotlin, Compose dan Android Gradle Plugin tercatat di [version catalog](gradle/libs.versions.toml). Integrasi katalog serta resolver audio masih memerlukan pengujian pada kedua platform. Penambahan Rust bergantung pada kebutuhan yang ditemukan melalui profiling.
 
 ## Target beta pertama
 
