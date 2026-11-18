@@ -6,11 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Slider
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToLong
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import senada.catalog.DemoCatalog
 import senada.model.Track
@@ -52,6 +60,10 @@ internal fun SampleAudioControls(
     state: SampleAudioState,
     onPlay: (SampleAudioSource) -> Unit,
     onPause: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onMove: (Int) -> Unit,
+    canGoPrevious: Boolean,
+    canGoNext: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Uji audio", style = MaterialTheme.typography.h6)
@@ -64,7 +76,12 @@ internal fun SampleAudioControls(
                 Text("Putar HTTPS")
             }
         }
-        TextButton(onClick = onPause, enabled = state.isActive) { Text("Jeda") }
+        PlaybackProgress(state, onSeek)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = { onMove(-1) }, enabled = canGoPrevious) { Text("Sebelumnya") }
+            TextButton(onClick = onPause, enabled = state.isActive) { Text("Jeda") }
+            TextButton(onClick = { onMove(1) }, enabled = canGoNext) { Text("Berikutnya") }
+        }
 
         val status = when (state.status) {
             SampleAudioStatus.Idle -> null
@@ -83,4 +100,29 @@ internal fun SampleAudioControls(
             Text("$selectedTitle · $status", style = MaterialTheme.typography.body2)
         }
     }
+}
+
+@Composable
+private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
+    val duration = state.durationMs ?: return
+    var scrubFraction by remember(state.selection, state.canSeek) { mutableStateOf<Float?>(null) }
+    val progress = scrubFraction ?: (state.positionMs.toDouble() / duration).toFloat()
+    val shownPosition = scrubFraction?.let { (it * duration.toDouble()).roundToLong() } ?: state.positionMs
+
+    Slider(
+        value = progress,
+        onValueChange = { scrubFraction = it },
+        onValueChangeFinished = {
+            scrubFraction?.let { onSeek((it * duration.toDouble()).roundToLong()) }
+            scrubFraction = null
+        },
+        enabled = state.canSeek,
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Posisi pemutaran" },
+    )
+    Text("${playbackTime(shownPosition)} / ${playbackTime(duration)}", style = MaterialTheme.typography.body2)
+}
+
+private fun playbackTime(positionMs: Long): String {
+    val seconds = positionMs / 1_000
+    return "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
 }

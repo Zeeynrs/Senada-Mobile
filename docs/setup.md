@@ -59,7 +59,7 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 
 Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Pemutar dijeda saat aplikasi masuk latar belakang.
 
-Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama dan tunggu sampai entri kedua mulai. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
+Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
 
 ## Pemeriksaan di GitHub
 

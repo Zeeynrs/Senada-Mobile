@@ -90,10 +90,50 @@ class SampleAudioTest {
         assertEquals(1, output.pauseCount)
     }
 
+    @Test
+    fun refreshingActivePlaybackReadsPositionAndDuration() {
+        player.play(local)
+        output.positionMs = 4_200
+        output.durationMs = 12_000
+
+        player.refresh()
+
+        assertEquals(4_200L, player.state.positionMs)
+        assertEquals(12_000L, player.state.durationMs)
+    }
+
+    @Test
+    fun seekingWhilePausedKeepsPlaybackPausedAndClampsThePosition() {
+        output.durationMs = 12_000
+        player.play(local)
+        player.pause()
+
+        player.seekTo(-100)
+        player.seekTo(15_000)
+
+        assertEquals(listOf(0L, 12_000L), output.seeks)
+        assertEquals(12_000L, player.state.positionMs)
+        assertEquals(SampleAudioStatus.Paused, player.state.status)
+        assertEquals(listOf(true), output.restarts)
+    }
+
+    @Test
+    fun seekingWaitsUntilTheAudioDurationIsKnown() {
+        player.play(local)
+
+        player.seekTo(1_000)
+
+        assertFalse(player.state.canSeek)
+        assertEquals(emptyList(), output.seeks)
+    }
+
     private class RecordingAudioOutput : SampleAudioOutput {
         val restarts = mutableListOf<Boolean>()
+        val seeks = mutableListOf<Long>()
         var pauseCount = 0
         override var status = SampleAudioStatus.Playing
+        override var positionMs = 0L
+        override var durationMs: Long? = null
 
         override fun play(uri: String, restart: Boolean) {
             restarts += restart
@@ -102,6 +142,11 @@ class SampleAudioTest {
 
         override fun pause() {
             pauseCount++
+        }
+
+        override fun seekTo(positionMs: Long) {
+            seeks += positionMs
+            this.positionMs = positionMs
         }
 
         override fun release() = Unit

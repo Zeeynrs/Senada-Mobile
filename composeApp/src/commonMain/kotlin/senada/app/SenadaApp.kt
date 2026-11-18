@@ -94,6 +94,7 @@ fun SenadaApp() {
                     }
                 }
                 item {
+                    val selectedEntryId = audioState.selection?.queueEntryId
                     SampleAudioControls(
                         title = DemoCatalog.tracks.first().title,
                         state = audioState,
@@ -105,6 +106,19 @@ fun SenadaApp() {
                             audio.pause()
                             audioState = audio.state
                         },
+                        onSeek = { position ->
+                            audio.seekTo(position)
+                            audioState = audio.state
+                        },
+                        onMove = { offset ->
+                            val currentEntryId = audio.state.selection?.queueEntryId
+                            model.queue.adjacentTo(currentEntryId, offset)?.let { entry ->
+                                audio.play(queueAudioSelection(entry))
+                                audioState = audio.state
+                            }
+                        },
+                        canGoPrevious = queue.adjacentTo(selectedEntryId, -1) != null,
+                        canGoNext = queue.adjacentTo(selectedEntryId, 1) != null,
                     )
                 }
                 item { Text("Antrean", style = MaterialTheme.typography.h6) }

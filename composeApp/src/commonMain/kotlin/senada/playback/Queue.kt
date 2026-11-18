@@ -12,4 +12,10 @@ class Queue private constructor(val entries: List<QueueItem>, private val nextId
 
     fun remove(entryId: Long): Queue =
         Queue(entries.filterNot { it.id == entryId }, nextId)
+
+    internal fun adjacentTo(entryId: Long?, offset: Int): QueueItem? {
+        val index = entries.indexOfFirst { it.id == entryId }
+        if (index < 0) return null
+        return entries.getOrNull(index + offset)
+    }
 }

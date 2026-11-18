@@ -36,6 +36,10 @@ private class AndroidSampleAudioOutput(context: Context) : SampleAudioOutput {
             else -> SampleAudioStatus.Loading
         }
 
+    override val positionMs get() = player.currentPosition
+
+    override val durationMs get() = player.duration.takeIf { it > 0 }
+
     override fun play(uri: String, restart: Boolean) {
         if (restart) {
             player.setMediaItem(MediaItem.fromUri(uri))
@@ -45,6 +49,8 @@ private class AndroidSampleAudioOutput(context: Context) : SampleAudioOutput {
     }
 
     override fun pause() = player.pause()
+
+    override fun seekTo(positionMs: Long) = player.seekTo(positionMs)
 
     override fun release() = player.release()
 }
