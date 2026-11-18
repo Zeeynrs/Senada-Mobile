@@ -129,7 +129,7 @@ public final class PlaybackProbe extends Instrumentation {
     private int playedSeconds() {
         int[] result = {-1};
         visit(automation.getRootInActiveWindow(), node -> {
-            if (node.getText() == null) return false;
+            if (!node.refresh() || node.getText() == null) return false;
             Matcher match = PROGRESS.matcher(node.getText());
             if (!match.matches()) return false;
             result[0] = Integer.parseInt(match.group(1));
@@ -176,14 +176,19 @@ public final class PlaybackProbe extends Instrumentation {
     }
 
     private void seek(float fraction) throws Exception {
-        waitForLabel("Posisi pemutaran");
-        Bundle args = new Bundle();
-        args.putFloat(AccessibilityNodeInfo.ACTION_ARGUMENT_PROGRESS_VALUE, fraction);
-        int action = AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_PROGRESS.getId();
-        for (AccessibilityNodeInfo node : labels("Posisi pemutaran")) {
-            if (node.refresh() && node.performAction(action, args)) return;
-        }
-        tap("Posisi pemutaran", fraction);
+        String label = "Posisi pemutaran";
+        waitForLabel(label);
+        AccessibilityNodeInfo slider = labels(label).stream()
+            .filter(node -> node.refresh() && node.isEnabled() && node.isVisibleToUser())
+            .findFirst().orElseThrow(AssertionError::new);
+        Rect bounds = new Rect();
+        slider.getBoundsInScreen(bounds);
+        report("Dragging seek slider at " + bounds);
+        int startX = bounds.left + Math.round(bounds.width() * 0.1f);
+        int endX = bounds.left + Math.round(bounds.width() * fraction);
+        shell("input swipe " + startX + " " + bounds.centerY() + " " + endX + " " + bounds.centerY() + " 350");
+        SystemClock.sleep(400);
+        report("After seek: " + playbackSnapshot());
     }
 
     private void shell(String command) throws Exception {
