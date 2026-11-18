@@ -29,7 +29,8 @@ jobs:
           xcodebuild -project iosApp/Senada.xcodeproj -scheme Senada
           -configuration Release -destination 'generic/platform=iOS'
           -archivePath "$RUNNER_TEMP/Senada.xcarchive"
-          CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO archive
+          CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT"
+          CODE_SIGNING_ALLOWED=NO archive
       - name: Verify and package unsigned IPA
         shell: bash
         run: |
@@ -50,7 +51,7 @@ jobs:
           unzip -tq "$package/Senada-unsigned.ipa"
       - uses: actions/upload-artifact@v4
         with:
-          name: Senada-iPhone-unsigned-${{ github.run_number }}
+          name: Senada-iPhone-unsigned-${{ github.run_number }}.${{ github.run_attempt }}
           path: ${{ runner.temp }}/ipa/Senada-unsigned.ipa
           if-no-files-found: error
           retention-days: 14

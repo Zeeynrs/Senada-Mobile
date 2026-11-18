@@ -49,7 +49,7 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 
 1. Dari tab **Actions**, jalankan workflow [iPhone test build](../.github/workflows/ios-device.yml) lewat **Run workflow**. Buka hasil run, unduh artefak `Senada-iPhone-unsigned-<nomor>` dari **Artifacts**, dan ekstrak `Senada-unsigned.ipa`. Artefak disimpan selama 14 hari.
 2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
-3. Buka Senada dan uji tambah serta hapus entri antrean. Buat satu run baru untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali. Antrean demo memang direset saat sesi aplikasi berakhir.
+3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali. Antrean demo direset saat sesi aplikasi berakhir.
 
 ## Pemeriksaan di GitHub
 
