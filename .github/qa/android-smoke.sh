@@ -14,4 +14,4 @@ keytool -genkeypair -keystore "$directory/probe.jks" -storepass android -keypass
 adb install qa-build/composeApp-debug.apk
 adb install "$directory/probe.apk"
 adb shell am instrument -w io.github.zeeynrs.senada.qa/.PlaybackProbe | tee "$directory/result.txt"
-grep -q '^INSTRUMENTATION_CODE: -1' "$directory/result.txt"
+grep -Fq 'PASS: search, queue, pause, seek, resume, next, previous, automatic advance and HTTPS' "$directory/result.txt"
