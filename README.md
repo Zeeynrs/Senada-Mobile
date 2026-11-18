@@ -1,12 +1,14 @@
 # Senada Mobile
 
+**Senada Mobile masih dalam pengembangan awal.**
+
 Senada Mobile adalah proyek aplikasi musik untuk **Android dan iOS**, dikembangkan dengan **Kotlin Multiplatform dan Compose Multiplatform**.
 
 Repositori proyek: [Zeeynrs/Senada-Mobile](https://github.com/Zeeynrs/Senada-Mobile).
 
 ## Status
 
-Fondasi aplikasi tersedia dalam satu modul Kotlin Multiplatform dengan host Android dan iOS. Layar awal memakai dua lagu contoh untuk menguji tambah dan hapus entri antrean. Pemutaran audio dan integrasi katalog masuk tahap pembuktian berikutnya.
+Prototipe Android sudah diuji di emulator. Kamu bisa menambahkan dua lagu contoh ke antrean, memasukkan lagu yang sama lebih dari sekali, dan menghapus satu entri. Pemutaran audio dan pencarian katalog menjadi tahap berikutnya. Host iOS sudah tersedia dan masih menunggu verifikasi build.
 
 [Panduan build, struktur kode, dan pengujian](docs/setup.md)
 
