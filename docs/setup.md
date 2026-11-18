@@ -10,7 +10,7 @@ Kedua platform membuka `SenadaApp()`. Pilih **Tambah** dua kali pada lagu contoh
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Kontrak pencarian berhalaman dan resolusi alamat audio sementara. Implementasi provider menyusul setelah uji kelayakan. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri. |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan ViewModel pemilik antrean. |
-| `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform untuk memanggil UI bersama. Di sinilah adapter Media3 dan AVPlayer akan dihubungkan. |
+| `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform dan adapter Media3 serta AVPlayer untuk uji audio. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
 | `composeApp/src/commonTest` | Tes Kotlin yang sama dijalankan melalui Android unit test atau simulator iOS. |
 

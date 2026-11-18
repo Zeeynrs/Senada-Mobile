@@ -10,6 +10,13 @@ import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
+import platform.AVFoundation.currentItem
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
+import platform.AVFoundation.pause
+import platform.AVFoundation.play
+import platform.AVFoundation.replaceCurrentItemWithPlayerItem
+import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.Foundation.NSURL
 import senada.playback.SampleAudioOutput
@@ -25,11 +32,11 @@ private class IosSampleAudioOutput : SampleAudioOutput {
 
     override val status: SampleAudioStatus
         get() {
-            val item = player.currentItem ?: return SampleAudioStatus.Failed
+            val item = player.currentItem() ?: return SampleAudioStatus.Failed
             if (item.status == AVPlayerItemStatusFailed) return SampleAudioStatus.Failed
-            if (player.timeControlStatus == AVPlayerTimeControlStatusPlaying) return SampleAudioStatus.Playing
+            if (player.timeControlStatus() == AVPlayerTimeControlStatusPlaying) return SampleAudioStatus.Playing
 
-            val duration = CMTimeGetSeconds(item.duration)
+            val duration = CMTimeGetSeconds(item.duration())
             val position = CMTimeGetSeconds(player.currentTime())
             return if (duration.isFinite() && duration > 0 && position >= duration - 0.02) {
                 SampleAudioStatus.Ended
@@ -44,7 +51,7 @@ private class IosSampleAudioOutput : SampleAudioOutput {
             val url = NSURL.URLWithString(source.uri())
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
         }
-        if (player.currentItem != null) {
+        if (player.currentItem() != null) {
             AVAudioSession.sharedInstance().setCategory(
                 category = AVAudioSessionCategoryPlayback,
                 mode = AVAudioSessionModeDefault,
