@@ -21,7 +21,6 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
-import platform.CoreMedia.kCMTimeZero
 import platform.Foundation.NSURL
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -85,7 +84,8 @@ private class IosSampleAudioOutput : SampleAudioOutput {
     override fun seekTo(positionMs: Long) {
         val request = PendingSeek(positionMs)
         pendingSeek = request
-        player.seekToTime(CMTimeMake(positionMs, 1_000), kCMTimeZero, kCMTimeZero) { _ ->
+        val zeroTolerance = CMTimeMake(0, 1_000)
+        player.seekToTime(CMTimeMake(positionMs, 1_000), zeroTolerance, zeroTolerance) { _ ->
             dispatch_async(dispatch_get_main_queue()) {
                 if (pendingSeek === request) pendingSeek = null
             }
