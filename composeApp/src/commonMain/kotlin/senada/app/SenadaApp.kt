@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
@@ -24,7 +25,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,18 +36,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import senada.catalog.DemoCatalog
 import senada.model.Track
 import senada.playback.SampleAudioPlayer
-
-private val sampleTracks = listOf(
-    Track("demo:track:hujan", "Selepas Hujan", listOf("Senada"), source = "demo"),
-    Track("demo:track:pagi", "Sebelum Pagi", listOf("Senada"), source = "demo"),
-)
 
 @Composable
 fun SenadaApp() {
     val model = viewModel { QueueViewModel() }
     val queue = model.queue
+    var query by rememberSaveable { mutableStateOf("") }
+    val searchResults by produceState(DemoCatalog.tracks, query) {
+        value = DemoCatalog.search(query).items
+    }
     val audioOutput = rememberSampleAudioOutput()
     val audio = remember(audioOutput) { SampleAudioPlayer(audioOutput) }
     var audioState by remember(audio) { mutableStateOf(audio.state) }
@@ -60,6 +63,7 @@ fun SenadaApp() {
         while (audioState.isActive) {
             delay(250)
             audio.refresh()
+            audio.advanceAfterEnd(model.queue, ::queueAudioSelection)
             audioState = audio.state
         }
     }
@@ -71,18 +75,30 @@ fun SenadaApp() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Text("Senada", style = MaterialTheme.typography.h4) }
-                item { Text("Lagu contoh", style = MaterialTheme.typography.h6) }
-                items(sampleTracks, key = { it.id }) { track ->
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Cari judul atau artis") },
+                        singleLine = true,
+                    )
+                }
+                item { Text("Katalog contoh", style = MaterialTheme.typography.h6) }
+                if (searchResults.isEmpty()) {
+                    item { Text("Lagu tidak ditemukan.") }
+                }
+                items(searchResults, key = { it.id }) { track ->
                     TrackRow(track) {
                         Button(onClick = { model.add(track) }) { Text("Tambah") }
                     }
                 }
                 item {
                     SampleAudioControls(
-                        title = sampleTracks.first().title,
+                        title = DemoCatalog.tracks.first().title,
                         state = audioState,
                         onPlay = { source ->
-                            audio.play(source)
+                            audio.play(sampleAudioSelection(source))
                             audioState = audio.state
                         },
                         onPause = {
@@ -96,8 +112,21 @@ fun SenadaApp() {
                     item { Text("Antrean kosong.") }
                 }
                 items(queue.entries, key = { "entry-${it.id}" }) { entry ->
+                    val isPlayingEntry = audioState.isActive && audioState.selection?.queueEntryId == entry.id
                     TrackRow(entry.track) {
-                        TextButton(onClick = { model.remove(entry.id) }) { Text("Hapus") }
+                        TextButton(onClick = {
+                            if (isPlayingEntry) audio.pause() else audio.play(queueAudioSelection(entry))
+                            audioState = audio.state
+                        }) {
+                            Text(if (isPlayingEntry) "Jeda" else "Putar")
+                        }
+                        TextButton(onClick = {
+                            model.remove(entry.id)
+                            audio.onQueueEntryRemoved(entry.id)
+                            audioState = audio.state
+                        }) {
+                            Text("Hapus")
+                        }
                     }
                 }
             }

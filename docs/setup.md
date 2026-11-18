@@ -1,13 +1,13 @@
 # Menjalankan Senada Mobile
 
-Kedua platform membuka `SenadaApp()`. Pilih **Tambah** dua kali pada lagu contoh yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean prototipe hidup di memori selama sesi aplikasi. Kedua lagu adalah contoh metadata untuk menguji antrean.
+Kedua platform membuka `SenadaApp()`. Cari lagu berdasarkan judul atau artis di katalog contoh. Pilih **Tambah** dua kali pada lagu yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean disimpan di memori selama sesi aplikasi.
 
 ## Struktur kode
 
 | Lokasi | Tanggung jawab |
 |---|---|
 | `composeApp/src/commonMain/kotlin/senada/model` | Metadata dan ID lagu. Dua entri antrean boleh merujuk ke ID lagu yang sama. |
-| `composeApp/src/commonMain/kotlin/senada/catalog` | Kontrak pencarian berhalaman dan resolusi alamat audio sementara. Implementasi provider menyusul setelah uji kelayakan. |
+| `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh yang bisa dicari, kontrak pencarian berhalaman, dan kontrak resolusi alamat audio sementara. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri. |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan ViewModel pemilik antrean. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform dan adapter Media3 serta AVPlayer untuk uji audio. |
@@ -57,7 +57,9 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 2. Saat audio terdengar, tekan **Jeda**, lalu **Putar lokal** lagi. Audio melanjutkan dari posisi terakhir.
 3. Dengan koneksi internet aktif, tekan **Putar HTTPS**. Aplikasi memulai sampel yang sama dari awal. Setelah selesai, tekan **Putar HTTPS** lagi untuk mengulang dari awal.
 
-Sampel AAC-LC dalam `.m4a` ini dibuat untuk pengujian. Versi HTTPS merujuk ke salinan file yang dipatok ke commit di repo. Pemutar dijeda saat aplikasi masuk latar belakang. Uji audio menggunakan satu sampel; antrean demo bisa diuji secara terpisah.
+Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Pemutar dijeda saat aplikasi masuk latar belakang.
+
+Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama dan tunggu sampai entri kedua mulai. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
 
 ## Pemeriksaan di GitHub
 

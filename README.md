@@ -8,7 +8,7 @@ Repositori proyek: [Zeeynrs/Senada-Mobile](https://github.com/Zeeynrs/Senada-Mob
 
 ## Status
 
-Prototipe antrean sudah diuji di emulator Android dan di satu iPhone fisik, termasuk pemasangan pembaruan di iPhone. Kamu bisa menambahkan dua lagu contoh ke antrean, memasukkan lagu yang sama lebih dari sekali, dan menghapus satu entri. Layar **Uji audio** menyediakan satu sampel yang bisa diputar dari file lokal dan HTTPS. Pencarian katalog masih dalam rencana. [Panduan uji audio](docs/setup.md#uji-audio-contoh)
+Prototipe antrean sudah diuji di emulator Android dan di satu iPhone fisik, termasuk pemasangan pembaruan di iPhone. Katalog contoh bisa dicari berdasarkan judul dan artis. Kedua lagu contoh dapat ditambahkan ke antrean, diputar, dan diteruskan ke entri berikutnya secara otomatis. Layar **Uji audio** juga menyediakan sampel dari HTTPS. Katalog dari provider eksternal masih dalam rencana. [Panduan uji audio](docs/setup.md#uji-audio-contoh)
 
 [Panduan build, struktur kode, dan pengujian](docs/setup.md)
 

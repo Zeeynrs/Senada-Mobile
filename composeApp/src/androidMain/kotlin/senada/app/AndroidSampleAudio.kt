@@ -10,7 +10,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import senada.playback.SampleAudioOutput
-import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioStatus
 
 @Composable
@@ -37,9 +36,9 @@ private class AndroidSampleAudioOutput(context: Context) : SampleAudioOutput {
             else -> SampleAudioStatus.Loading
         }
 
-    override fun play(source: SampleAudioSource, restart: Boolean) {
+    override fun play(uri: String, restart: Boolean) {
         if (restart) {
-            player.setMediaItem(MediaItem.fromUri(source.uri()))
+            player.setMediaItem(MediaItem.fromUri(uri))
             player.prepare()
         }
         player.play()

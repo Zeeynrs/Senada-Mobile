@@ -20,7 +20,6 @@ import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.Foundation.NSURL
 import senada.playback.SampleAudioOutput
-import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioStatus
 
 @Composable
@@ -45,10 +44,10 @@ private class IosSampleAudioOutput : SampleAudioOutput {
             }
         }
 
-    override fun play(source: SampleAudioSource, restart: Boolean) {
+    override fun play(uri: String, restart: Boolean) {
         if (restart) {
             player.pause()
-            val url = NSURL.URLWithString(source.uri())
+            val url = NSURL.URLWithString(uri)
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
         }
         if (player.currentItem() != null) {

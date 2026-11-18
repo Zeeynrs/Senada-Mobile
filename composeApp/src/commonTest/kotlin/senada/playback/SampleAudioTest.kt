@@ -3,16 +3,19 @@ package senada.playback
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import senada.model.Track
 
 class SampleAudioTest {
     private val output = RecordingAudioOutput()
     private val player = SampleAudioPlayer(output)
+    private val local = SampleAudioSelection("Sample", SampleAudioSource.Local, "file:///sample.m4a")
+    private val https = SampleAudioSelection("Sample", SampleAudioSource.Https, "https://example.org/sample.m4a")
 
     @Test
     fun playingTheSameSourceAfterPauseResumesTheExistingItem() {
-        player.play(SampleAudioSource.Local)
+        player.play(local)
         player.pause()
-        player.play(SampleAudioSource.Local)
+        player.play(local)
 
         assertEquals(listOf(true, false), output.restarts)
         assertEquals(1, output.pauseCount)
@@ -20,35 +23,71 @@ class SampleAudioTest {
 
     @Test
     fun selectingAnotherSourceLoadsItFromTheBeginning() {
-        player.play(SampleAudioSource.Local)
-        player.play(SampleAudioSource.Https)
+        player.play(local)
+        player.play(https)
 
         assertEquals(listOf(true, true), output.restarts)
-        assertEquals(SampleAudioSource.Https, player.state.source)
+        assertEquals(https, player.state.selection)
     }
 
     @Test
     fun playbackFailureClearsActiveStateAndCanBeRetried() {
-        player.play(SampleAudioSource.Https)
+        player.play(https)
         output.status = SampleAudioStatus.Failed
         player.refresh()
 
         assertEquals(SampleAudioStatus.Failed, player.state.status)
         assertFalse(player.state.isActive)
 
-        player.play(SampleAudioSource.Https)
+        player.play(https)
         assertEquals(listOf(true, true), output.restarts)
     }
 
     @Test
     fun finishedAudioCanBePlayedAgainFromTheBeginning() {
-        player.play(SampleAudioSource.Local)
+        player.play(local)
         output.status = SampleAudioStatus.Ended
         player.refresh()
 
         assertEquals(SampleAudioStatus.Ended, player.state.status)
-        player.play(SampleAudioSource.Local)
+        player.play(local)
         assertEquals(listOf(true, true), output.restarts)
+    }
+
+    @Test
+    fun reachingTheEndStartsTheNextDuplicateFromTheBeginning() {
+        val track = Track("demo:track:test", "Sample", listOf("Senada"), source = "demo")
+        val queue = Queue().append(track).append(track)
+        val (first, second) = queue.entries
+        player.play(local.copy(queueEntryId = first.id))
+        output.status = SampleAudioStatus.Ended
+        player.refresh()
+
+        player.advanceAfterEnd(queue) { entry ->
+            local.copy(queueEntryId = entry.id)
+        }
+
+        assertEquals(second.id, player.state.selection?.queueEntryId)
+        assertEquals(listOf(true, true), output.restarts)
+    }
+
+    @Test
+    fun choosingAnotherOccurrenceOfThePlayingTrackStartsItFromTheBeginning() {
+        player.play(local.copy(queueEntryId = 1))
+        player.play(local.copy(queueEntryId = 2))
+
+        assertEquals(2L, player.state.selection?.queueEntryId)
+        assertEquals(listOf(true, true), output.restarts)
+    }
+
+    @Test
+    fun removingTheSelectedQueueEntryStopsThePlayer() {
+        player.play(local.copy(queueEntryId = 1))
+
+        player.onQueueEntryRemoved(1)
+
+        assertEquals(SampleAudioState(), player.state)
+        assertEquals(1, output.pauseCount)
     }
 
     private class RecordingAudioOutput : SampleAudioOutput {
@@ -56,8 +95,9 @@ class SampleAudioTest {
         var pauseCount = 0
         override var status = SampleAudioStatus.Playing
 
-        override fun play(source: SampleAudioSource, restart: Boolean) {
+        override fun play(uri: String, restart: Boolean) {
             restarts += restart
+            status = SampleAudioStatus.Playing
         }
 
         override fun pause() {
