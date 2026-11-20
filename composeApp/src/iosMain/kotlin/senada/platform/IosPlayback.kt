@@ -28,10 +28,11 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
-import platform.Foundation.NSDictionary
+import platform.Foundation.NSMutableDictionary
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemPropertyArtist
@@ -43,7 +44,6 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
-import platform.UIKit.UIApplication
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlaybackController
@@ -74,7 +74,6 @@ internal object IosPlayback {
         val controller = createPlaybackController(output)
         observeInterruptions(controller)
         registerRemoteCommands(controller)
-        UIApplication.sharedApplication.beginReceivingRemoteControlEvents()
         controller.addListener(::updateNowPlaying)
         return controller
     }
@@ -149,11 +148,10 @@ internal object IosPlayback {
         track?.artists?.joinToString()?.takeIf { it.isNotEmpty() }?.let { info[MPMediaItemPropertyArtist] = it }
         state.audio.durationMs?.let { info[MPMediaItemPropertyPlaybackDuration] = NSNumber(double = it / 1_000.0) }
         // Kirim NSDictionary asli; Map Kotlin dibungkus kelas Kotlin yang bisa ditolak saat dikirim ke sistem.
+        val dictionary = NSMutableDictionary()
+        info.forEach { (key, value) -> dictionary.setObject(value, forKey = key as NSString) }
         @Suppress("UNCHECKED_CAST")
-        center.nowPlayingInfo = NSDictionary.dictionaryWithObjects(
-            objects = info.values.toList(),
-            forKeys = info.keys.toList(),
-        ) as Map<Any?, *>
+        center.nowPlayingInfo = dictionary as Map<Any?, *>
     }
 }
 
@@ -211,11 +209,7 @@ private class AvAudioOutput : SampleAudioOutput {
             val url = NSURL.URLWithString(uri)
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
         }
-        if (player.currentItem() != null) {
-            // Sesi audio aktif membuat Senada menjadi aplikasi "Now Playing" di layar kunci.
-            AVAudioSession.sharedInstance().setActive(true, error = null)
-            player.play()
-        }
+        if (player.currentItem() != null) player.play()
     }
 
     override fun pause() = player.pause()
