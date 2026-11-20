@@ -35,6 +35,10 @@ internal interface SampleAudioOutput {
     val status: SampleAudioStatus
     val positionMs: Long
     val durationMs: Long?
+
+    /** Dipanggil pemutar native saat status berubah, termasuk saat aplikasi di latar belakang. */
+    var onEvent: (() -> Unit)?
+
     fun play(uri: String, restart: Boolean)
     fun pause()
     fun seekTo(positionMs: Long)
