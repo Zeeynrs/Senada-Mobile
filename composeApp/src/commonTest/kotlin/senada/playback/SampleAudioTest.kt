@@ -6,7 +6,7 @@ import kotlin.test.assertFalse
 import senada.model.Track
 
 class SampleAudioTest {
-    private val output = RecordingAudioOutput()
+    private val output = FakeAudioOutput()
     private val player = SampleAudioPlayer(output)
     private val local = SampleAudioSelection("Sample", SampleAudioSource.Local, "file:///sample.m4a")
     private val https = SampleAudioSelection("Sample", SampleAudioSource.Https, "https://example.org/sample.m4a")
@@ -125,30 +125,5 @@ class SampleAudioTest {
 
         assertFalse(player.state.canSeek)
         assertEquals(emptyList(), output.seeks)
-    }
-
-    private class RecordingAudioOutput : SampleAudioOutput {
-        val restarts = mutableListOf<Boolean>()
-        val seeks = mutableListOf<Long>()
-        var pauseCount = 0
-        override var status = SampleAudioStatus.Playing
-        override var positionMs = 0L
-        override var durationMs: Long? = null
-
-        override fun play(uri: String, restart: Boolean) {
-            restarts += restart
-            status = SampleAudioStatus.Playing
-        }
-
-        override fun pause() {
-            pauseCount++
-        }
-
-        override fun seekTo(positionMs: Long) {
-            seeks += positionMs
-            this.positionMs = positionMs
-        }
-
-        override fun release() = Unit
     }
 }

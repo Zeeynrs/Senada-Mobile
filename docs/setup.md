@@ -8,9 +8,9 @@ Kedua platform membuka `SenadaApp()`. Cari lagu berdasarkan judul atau artis di 
 |---|---|
 | `composeApp/src/commonMain/kotlin/senada/model` | Metadata dan ID lagu. Dua entri antrean boleh merujuk ke ID lagu yang sama. |
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh yang bisa dicari, kontrak pencarian berhalaman, dan kontrak resolusi alamat audio sementara. |
-| `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri. |
-| `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan ViewModel pemilik antrean. |
-| `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform dan adapter Media3 serta AVPlayer untuk uji audio. |
+| `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
+| `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose dan data contoh. Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
+| `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
 | `composeApp/src/commonTest` | Tes Kotlin yang sama dijalankan melalui Android unit test atau simulator iOS. |
 
@@ -57,9 +57,21 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 2. Saat audio terdengar, tekan **Jeda**, lalu **Putar lokal** lagi. Audio melanjutkan dari posisi terakhir.
 3. Dengan koneksi internet aktif, tekan **Putar HTTPS**. Aplikasi memulai sampel yang sama dari awal. Setelah selesai, tekan **Putar HTTPS** lagi untuk mengulang dari awal.
 
-Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Pemutar dijeda saat aplikasi masuk latar belakang.
+Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Audio tetap berjalan saat aplikasi masuk latar belakang atau layar dikunci.
 
-Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
+Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Setelah lebih dari 3 detik diputar, **Sebelumnya** kembali ke awal lagu yang sama; tekan sekali lagi dalam 3 detik pertama untuk pindah ke entri sebelumnya. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
+
+## Uji pemutaran latar belakang
+
+Lakukan di iPhone fisik dan Android (emulator boleh untuk iterasi, perangkat fisik sebelum beta).
+
+1. Tambahkan kedua lagu contoh ke antrean dan putar entri pertama.
+2. Kunci layar. Audio tetap terdengar dan berlanjut otomatis ke entri kedua. Layar kunci menampilkan judul, artis, durasi dan tombol putar/jeda, sebelumnya dan berikutnya. Di Android, kontrol yang sama muncul sebagai notifikasi media.
+3. Dari layar kunci, tekan jeda, putar, berikutnya dan sebelumnya, lalu geser posisi bila tersedia. Buka kembali aplikasi; status di layar Senada sama dengan layar kunci.
+4. Saat audio diputar, pindah ke aplikasi lain lalu kembali. Audio tidak berhenti.
+5. Saat audio diputar dengan headset tersambung, lepaskan headset. Audio harus berhenti dan tidak mulai sendiri.
+6. iPhone: saat audio diputar, terima atau mulai panggilan (atau putar video di aplikasi lain). Setelah selesai, audio hanya melanjutkan bila sebelumnya sedang diputar dan sistem mengizinkannya. Jika dijeda manual sebelum interupsi, audio tetap diam.
+7. Catat hasil, versi build, model perangkat dan versi OS. Uji layar terkunci 30 menit dan sesi 60 menit menjadi syarat penutup tahap pemutaran sistem di roadmap.
 
 ## Pemeriksaan di GitHub
 

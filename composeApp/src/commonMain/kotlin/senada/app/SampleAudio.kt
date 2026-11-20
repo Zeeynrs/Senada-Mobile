@@ -19,9 +19,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToLong
+import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import senada.catalog.DemoCatalog
 import senada.model.Track
+import senada.playback.PlaybackController
 import senada.playback.QueueItem
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioSelection
@@ -51,8 +53,9 @@ private fun localAudioSelection(track: Track, queueEntryId: Long? = null): Sampl
     return SampleAudioSelection(track.title, SampleAudioSource.Local, Res.getUri(path), queueEntryId)
 }
 
-@Composable
-internal expect fun rememberSampleAudioOutput(): SampleAudioOutput
+/** Satu controller untuk seluruh proses aplikasi; dibuat oleh titik masuk Android atau iOS. */
+internal fun createPlaybackController(output: SampleAudioOutput): PlaybackController =
+    PlaybackController(output, MainScope(), selectionFor = ::queueAudioSelection)
 
 @Composable
 internal fun SampleAudioControls(
@@ -61,7 +64,8 @@ internal fun SampleAudioControls(
     onPlay: (SampleAudioSource) -> Unit,
     onPause: () -> Unit,
     onSeek: (Long) -> Unit,
-    onMove: (Int) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
 ) {
@@ -78,9 +82,9 @@ internal fun SampleAudioControls(
         }
         PlaybackProgress(state, onSeek)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { onMove(-1) }, enabled = canGoPrevious) { Text("Sebelumnya") }
+            TextButton(onClick = onPrevious, enabled = canGoPrevious) { Text("Sebelumnya") }
             TextButton(onClick = onPause, enabled = state.isActive) { Text("Jeda") }
-            TextButton(onClick = { onMove(1) }, enabled = canGoNext) { Text("Berikutnya") }
+            TextButton(onClick = onNext, enabled = canGoNext) { Text("Berikutnya") }
         }
 
         val status = when (state.status) {

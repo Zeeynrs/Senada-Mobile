@@ -24,14 +24,16 @@ kotlin {
             implementation(compose.material)
             implementation(compose.components.resources)
             implementation(libs.lifecycle.runtime.compose)
-            implementation(libs.lifecycle.viewmodel.compose)
+            implementation(libs.kotlinx.coroutines.core)
         }
         androidMain.dependencies {
             implementation(libs.activity.compose)
             implementation(libs.media3.exoplayer)
+            implementation(libs.media3.session)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
