@@ -28,6 +28,7 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
+import platform.Foundation.NSDictionary
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
@@ -42,6 +43,7 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
+import platform.UIKit.UIApplication
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlaybackController
@@ -72,6 +74,7 @@ internal object IosPlayback {
         val controller = createPlaybackController(output)
         observeInterruptions(controller)
         registerRemoteCommands(controller)
+        UIApplication.sharedApplication.beginReceivingRemoteControlEvents()
         controller.addListener(::updateNowPlaying)
         return controller
     }
@@ -137,7 +140,7 @@ internal object IosPlayback {
         }
 
         val track = state.currentEntry?.track
-        val info = mutableMapOf<Any?, Any?>(
+        val info = linkedMapOf<String, Any>(
             MPMediaItemPropertyTitle to (track?.title ?: selection.title),
             MPNowPlayingInfoPropertyElapsedPlaybackTime to NSNumber(double = state.audio.positionMs / 1_000.0),
             MPNowPlayingInfoPropertyPlaybackRate to
@@ -145,7 +148,12 @@ internal object IosPlayback {
         )
         track?.artists?.joinToString()?.takeIf { it.isNotEmpty() }?.let { info[MPMediaItemPropertyArtist] = it }
         state.audio.durationMs?.let { info[MPMediaItemPropertyPlaybackDuration] = NSNumber(double = it / 1_000.0) }
-        center.nowPlayingInfo = info
+        // Kirim NSDictionary asli; Map Kotlin dibungkus kelas Kotlin yang bisa ditolak saat dikirim ke sistem.
+        @Suppress("UNCHECKED_CAST")
+        center.nowPlayingInfo = NSDictionary.dictionaryWithObjects(
+            objects = info.values.toList(),
+            forKeys = info.keys.toList(),
+        ) as Map<Any?, *>
     }
 }
 
@@ -203,7 +211,11 @@ private class AvAudioOutput : SampleAudioOutput {
             val url = NSURL.URLWithString(uri)
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
         }
-        if (player.currentItem() != null) player.play()
+        if (player.currentItem() != null) {
+            // Sesi audio aktif membuat Senada menjadi aplikasi "Now Playing" di layar kunci.
+            AVAudioSession.sharedInstance().setActive(true, error = null)
+            player.play()
+        }
     }
 
     override fun pause() = player.pause()
