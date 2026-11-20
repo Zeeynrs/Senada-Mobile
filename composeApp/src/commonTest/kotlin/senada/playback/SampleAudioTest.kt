@@ -3,7 +3,6 @@ package senada.playback
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import senada.model.Track
 
 class SampleAudioTest {
     private val output = FakeAudioOutput()
@@ -51,23 +50,6 @@ class SampleAudioTest {
 
         assertEquals(SampleAudioStatus.Ended, player.state.status)
         player.play(local)
-        assertEquals(listOf(true, true), output.restarts)
-    }
-
-    @Test
-    fun reachingTheEndStartsTheNextDuplicateFromTheBeginning() {
-        val track = Track("demo:track:test", "Sample", listOf("Senada"), source = "demo")
-        val queue = Queue().append(track).append(track)
-        val (first, second) = queue.entries
-        player.play(local.copy(queueEntryId = first.id))
-        output.status = SampleAudioStatus.Ended
-        player.refresh()
-
-        player.advanceAfterEnd(queue) { entry ->
-            local.copy(queueEntryId = entry.id)
-        }
-
-        assertEquals(second.id, player.state.selection?.queueEntryId)
         assertEquals(listOf(true, true), output.restarts)
     }
 

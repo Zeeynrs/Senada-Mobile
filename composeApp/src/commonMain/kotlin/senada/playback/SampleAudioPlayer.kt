@@ -3,6 +3,7 @@ package senada.playback
 internal enum class SampleAudioSource {
     Local,
     Https,
+    YouTubeMusic,
 }
 
 internal data class SampleAudioSelection(
@@ -10,7 +11,16 @@ internal data class SampleAudioSelection(
     val source: SampleAudioSource,
     val uri: String,
     val queueEntryId: Long? = null,
-)
+) {
+    /** Entri antrean yang alamat audionya belum didapat. */
+    val isPending get() = uri.isEmpty()
+
+    companion object {
+        /** Sumber baru diketahui setelah alamat didapat; status Loading tidak menampilkannya. */
+        fun pending(title: String, queueEntryId: Long) =
+            SampleAudioSelection(title, SampleAudioSource.Https, uri = "", queueEntryId)
+    }
+}
 
 internal enum class SampleAudioStatus {
     Idle,
@@ -49,7 +59,24 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     var state = SampleAudioState()
         private set
 
+    /** Selama alamat audio dicari, status pemutar native tidak mewakili lagu yang dipilih. */
+    private var awaitingSource = false
+
+    /** Memilih lagu yang alamatnya sedang dicari: audio lama berhenti dan status menjadi Loading. */
+    fun prepare(selection: SampleAudioSelection) {
+        if (state.isActive && !awaitingSource) output.pause()
+        awaitingSource = true
+        state = SampleAudioState(selection, SampleAudioStatus.Loading)
+    }
+
+    /** Alamat audio tidak dapat disiapkan; pilihan tetap ada agar bisa dicoba lagi. */
+    fun failPreparing() {
+        awaitingSource = false
+        state = state.copy(status = SampleAudioStatus.Failed)
+    }
+
     fun play(selection: SampleAudioSelection) {
+        awaitingSource = false
         refresh()
         val sameSelection = state.selection == selection
         if (sameSelection && state.isActive) return
@@ -65,6 +92,11 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     }
 
     fun pause() {
+        if (awaitingSource) {
+            awaitingSource = false
+            state = state.copy(status = SampleAudioStatus.Paused)
+            return
+        }
         refresh()
         if (!state.isActive) return
 
@@ -73,7 +105,7 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     }
 
     fun refresh() {
-        if (!state.isActive) return
+        if (awaitingSource || !state.isActive) return
 
         val status = output.status
         val duration = output.durationMs?.takeIf { it > 0 }
@@ -93,14 +125,9 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         state = state.copy(positionMs = target)
     }
 
-    fun advanceAfterEnd(queue: Queue, selectionFor: (QueueItem) -> SampleAudioSelection) {
-        if (state.status != SampleAudioStatus.Ended) return
-        val nextEntry = queue.adjacentTo(state.selection?.queueEntryId, 1) ?: return
-        play(selectionFor(nextEntry))
-    }
-
     fun onQueueEntryRemoved(entryId: Long) {
         if (state.selection?.queueEntryId != entryId) return
+        awaitingSource = false
         output.pause()
         state = SampleAudioState()
     }

@@ -22,6 +22,7 @@ import kotlin.math.roundToLong
 import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import senada.catalog.DemoCatalog
+import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
@@ -40,12 +41,22 @@ internal fun sampleAudioSelection(source: SampleAudioSource): SampleAudioSelecti
     val track = DemoCatalog.tracks.first()
     return when (source) {
         SampleAudioSource.Local -> localAudioSelection(track)
-        SampleAudioSource.Https -> SampleAudioSelection(track.title, source, HTTPS_SAMPLE)
+        // Tombol uji hanya memakai file lokal dan satu URL HTTPS tetap.
+        SampleAudioSource.Https, SampleAudioSource.YouTubeMusic ->
+            SampleAudioSelection(track.title, SampleAudioSource.Https, HTTPS_SAMPLE)
     }
 }
 
-internal fun queueAudioSelection(entry: QueueItem): SampleAudioSelection =
-    localAudioSelection(entry.track, entry.id)
+/** Alamat audio entri antrean: file contoh di aplikasi, atau stream YouTube Music yang dicari saat diputar. */
+internal suspend fun queueAudioSelection(entry: QueueItem): SampleAudioSelection = when (entry.track.source) {
+    YOUTUBE_MUSIC_SOURCE -> SampleAudioSelection(
+        entry.track.title,
+        SampleAudioSource.YouTubeMusic,
+        SenadaSources.streams.resolve(entry.track).location,
+        entry.id,
+    )
+    else -> localAudioSelection(entry.track, entry.id)
+}
 
 @OptIn(ExperimentalResourceApi::class)
 private fun localAudioSelection(track: Track, queueEntryId: Long? = null): SampleAudioSelection {
@@ -68,6 +79,7 @@ internal fun SampleAudioControls(
     onNext: () -> Unit,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    problem: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Uji audio", style = MaterialTheme.typography.h6)
@@ -93,11 +105,12 @@ internal fun SampleAudioControls(
             SampleAudioStatus.Playing -> when (state.selection?.source) {
                 SampleAudioSource.Local -> "Memutar file lokal"
                 SampleAudioSource.Https -> "Memutar dari HTTPS"
+                SampleAudioSource.YouTubeMusic -> "Memutar dari YouTube Music"
                 null -> null
             }
             SampleAudioStatus.Paused -> "Dijeda"
             SampleAudioStatus.Ended -> "Pemutaran selesai"
-            SampleAudioStatus.Failed -> "Audio gagal diputar. Coba lagi."
+            SampleAudioStatus.Failed -> problem ?: "Audio gagal diputar. Coba lagi."
         }
         val selectedTitle = state.selection?.title
         if (status != null && selectedTitle != null) {
@@ -126,7 +139,7 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
     Text("${playbackTime(shownPosition)} / ${playbackTime(duration)}", style = MaterialTheme.typography.body2)
 }
 
-private fun playbackTime(positionMs: Long): String {
+internal fun playbackTime(positionMs: Long): String {
     val seconds = positionMs / 1_000
     return "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}"
 }

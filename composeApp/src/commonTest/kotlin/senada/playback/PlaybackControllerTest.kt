@@ -3,11 +3,14 @@ package senada.playback
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import senada.catalog.CatalogException
 import senada.model.Track
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -21,6 +24,18 @@ class PlaybackControllerTest {
     }
 
     private val PlaybackController.selectedEntryId get() = state.value.audio.selection?.queueEntryId
+
+    private fun selection(entry: QueueItem) =
+        SampleAudioSelection(entry.track.title, SampleAudioSource.YouTubeMusic, "https://audio/${entry.id}", entry.id)
+
+    /** Alamat audio tiap entri baru tersedia saat tes menyelesaikannya. */
+    private val addresses = mutableMapOf<Long, CompletableDeferred<SampleAudioSelection>>()
+
+    private fun TestScope.waitingController() = PlaybackController(output, backgroundScope) { entry ->
+        addresses.getOrPut(entry.id) { CompletableDeferred() }.await()
+    }
+
+    private fun address(entry: QueueItem) = addresses.getOrPut(entry.id) { CompletableDeferred() }
 
     @Test
     fun hidingTheUiKeepsAudioPlaying() = runTest {
@@ -203,5 +218,148 @@ class PlaybackControllerTest {
 
         assertNull(playback.state.value.audio.selection)
         assertEquals(emptyList(), playback.state.value.queue.entries)
+    }
+
+    @Test
+    fun waitingForAnAddressShowsLoadingThenPlays() = runTest {
+        val playback = waitingController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+
+        playback.playEntry(entry.id)
+        assertEquals(SampleAudioStatus.Loading, playback.state.value.audio.status)
+        assertTrue(playback.state.value.audio.selection!!.isPending)
+        assertEquals(emptyList(), output.restarts)
+
+        address(entry).complete(selection(entry))
+        runCurrent()
+
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+        assertEquals("https://audio/${entry.id}", playback.state.value.audio.selection?.uri)
+        assertEquals(listOf(true), output.restarts)
+    }
+
+    @Test
+    fun theNewestChoiceWinsWhenAnEarlierAddressArrivesLate() = runTest {
+        val playback = waitingController()
+        playback.add(first)
+        playback.add(second)
+        val (firstEntry, secondEntry) = playback.state.value.queue.entries
+
+        playback.playEntry(firstEntry.id)
+        playback.playEntry(secondEntry.id)
+        address(secondEntry).complete(selection(secondEntry))
+        runCurrent()
+        address(firstEntry).complete(selection(firstEntry))
+        runCurrent()
+
+        assertEquals(secondEntry.id, playback.selectedEntryId)
+        assertEquals(listOf(true), output.restarts)
+    }
+
+    @Test
+    fun aFailedAddressKeepsTheEntryAndPlayRetries() = runTest {
+        var attempts = 0
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            attempts++
+            if (attempts == 1) throw CatalogException(CatalogException.Kind.Network, "offline")
+            selection(entry)
+        }
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+
+        playback.playEntry(entry.id)
+        assertEquals(SampleAudioStatus.Failed, playback.state.value.audio.status)
+        assertEquals(
+            CatalogException(CatalogException.Kind.Network, "").userMessage,
+            playback.state.value.problem,
+        )
+        assertEquals(listOf(entry), playback.state.value.queue.entries)
+
+        playback.resume()
+
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+        assertNull(playback.state.value.problem)
+        assertEquals(2, attempts)
+    }
+
+    @Test
+    fun theNextAddressIsPreparedWhilePlayingSoTheEndAdvancesAtOnce() = runTest {
+        val calls = mutableMapOf<Long, Int>()
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            calls[entry.id] = (calls[entry.id] ?: 0) + 1
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        val (firstEntry, secondEntry) = playback.state.value.queue.entries
+        playback.playEntry(firstEntry.id)
+        runCurrent()
+        assertEquals(1, calls[secondEntry.id])
+
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(secondEntry.id, playback.selectedEntryId)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+        assertEquals(1, calls[secondEntry.id])
+    }
+
+    @Test
+    fun aFailingNextEntryStopsInsteadOfSkippingAhead() = runTest {
+        val third = Track("demo:track:malam", "Tengah Malam", listOf("Senada"), source = "demo")
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            if (entry.track == second) throw CatalogException(CatalogException.Kind.Unavailable, "gone")
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        playback.add(third)
+        val (firstEntry, secondEntry) = playback.state.value.queue.entries
+        playback.playEntry(firstEntry.id)
+        runCurrent()
+
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(secondEntry.id, playback.selectedEntryId)
+        assertEquals(SampleAudioStatus.Failed, playback.state.value.audio.status)
+    }
+
+    @Test
+    fun pausingWhileWaitingStaysPausedUntilResumed() = runTest {
+        val playback = waitingController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+
+        playback.pause()
+        address(entry).complete(selection(entry))
+        runCurrent()
+        assertEquals(SampleAudioStatus.Paused, playback.state.value.audio.status)
+        assertEquals(emptyList(), output.restarts)
+
+        playback.resume()
+
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+        assertEquals(listOf(true), output.restarts)
+    }
+
+    @Test
+    fun theEndOfADuplicateEntryStartsTheNextCopyFromTheBeginning() = runTest {
+        val playback = controller()
+        playback.add(first)
+        playback.add(first)
+        val (firstEntry, secondEntry) = playback.state.value.queue.entries
+        playback.playEntry(firstEntry.id)
+
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(secondEntry.id, playback.selectedEntryId)
+        assertEquals(listOf(true, true), output.restarts)
     }
 }
