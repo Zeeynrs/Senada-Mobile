@@ -25,15 +25,22 @@ kotlin {
             implementation(compose.components.resources)
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
         }
         androidMain.dependencies {
             implementation(libs.activity.compose)
+            implementation(libs.ktor.client.okhttp)
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.session)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
