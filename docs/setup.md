@@ -73,6 +73,13 @@ Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu 
 4. Putar dua lagu dari antrean. Keduanya muncul di tab **Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
 5. Tutup aplikasi sepenuhnya lalu buka lagi. Favorit, playlist dan riwayat tetap ada, termasuk tanpa internet.
 
+## Uji impor file audio
+
+1. Di tab **Cari**, tekan **Impor file audio** dan pilih satu lagu dari ponsel (misalnya `.m4a` atau `.mp3` di Files/Unduhan). Senada menyalinnya ke penyimpanan aplikasi, menambahkannya ke antrean, dan menampilkan judul (dari nama file) beserta ukurannya.
+2. Putar lagu itu, kunci layar, dan pastikan kontrol layar kunci bekerja seperti lagu lain. Lirik tidak dicari untuk file impor.
+3. Tambahkan lagu impor ke favorit atau playlist lewat menu **⋯**, tutup aplikasi, buka lagi, lalu putar dari library. Lagu tetap bisa diputar karena yang dipakai adalah salinannya.
+4. Hapus atau pindahkan file aslinya di ponsel; lagu di Senada tetap bisa diputar. Ekspor backup tidak membawa lagu impor karena backup tidak berisi file audio.
+
 ## Uji backup
 
 1. Di tab **Pengaturan**, tekan **Ekspor backup** lalu simpan file ke Files/iCloud Drive (iPhone) atau penyimpanan/Drive (Android). Nama bawaannya `Senada backup <tanggal>.json`.

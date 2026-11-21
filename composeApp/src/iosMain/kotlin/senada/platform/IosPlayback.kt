@@ -90,7 +90,7 @@ internal object IosPlayback {
             error = null,
         )
         val output = AvAudioOutput()
-        val controller = createPlaybackController(output, IosQueueStore())
+        val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles())
         for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
             observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
                 controller.saveQueueNow()

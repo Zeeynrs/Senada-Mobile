@@ -3,6 +3,7 @@ package senada.backup
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.withContext
+import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.library.LibraryRepository
 import senada.library.encodeArtists
 import senada.library.trackOf
@@ -53,7 +54,14 @@ internal suspend fun LibraryRepository.exportBackup(createdIso: String = isoNow(
                 BackupPlaylist(id, name, description, createdAt, items[id].orEmpty())
             }.executeAsList()
             val saved = queries.savedItems { kind, id, metadata, _ -> BackupSavedItem(kind, id, metadata) }.executeAsList()
-            BackupDocument(liked, playlists, saved, history)
+            // Backup tidak membawa file audio; lagu impor lokal hanya berlaku di ponsel ini.
+            fun List<Track>.streamable() = filter { it.source == YOUTUBE_MUSIC_SOURCE }
+            BackupDocument(
+                liked = liked.filter { it.track.source == YOUTUBE_MUSIC_SOURCE },
+                playlists = playlists.map { it.copy(tracks = it.tracks.streamable()) },
+                saved = saved,
+                history = history.filter { it.track.source == YOUTUBE_MUSIC_SOURCE },
+            )
         }
         BackupCodec.encode(document, createdIso)
     }

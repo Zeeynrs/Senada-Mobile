@@ -129,6 +129,23 @@ class LibraryBackupTest {
     }
 
     @Test
+    fun imported_local_files_stay_out_of_the_backup() = runTest {
+        val library = library()
+        val local = Track("local:a1b2.mp3", "Rekaman", emptyList(), source = "local")
+        library.setFavorite(local, true)
+        library.setFavorite(pagi, true)
+        library.createPlaylist("Campur", listOf(local, senja))
+        library.recordPlay(local)
+
+        val reread = BackupCodec.decode(library.exportBackup("x"))
+
+        assertEquals(listOf(pagi), reread.liked.map { it.track })
+        assertEquals(listOf(senja), reread.playlists.single().tracks)
+        assertEquals(emptyList(), reread.history)
+        assertFalse("local:" in library.exportBackup("x"))
+    }
+
+    @Test
     fun repeat_import_is_idempotent() = runTest {
         val library = library()
         library.importBackup(desktopBackup)

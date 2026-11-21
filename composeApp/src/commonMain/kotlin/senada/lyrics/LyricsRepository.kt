@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import senada.local.LOCAL_FILE_SOURCE
 import senada.model.Track
 
 internal sealed interface LyricsDocument {
@@ -37,7 +38,8 @@ internal class LyricsRepository(private val http: HttpClient) {
     private val cacheLock = Mutex()
 
     suspend fun get(track: Track): LyricsDocument {
-        if (track.source == "demo") return LyricsDocument.Unavailable
+        // File impor hanya punya nama file; mencari dengan judul saja mudah salah lagu.
+        if (track.source == "demo" || track.source == LOCAL_FILE_SOURCE) return LyricsDocument.Unavailable
         return cacheLock.withLock {
             cache[track.id] ?: withContext(Dispatchers.Default) { fetch(track) }.also { cache[track.id] = it }
         }

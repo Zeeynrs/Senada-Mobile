@@ -134,6 +134,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                                 singleLine = true,
                             )
                         }
+                        item { ImportAudioButton(onImported = playback::add) }
                         searchResults(
                             search = search,
                             library = libraryState,
