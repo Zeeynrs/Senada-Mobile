@@ -96,6 +96,20 @@ def wait_session(
     return wait_for(matches, timeout)
 
 
+def pause_for_setup(title: str) -> dict[str, str] | None:
+    def request_pause():
+        current = session()
+        if current and title in current["description"]:
+            if current["state"] == "PAUSED":
+                return current
+            if current["state"] == "PLAYING":
+                shell("cmd media_session dispatch pause")
+        return None
+
+    # Sesi baru bisa melaporkan PLAYING sebelum sistem meneruskan tombol media kepadanya.
+    return wait_for(request_pause, 5, interval=0.25)
+
+
 def media_notification() -> str:
     out = shell("dumpsys notification --noredact")
     records = [line.strip() for line in out.splitlines() if "NotificationRecord(" in line and f"pkg={PKG}" in line]
@@ -198,15 +212,15 @@ def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> No
 def check_app_navigation() -> None:
     second = tap_text("Berikutnya", scrolls=0) and wait_session("PLAYING", SECOND, 5)
     # Bekukan posisi entri kedua sebelum pencarian tombol lewat uiautomator.
-    shell("cmd media_session dispatch pause")
-    early = second and wait_session("PAUSED", SECOND, 3, max_ms=2_999)
+    paused = second and pause_for_setup(SECOND)
+    early = paused and int(paused["position"]) < 3_000
     check(second, "Tombol 'Berikutnya' di aplikasi memutar entri kedua", second or session())
 
     first = early and tap_text("Sebelumnya", scrolls=0) and wait_session("PLAYING", FIRST, 5)
     check(
         first,
         "Tombol 'Sebelumnya' di aplikasi sebelum 3 detik kembali ke entri pertama",
-        f"posisi entri kedua: {early or session()}, hasil: {first}",
+        f"posisi entri kedua: {paused or session()}, hasil: {first}",
     )
 
 
@@ -261,8 +275,7 @@ def scenario() -> None:
         return
 
     # Ambil koordinat saat dijeda; kontrol Putar dan Jeda menempati tombol yang sama.
-    shell("cmd media_session dispatch pause")
-    ready = wait_session("PAUSED", FIRST, 5)
+    ready = pause_for_setup(FIRST)
     buttons = ui_points("Putar") if ready else []
     if not check(buttons, "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
         return
@@ -301,8 +314,7 @@ def scenario() -> None:
         check_paused_seek(play_pause, before_seek)
 
     # Jeda selama pencarian Berikutnya agar lagu pertama tidak berpindah otomatis.
-    shell("cmd media_session dispatch pause")
-    wait_session("PAUSED", FIRST, 5)
+    pause_for_setup(FIRST)
     check_app_navigation()
 
     shell("input keyevent KEYCODE_HOME")
