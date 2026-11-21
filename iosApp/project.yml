@@ -21,7 +21,8 @@ targets:
         FRAMEWORK_SEARCH_PATHS:
           - "$(inherited)"
           - '"$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
-        OTHER_LDFLAGS: "$(inherited) -framework SenadaShared"
+        # Framework Kotlin statis tidak membawa opsi linker; driver SQLDelight butuh SQLite sistem.
+        OTHER_LDFLAGS: "$(inherited) -framework SenadaShared -lsqlite3"
     preBuildScripts:
       - name: Build SenadaShared
         basedOnDependencyAnalysis: false
