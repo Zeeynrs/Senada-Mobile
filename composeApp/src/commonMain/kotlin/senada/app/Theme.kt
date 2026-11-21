@@ -3,7 +3,9 @@ package senada.app
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +19,9 @@ import senada.app.theme.senadaColorScheme
 import senada.app.theme.senadaTypography
 
 private val artworkColors = ArtworkAccentCache()
+
+/** Aksen sampul asli agar layar gelap dapat menghitung kontrasnya sendiri di tema terang. */
+internal val LocalArtworkAccent = compositionLocalOf<Color?> { null }
 
 internal class AppearancePreferences(private val store: AppearanceStore) {
     var settings by mutableStateOf<Appearance?>(null)
@@ -56,5 +61,7 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
         if (url != null && visible) source = artworkColors.get(url) { loadArtworkAccent(context, url) }
     }
     val colors = remember(dark, source) { senadaColorScheme(dark, source) }
-    MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
+    CompositionLocalProvider(LocalArtworkAccent provides source) {
+        MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
+    }
 }

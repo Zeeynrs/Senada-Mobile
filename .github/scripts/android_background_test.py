@@ -248,7 +248,7 @@ def open_shade(name: str) -> None:
     time.sleep(1)
 
 
-def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> None:
+def check_paused_seek(before: dict[str, str]) -> None:
     name = "Slider saat dijeda berpindah ke tengah, tetap diam, lalu maju setelah Putar"
     sliders = ui_bounds("Posisi pemutaran", attribute="content-desc")
     if not check(sliders, "Slider 'Posisi pemutaran' terlihat"):
@@ -270,8 +270,7 @@ def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> No
     held = session()
     stayed = held and held["state"] == "PAUSED" and FIRST in held["description"] and int(held["position"]) == sought_ms
 
-    tap(play_pause)
-    resumed = wait_session("PLAYING", FIRST, 4)
+    resumed = tap_desc("Putar") and wait_session("PLAYING", FIRST, 4)
     resumed_ms = int(resumed["position"]) if resumed else -1
     advanced = resumed and wait_session("PLAYING", FIRST, 3, min_ms=resumed_ms + 500)
     check(
@@ -282,13 +281,13 @@ def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> No
 
 
 def check_app_navigation() -> None:
-    second = tap_text("Berikutnya", scrolls=0) and wait_session("PLAYING", SECOND, 5)
+    second = tap_desc("Berikutnya") and wait_session("PLAYING", SECOND, 5)
     # Bekukan posisi entri kedua sebelum pencarian tombol lewat uiautomator.
     paused = second and pause_for_setup(SECOND)
     early = paused and int(paused["position"]) < 3_000
     check(second, "Tombol 'Berikutnya' di aplikasi memutar entri kedua", second or session())
 
-    first = early and tap_text("Sebelumnya", scrolls=0) and wait_session("PLAYING", FIRST, 5)
+    first = early and tap_desc("Sebelumnya") and wait_session("PLAYING", FIRST, 5)
     check(
         first,
         "Tombol 'Sebelumnya' di aplikasi sebelum 3 detik kembali ke entri pertama",
@@ -432,7 +431,9 @@ def check_large_font_accessibility() -> None:
         ("Tambah", "text"),
     ]
     cari_found = collect_while_scrolling(cari_targets, scrolls=7, save_first="06-large-font-ui.xml")
-    player_targets = [("Sebelumnya", "text"), ("Berikutnya", "text"), ("Tutup", "content-desc")]
+    player_targets = [
+        (label, "content-desc") for label in ("Tutup", "Sebelumnya", "Berikutnya", "Acak: mati", "Ulangi: mati")
+    ]
     player_found = collect_while_scrolling(player_targets, scrolls=4) if open_now_playing() else {}
     shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
@@ -523,15 +524,10 @@ def scenario() -> None:
         screenshot("02-ui")
         return
 
-    # Ambil koordinat saat dijeda; kontrol Putar dan Jeda menempati tombol yang sama.
     ready = pause_for_setup(FIRST)
-    buttons = ui_points("Putar") if ready else []
-    if not check(buttons, "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
+    if not check(ready and tap_desc("Putar"), "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
         return
-    play_pause = buttons[0]
-    tap(play_pause)
-    if wait_session("PLAYING", FIRST, 5, min_ms=1_500):
-        tap(play_pause)
+    if wait_session("PLAYING", FIRST, 5, min_ms=1_500) and tap_desc("Jeda"):
         paused = wait_session("PAUSED", FIRST, 5)
     else:
         paused = None
@@ -550,8 +546,7 @@ def scenario() -> None:
     open_shade("03-notification")
 
     paused_at = int(paused["position"])
-    tap(play_pause)
-    resumed = wait_session("PLAYING", FIRST, 5)
+    resumed = tap_desc("Putar") and wait_session("PLAYING", FIRST, 5)
     if not check(
         resumed and paused_at >= 1_000 and int(resumed["position"]) >= paused_at - 300,
         "Tombol 'Putar' di aplikasi melanjutkan dari posisi terakhir",
@@ -559,14 +554,13 @@ def scenario() -> None:
     ):
         return
 
-    tap(play_pause)
-    before_seek = wait_session("PAUSED", FIRST, 5)
+    before_seek = tap_desc("Jeda") and wait_session("PAUSED", FIRST, 5)
     if before_seek:
         # Entri pertama kembali ke awal tanpa memutar audio agar jarak geser selalu cukup.
         shell("cmd media_session dispatch previous")
         before_seek = wait_session("PAUSED", FIRST, 5, max_ms=1_000)
     if check(before_seek, "Entri pertama dijeda untuk uji slider", before_seek or session()):
-        check_paused_seek(play_pause, before_seek)
+        check_paused_seek(before_seek)
 
     # Jeda selama pencarian Berikutnya agar lagu pertama tidak berpindah otomatis.
     pause_for_setup(FIRST)
