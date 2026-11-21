@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
+import senada.app.shell.SenadaIcons
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
@@ -150,8 +152,11 @@ internal fun TrackMenu(
             onClick = { open = true },
             modifier = Modifier.minTouchTarget().semantics { contentDescription = "Buka menu ${track.title}" },
         ) {
-            // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
-            Text("⋯", style = MaterialTheme.typography.titleLarge, modifier = Modifier.clearAndSetSemantics {})
+            Icon(
+                imageVector = SenadaIcons.More,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(if (favorite) "Hapus dari favorit" else "Tambah ke favorit") }, onClick = {

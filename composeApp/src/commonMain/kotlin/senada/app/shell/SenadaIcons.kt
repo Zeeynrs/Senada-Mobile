@@ -39,6 +39,20 @@ internal object SenadaIcons {
     val Heart = stroke("Heart", HEART)
     val HeartFilled = fill("HeartFilled", HEART)
     val ChevronDown = stroke("ChevronDown", "M6 9l6 6 6-6")
+    val ChevronRight = stroke("ChevronRight", "M9 6l6 6-6 6")
+    val Clock = stroke("Clock", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z", "M12 7v5l3.5 2")
+    val Import = stroke(
+        "Import",
+        "M12 3v12",
+        "M8 11l4 4 4-4",
+        "M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2",
+    )
+    val MusicNote = stroke(
+        "MusicNote",
+        "M9 18V6l11-2v12",
+        "M6.5 16a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5Z",
+        "M17.5 14a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5Z",
+    )
     val More = fill(
         "More",
         "M5 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4Z", "M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4Z", "M19 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4Z",

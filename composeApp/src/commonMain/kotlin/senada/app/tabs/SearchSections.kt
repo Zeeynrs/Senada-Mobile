@@ -1,10 +1,16 @@
 package senada.app.tabs
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
@@ -35,48 +41,73 @@ internal fun LazyListScope.searchResults(
     onLoadMore: () -> Unit,
     onResultUsed: () -> Unit,
 ) {
-    item {
+    item(key = "search-results-heading") {
         val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
-        Text(heading, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+        Text(
+            heading,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.semantics { heading() },
+        )
     }
     if (search.loading && search.tracks.isEmpty()) {
-        item {
-            Text("Mencari…", modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-        }
-    }
-    search.error?.let { message ->
-        item {
-            AdaptiveRow(
-                modifier = Modifier.fillMaxWidth(),
-                minPrimaryWidth = 160.dp,
-                primary = {
-                    Text(
-                        message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                },
-                trailing = {
-                    TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
-                },
+        item(key = "search-loading") {
+            Text(
+                "Mencari…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
     }
+    search.error?.let { message ->
+        item(key = "search-error") {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                AdaptiveRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    minPrimaryWidth = 160.dp,
+                    primary = {
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    },
+                    trailing = {
+                        TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
+                    },
+                )
+            }
+        }
+    }
     if (!search.loading && search.error == null && search.tracks.isEmpty()) {
-        item {
+        item(key = "search-empty") {
             Text(
                 "Lagu tidak ditemukan.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
     }
     items(search.tracks, key = { "result-${it.id}" }) { track ->
         TrackRow(track, favorite = track.id in library.favoriteIds) {
-            Button(
+            FilledTonalButton(
                 onClick = {
                     onResultUsed()
                     actions.enqueue(track)
                 },
+                shape = CircleShape,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.minTouchTarget().semantics {
                     contentDescription = "Tambah ${track.title} ke antrean"
                 },
@@ -85,8 +116,13 @@ internal fun LazyListScope.searchResults(
         }
     }
     if (search.nextPageToken != null && search.error == null) {
-        item {
-            TextButton(onClick = onLoadMore, enabled = !search.loading, modifier = Modifier.minTouchTarget()) {
+        item(key = "search-load-more") {
+            OutlinedButton(
+                onClick = onLoadMore,
+                enabled = !search.loading,
+                shape = CircleShape,
+                modifier = Modifier.fillMaxWidth().minTouchTarget(),
+            ) {
                 Text(if (search.loading) "Memuat…" else "Muat lebih banyak")
             }
         }

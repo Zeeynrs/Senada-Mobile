@@ -8,8 +8,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,32 +24,41 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import senada.app.shell.SenadaIcons
+import senada.app.theme.SenadaPalette
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
 
-/** Baris lagu dengan sampul; [favorite] menandai lagu favorit dengan ♥. */
+/** Baris lagu dengan sampul 48 dp (radius 8 dp); [favorite] menandai lagu favorit dengan ikon hati. */
 @Composable
 internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composable () -> Unit) {
-    val details = listOfNotNull(
-        "♥".takeIf { favorite },
+    val metadata = listOfNotNull(
         track.artists.joinToString().takeIf { it.isNotEmpty() },
         track.durationMs?.let(::playbackTime),
-    )
+    ).joinToString(" · ")
     AdaptiveRow(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp),
         minPrimaryWidth = 180.dp,
+        horizontalSpacing = 12.dp,
         primary = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Kotak tetap ada tanpa sampul agar judul di daftar sejajar; sampul murni dekoratif.
+                // Kotak sampul 48 dp radius 8 dp tetap ada tanpa gambar agar daftar sejajar; murni dekoratif.
                 Box(
-                    Modifier.size(48.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                    modifier = Modifier.size(48.dp)
+                        .clip(MaterialTheme.shapes.extraSmall)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center,
                 ) {
+                    Icon(
+                        imageVector = SenadaIcons.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp),
+                    )
                     track.artworkUrl?.let { url ->
                         AsyncImage(
                             model = remember(url) { resizeGoogleArtwork(url, 120) },
@@ -59,23 +69,41 @@ internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composab
                     }
                 }
                 Column(
-                    Modifier.weight(1f).clearAndSetSemantics {
+                    modifier = Modifier.weight(1f).clearAndSetSemantics {
                         contentDescription = trackAccessibilityLabel(track, favorite)
                     },
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
                         track.title,
                         style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (details.isNotEmpty()) {
-                        Text(
-                            details.joinToString(" · "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    if (favorite || metadata.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            if (favorite) {
+                                Icon(
+                                    imageVector = SenadaIcons.HeartFilled,
+                                    contentDescription = null,
+                                    tint = SenadaPalette.Favorite,
+                                    modifier = Modifier.size(13.dp),
+                                )
+                            }
+                            if (metadata.isNotEmpty()) {
+                                Text(
+                                    metadata,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
                     }
                 }
             }
