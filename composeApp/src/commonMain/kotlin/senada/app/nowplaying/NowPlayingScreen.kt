@@ -74,6 +74,7 @@ internal fun NowPlayingScreen(
     val track = if (state.audio.selection == null) state.queue.entries.firstOrNull()?.track else state.currentEntry?.track
     val accent = LocalArtworkAccent.current
     var lyricsSelected by rememberSaveable { mutableStateOf(false) }
+    NowPlayingSystemBars()
     MaterialTheme(colorScheme = nowPlayingColorScheme(accent)) {
         val colors = MaterialTheme.colorScheme
         val wash = (accent ?: colors.primary).copy(alpha = 0.24f).compositeOver(colors.background)
@@ -181,6 +182,10 @@ internal fun NowPlayingScreen(
         }
     }
 }
+
+/** Ikon sistem mengikuti latar gelap selama layar pemutar terbuka. */
+@Composable
+internal expect fun NowPlayingSystemBars()
 
 @Composable
 private fun panelBody(last: Boolean): Modifier {
