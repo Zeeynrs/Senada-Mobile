@@ -1,6 +1,9 @@
 name: Mobile checks
 on:
   pull_request:
+  # PR yang di-merge berurutan baru teruji bersama setelah masuk main.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
