@@ -41,6 +41,7 @@ import senada.app.nowplaying.PlaySourceState
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
+import senada.library.recordPlaylistPlay
 import senada.model.Track
 import senada.playback.PlaybackController
 
@@ -108,7 +109,10 @@ internal class LibraryActions(
     fun playAllOf(playlistId: String) {
         scope.launch {
             val playlist = library.playlist(playlistId).first() ?: return@launch
-            playAll(playlist.entries.map { it.track }, PlaySource.Playlist(playlist.name))
+            val tracks = playlist.entries.map { it.track }
+            if (tracks.isEmpty()) return@launch
+            playAll(tracks, PlaySource.Playlist(playlist.name))
+            runCatching { library.recordPlaylistPlay(playlistId) }
         }
     }
 

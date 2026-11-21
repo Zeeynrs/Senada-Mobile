@@ -1,0 +1,14 @@
+-- Versi 3 → 4: hitungan putar lokal selama 30 hari.
+CREATE TABLE play_event (
+    track_id TEXT NOT NULL,
+    played_at INTEGER NOT NULL
+);
+
+CREATE INDEX play_event_played_at ON play_event(played_at);
+
+CREATE TABLE playlist_play (
+    playlist_id TEXT NOT NULL,
+    played_at INTEGER NOT NULL
+);
+
+CREATE INDEX playlist_play_played_at ON playlist_play(played_at);
