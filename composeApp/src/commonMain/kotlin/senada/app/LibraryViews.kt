@@ -16,7 +16,7 @@ import androidx.compose.material.IconButton
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Tab
-import androidx.compose.material.TabRow
+import androidx.compose.material.ScrollableTabRow
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
@@ -44,11 +44,17 @@ internal enum class AppTab(val label: String) {
     Favorites("Favorit"),
     Playlists("Playlist"),
     History("Riwayat"),
+    Settings("Pengaturan"),
 }
 
 @Composable
 internal fun AppTabs(selected: AppTab, onSelect: (AppTab) -> Unit) {
-    TabRow(selectedTabIndex = selected.ordinal, backgroundColor = MaterialTheme.colors.surface) {
+    // Lima tab tidak muat sama lebar di layar ponsel; tab bisa digeser.
+    ScrollableTabRow(
+        selectedTabIndex = selected.ordinal,
+        backgroundColor = MaterialTheme.colors.surface,
+        edgePadding = 0.dp,
+    ) {
         AppTab.entries.forEach { tab ->
             Tab(
                 selected = tab == selected,

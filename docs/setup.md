@@ -10,7 +10,7 @@ Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan 
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh, kontrak pencarian berhalaman dan resolusi alamat audio, serta `catalog/youtube` untuk pencarian dan alamat audio YouTube Music lewat Innertube. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
 | `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight): favorit, playlist, riwayat 200 lagu dan item tersimpan. Layarnya ada di tab Favorit, Playlist dan Riwayat (`app/LibraryViews.kt`). |
-| `composeApp/src/commonMain/kotlin/senada/backup` | Backup library dalam format Senada desktop (`format` 1): ekspor, impor gabung dengan pratinjau, tanpa pengaturan desktop. Belum punya layar. |
+| `composeApp/src/commonMain/kotlin/senada/backup` | Backup library dalam format Senada desktop (`format` 1): ekspor, impor gabung dengan pratinjau, tanpa pengaturan desktop. Layarnya di tab **Pengaturan** (`app/SettingsViews.kt`, pemilih file di `BackupFiles.*.kt`). |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan `SenadaSources` (klien HTTP, katalog dan resolver bersama). Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
@@ -72,6 +72,13 @@ Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu 
 3. Di tab **Playlist**, buka playlist itu. Ubah urutan lewat **Pindah ke atas**/**Pindah ke bawah**, hapus satu entri, lalu **Ganti nama**. **Putar semua** menambahkan seluruh lagu ke akhir antrean dan memutar yang pertama.
 4. Putar dua lagu dari antrean. Keduanya muncul di tab **Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
 5. Tutup aplikasi sepenuhnya lalu buka lagi. Favorit, playlist dan riwayat tetap ada, termasuk tanpa internet.
+
+## Uji backup
+
+1. Di tab **Pengaturan**, tekan **Ekspor backup** lalu simpan file ke Files/iCloud Drive (iPhone) atau penyimpanan/Drive (Android). Nama bawaannya `Senada backup <tanggal>.json`.
+2. Tekan **Impor backup** dan pilih file yang sama. Karena isinya sudah ada, muncul **Tidak ada yang baru** dan tidak ada yang berubah.
+3. Salin backup dari Senada desktop (menu backup di Pengaturan desktop) ke ponsel, lalu impor. Ringkasan menampilkan jumlah favorit, playlist, lagu, item tersimpan dan riwayat yang akan ditambahkan, serta entri yang dilewati (file lokal desktop atau sumber selain YouTube Music). Tekan **Terapkan**, lalu cek tab Favorit, Playlist dan Riwayat. Playlist yang sudah ada di ponsel tetap memakai nama dan urutannya.
+4. Buka file ekspor ponsel di Senada desktop lewat restore **merge**. Favorit, playlist dan riwayat dari ponsel muncul di desktop; pengaturan desktop tidak berubah.
 
 ## Uji YouTube Music
 
