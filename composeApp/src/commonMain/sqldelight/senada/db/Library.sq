@@ -1,0 +1,151 @@
+-- Library lokal Senada: favorit, playlist milik pengguna, riwayat dan item tersimpan.
+-- Identitas lagu memakai ID ber-namespace yang sama dengan desktop (yt:track:<videoId>).
+-- Alamat stream sementara tidak pernah disimpan di sini.
+
+CREATE TABLE track (
+    id TEXT NOT NULL PRIMARY KEY,
+    title TEXT NOT NULL,
+    -- Larik JSON nama artis, urutan dipertahankan.
+    artists TEXT NOT NULL,
+    duration_ms INTEGER,
+    artwork_url TEXT,
+    source TEXT NOT NULL
+);
+
+CREATE TABLE favorite (
+    track_id TEXT NOT NULL PRIMARY KEY,
+    added_at INTEGER NOT NULL
+);
+
+CREATE TABLE playlist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+
+-- Entri punya ID sendiri, jadi lagu yang sama boleh muncul beberapa kali dalam satu playlist.
+CREATE TABLE playlist_item (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    playlist_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    position INTEGER NOT NULL
+);
+
+CREATE INDEX playlist_item_order ON playlist_item(playlist_id, position);
+
+CREATE TABLE history (
+    track_id TEXT NOT NULL PRIMARY KEY,
+    played_at INTEGER NOT NULL
+);
+
+-- Album/playlist katalog yang disimpan; metadata JSON utuh agar backup desktop tidak kehilangan data.
+CREATE TABLE saved_item (
+    kind TEXT NOT NULL,
+    id TEXT NOT NULL,
+    metadata TEXT NOT NULL,
+    saved_at INTEGER NOT NULL,
+    PRIMARY KEY (kind, id)
+);
+
+-- Lagu --
+
+upsertTrack:
+INSERT OR REPLACE INTO track(id, title, artists, duration_ms, artwork_url, source)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- Lagu yang tidak lagi dirujuk favorit, playlist atau riwayat.
+deleteUnusedTracks:
+DELETE FROM track
+WHERE id NOT IN (SELECT track_id FROM favorite)
+  AND id NOT IN (SELECT track_id FROM playlist_item)
+  AND id NOT IN (SELECT track_id FROM history);
+
+-- Favorit --
+
+favorites:
+SELECT track.*
+FROM favorite JOIN track ON track.id = favorite.track_id
+ORDER BY favorite.added_at DESC, favorite.rowid DESC;
+
+favoriteCount:
+SELECT count(*) FROM favorite WHERE track_id = ?;
+
+addFavorite:
+INSERT OR IGNORE INTO favorite(track_id, added_at) VALUES (?, ?);
+
+removeFavorite:
+DELETE FROM favorite WHERE track_id = ?;
+
+-- Playlist --
+
+playlists:
+SELECT playlist.id, playlist.name, playlist.description, playlist.created_at,
+       (SELECT count(*) FROM playlist_item WHERE playlist_item.playlist_id = playlist.id) AS track_count
+FROM playlist
+ORDER BY playlist.created_at DESC, playlist.rowid DESC;
+
+playlistById:
+SELECT id, name, description, created_at FROM playlist WHERE id = ?;
+
+playlistItems:
+SELECT playlist_item.id AS item_id, track.*
+FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+WHERE playlist_item.playlist_id = ?
+ORDER BY playlist_item.position;
+
+insertPlaylist:
+INSERT INTO playlist(id, name, description, created_at) VALUES (?, ?, ?, ?);
+
+renamePlaylist:
+UPDATE playlist SET name = ? WHERE id = ?;
+
+deletePlaylist:
+DELETE FROM playlist WHERE id = ?;
+
+deletePlaylistItems:
+DELETE FROM playlist_item WHERE playlist_id = ?;
+
+-- Posisi selalu rapat 0..n-1, jadi jumlah entri adalah posisi berikutnya.
+playlistItemCount:
+SELECT count(*) FROM playlist_item WHERE playlist_id = ?;
+
+insertPlaylistItem:
+INSERT INTO playlist_item(playlist_id, track_id, position) VALUES (?, ?, ?);
+
+deletePlaylistItem:
+DELETE FROM playlist_item WHERE id = ?;
+
+playlistItemIds:
+SELECT id FROM playlist_item WHERE playlist_id = ? ORDER BY position;
+
+setItemPosition:
+UPDATE playlist_item SET position = ? WHERE id = ?;
+
+-- Riwayat --
+
+history:
+SELECT track.*
+FROM history JOIN track ON track.id = history.track_id
+ORDER BY history.played_at DESC, history.rowid DESC
+LIMIT ?;
+
+recordPlay:
+INSERT OR REPLACE INTO history(track_id, played_at) VALUES (?, ?);
+
+trimHistory:
+DELETE FROM history
+WHERE track_id NOT IN (
+    SELECT track_id FROM history ORDER BY played_at DESC, rowid DESC LIMIT ?
+);
+
+-- Item tersimpan --
+
+savedItems:
+SELECT kind, id, metadata, saved_at FROM saved_item ORDER BY saved_at DESC, rowid DESC;
+
+saveItem:
+INSERT OR REPLACE INTO saved_item(kind, id, metadata, saved_at) VALUES (?, ?, ?, ?);
+
+unsaveItem:
+DELETE FROM saved_item WHERE kind = ? AND id = ?;
