@@ -70,6 +70,15 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     /** Selama alamat audio dicari, status pemutar native tidak mewakili lagu yang dipilih. */
     private var awaitingSource = false
 
+    fun restorePaused(entry: QueueItem, positionMs: Long) {
+        state = SampleAudioState(
+            selection = SampleAudioSelection.pending(entry.track.title, entry.id),
+            status = SampleAudioStatus.Paused,
+            positionMs = positionMs,
+            durationMs = entry.track.durationMs?.takeIf { it > 0 }?.coerceAtLeast(positionMs),
+        )
+    }
+
     /**
      * Memilih lagu yang alamatnya sedang dicari: audio lama berhenti dan status menjadi Loading.
      * [positionMs] adalah titik mulai nanti, misalnya posisi terakhir sebelum alamat diganti.
@@ -134,7 +143,8 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         if (!state.canSeek) return
         val duration = state.durationMs ?: return
         val target = positionMs.coerceIn(0, duration)
-        output.seekTo(target)
+        // Entri yang dipulihkan belum punya audio di pemutar native.
+        if (state.selection?.isPending == false) output.seekTo(target)
         state = state.copy(positionMs = target)
     }
 

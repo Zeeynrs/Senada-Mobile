@@ -28,6 +28,8 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.timeControlStatus
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
+import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSMutableDictionary
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSNumber
@@ -35,7 +37,11 @@ import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
+import platform.Foundation.NSUTF8StringEncoding
+import platform.Foundation.NSUserDomainMask
 import platform.Foundation.dataTaskWithURL
+import platform.Foundation.stringWithContentsOfFile
+import platform.Foundation.writeToFile
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
 import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyArtist
@@ -54,6 +60,7 @@ import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlaybackController
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
+import senada.playback.QueueStore
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioStatus
 
@@ -81,14 +88,19 @@ internal object IosPlayback {
             error = null,
         )
         val output = AvAudioOutput()
-        val controller = createPlaybackController(output)
+        val controller = createPlaybackController(output, IosQueueStore())
         observeInterruptions(controller)
         registerRemoteCommands(controller)
         controller.addListener(::updateNowPlaying)
         // Sampul tiba belakangan; posisi diambil langsung dari pemutar karena status bisa sudah lama.
         refreshNowPlaying = {
             val state = controller.state.value
-            updateNowPlaying(state.copy(audio = state.audio.copy(positionMs = output.positionMs)))
+            val position = if (state.audio.selection?.isPending == false && state.audio.isActive) {
+                output.positionMs
+            } else {
+                state.audio.positionMs
+            }
+            updateNowPlaying(state.copy(audio = state.audio.copy(positionMs = position)))
         }
         return controller
     }
@@ -191,6 +203,25 @@ internal object IosPlayback {
             }
         }.resume()
         return null
+    }
+}
+
+private class IosQueueStore : QueueStore {
+    private fun filePath(): String? = NSFileManager.defaultManager.URLForDirectory(
+        NSApplicationSupportDirectory,
+        NSUserDomainMask,
+        appropriateForURL = null,
+        create = true,
+        error = null,
+    )?.path?.let { "$it/playback-queue.json" }
+
+    override fun load(): String? = filePath()?.let { path ->
+        NSString.stringWithContentsOfFile(path, NSUTF8StringEncoding, null)
+    }
+
+    override fun save(text: String) {
+        val path = checkNotNull(filePath())
+        check((text as NSString).writeToFile(path, true, NSUTF8StringEncoding, null))
     }
 }
 
