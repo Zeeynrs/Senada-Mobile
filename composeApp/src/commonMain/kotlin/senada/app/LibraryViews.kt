@@ -40,22 +40,18 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
-import senada.app.tabs.LibraryFilter
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
 import senada.library.recordPlaylistPlay
 import senada.model.Track
 import senada.playback.PlaybackController
-
-/** Alias sementara agar AppShell.kt tetap tidak berubah saat integrasi paralel Fase 4–5. */
-internal typealias AppTab = LibraryFilter
 
 /** Ukuran halaman daftar library; daftar bertambah sebanyak ini saat ujungnya terlihat. */
 internal const val LIBRARY_PAGE_SIZE = 50
