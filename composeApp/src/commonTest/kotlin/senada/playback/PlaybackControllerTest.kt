@@ -532,13 +532,29 @@ class PlaybackControllerTest {
         assertEquals(2, resolutions[entry.id])
         assertEquals("https://audio/${entry.id}?v=2", starts.last().uri)
         assertEquals(listOf(0L, 0L, 0L), output.startPositions)
+    }
+
+    @Test
+    fun repeatingASingleEntryNeverPrefetchesItAndAFailedReplayGetsAFreshAddress() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.setRepeatMode(RepeatMode.All)
+        playback.playEntry(entry.id)
+        runCurrent()
+        assertEquals(1, resolutions[entry.id])
+        playback.setRepeatMode(RepeatMode.One)
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        assertEquals(1, resolutions[entry.id])
 
         output.positionMs = 12_000
         output.status = SampleAudioStatus.Failed
         output.emitEvent()
         runCurrent()
-        assertEquals(3, resolutions[entry.id])
-        assertEquals("https://audio/${entry.id}?v=3", starts.last().uri)
+        assertEquals(2, resolutions[entry.id])
+        assertEquals("https://audio/${entry.id}?v=2", playback.state.value.audio.selection?.uri)
         assertEquals(12_000L, output.startPositions.last())
     }
 

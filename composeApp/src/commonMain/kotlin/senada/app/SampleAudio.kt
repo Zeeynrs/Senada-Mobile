@@ -33,7 +33,6 @@ import senada.playback.SampleAudioSelection
 import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
-import senada.playback.persistQueue
 import senada.resources.Res
 
 private const val HTTPS_SAMPLE = "https://raw.githubusercontent.com/Zeeynrs/Senada-Mobile/" +

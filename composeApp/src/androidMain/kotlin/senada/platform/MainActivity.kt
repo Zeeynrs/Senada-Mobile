@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        AndroidPlayback.get(this).controller.saveQueueNow()
         sessionConnection?.let(MediaController::releaseFuture)
         sessionConnection = null
         super.onStop()

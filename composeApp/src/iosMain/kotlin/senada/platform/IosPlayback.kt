@@ -54,6 +54,8 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
+import platform.UIKit.UIApplicationWillTerminateNotification
 import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -89,6 +91,11 @@ internal object IosPlayback {
         )
         val output = AvAudioOutput()
         val controller = createPlaybackController(output, IosQueueStore())
+        for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
+            observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
+                controller.saveQueueNow()
+            }
+        }
         observeInterruptions(controller)
         registerRemoteCommands(controller)
         controller.addListener(::updateNowPlaying)

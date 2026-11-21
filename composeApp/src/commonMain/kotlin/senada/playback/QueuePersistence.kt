@@ -1,5 +1,10 @@
 package senada.playback
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -22,30 +27,45 @@ internal interface QueueStore {
 
 internal data class QueueSnapshot(val queue: Queue, val selectedEntryId: Long?, val positionMs: Long)
 
-internal fun PlaybackController.persistQueue(store: QueueStore) {
-    val text = try {
-        store.load()
-    } catch (_: Exception) {
-        null
-    }
-    QueueJson.decode(text)?.let(::restore)
-    var lastSaved = state.value.queueSnapshot()
-    addListener { state ->
-        val snapshot = state.queueSnapshot()
-        if (snapshot != lastSaved) {
-            try {
-                store.save(QueueJson.encode(snapshot))
-                lastSaved = snapshot
-            } catch (_: Exception) {
-                // Antrean tetap bisa dipakai. Coba lagi saat ada perubahan berikutnya.
+internal fun QueueStore.loadSnapshot(): QueueSnapshot? = try {
+    QueueJson.decode(load())
+} catch (_: Exception) {
+    null
+}
+
+internal class QueuePersistence(
+    private val store: QueueStore,
+    private val scope: CoroutineScope,
+    private val snapshot: () -> QueueSnapshot,
+) {
+    private var lastSaved = snapshot()
+    private var timer: Job? = null
+
+    fun onPlaybackChanged(state: PlaybackState) {
+        saveNow()
+        if (state.audio.status != SampleAudioStatus.Playing || state.currentEntry == null) {
+            timer?.cancel()
+            timer = null
+        } else if (timer == null) {
+            timer = scope.launch {
+                while (isActive) {
+                    delay(15_000L)
+                    saveNow()
+                }
             }
         }
     }
-}
 
-private fun PlaybackState.queueSnapshot(): QueueSnapshot {
-    val entryId = currentEntry?.id
-    return QueueSnapshot(queue, entryId, if (entryId == null) 0 else audio.positionMs)
+    fun saveNow() {
+        val current = snapshot()
+        if (current == lastSaved) return
+        try {
+            store.save(QueueJson.encode(current))
+            lastSaved = current
+        } catch (_: Exception) {
+            // Antrean tetap bisa dipakai. Coba lagi saat penyimpanan berikutnya.
+        }
+    }
 }
 
 internal object QueueJson {
