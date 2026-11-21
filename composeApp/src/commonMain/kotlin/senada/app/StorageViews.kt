@@ -12,6 +12,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -51,7 +56,7 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
     var cacheSize by remember(imageLoader) { mutableStateOf<Long?>(null) }
     var readingSize by remember(imageLoader) { mutableStateOf(true) }
     var clearing by remember(imageLoader) { mutableStateOf(false) }
-    var clearFailed by remember(imageLoader) { mutableStateOf(false) }
+    var clearMessage by remember(imageLoader) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(imageLoader) {
         cacheSize = imageLoader.readArtworkCacheSize()
@@ -59,7 +64,7 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Penyimpanan", style = MaterialTheme.typography.h6)
+        Text("Penyimpanan", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
         Text(
             cacheSize?.let { "Cache sampul: ${formatSize(it)}" }
                 ?: if (readingSize) "Menghitung ukuran cache sampul…" else "Ukuran cache sampul tidak tersedia.",
@@ -69,8 +74,9 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
             enabled = !readingSize && !clearing,
             onClick = {
                 clearing = true
-                clearFailed = false
+                clearMessage = null
                 scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    var failed = false
                     try {
                         // Penghapusan yang sudah dimulai tetap selesai saat pengguna pindah tab.
                         withContext(NonCancellable) {
@@ -83,15 +89,26 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
                             }
                         }
                     } catch (_: IOException) {
-                        clearFailed = true
+                        failed = true
                     } finally {
                         cacheSize = imageLoader.readArtworkCacheSize()
+                        clearMessage = if (failed) {
+                            "Cache sampul tidak dapat dihapus sepenuhnya."
+                        } else {
+                            "Cache sampul dan lirik dihapus."
+                        }
                         clearing = false
                     }
                 }
             },
         ) { Text(if (clearing) "Menghapus…" else "Hapus cache") }
-        if (clearFailed) Text("Cache sampul tidak dapat dihapus sepenuhnya.", style = MaterialTheme.typography.body2)
+        clearMessage?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
         val importedAudio = remember(context) { importedAudioStorage(context) }
         ImportedAudioStorageControls(importedAudio, playback, library)
     }
@@ -107,7 +124,7 @@ private fun ImportedAudioStorageControls(
     var summary by remember(storage) { mutableStateOf<ImportedAudioSummary?>(null) }
     var reading by remember(storage) { mutableStateOf(true) }
     var deleting by remember(storage) { mutableStateOf(false) }
-    var deleteFailed by remember(storage) { mutableStateOf(false) }
+    var deleteMessage by remember(storage) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(storage) {
         summary = storage.readImportedAudioSummary()
@@ -123,25 +140,32 @@ private fun ImportedAudioStorageControls(
         enabled = !reading && !deleting,
         onClick = {
             deleting = true
-            deleteFailed = false
+            deleteMessage = null
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try {
                     withContext(NonCancellable) {
                         importedAudioLock.withLock {
                             val files = withContext(Dispatchers.IO) { storage.listFiles() }
-                            deleteFailed = library.withLocalTrackIds { libraryIds ->
+                            val result = library.withLocalTrackIds { libraryIds ->
                                 // Baca antrean dan hapus tanpa jeda di thread UI, tempat pemutar mengubah antrean.
                                 val queueTracks = playback.state.value.queue.entries.map { it.track }
                                 val unused = unusedImportedAudioFileNames(files, queueTracks, libraryIds)
-                                unused.count { !storage.deleteFile(it) } > 0
+                                val failed = unused.count { !storage.deleteFile(it) }
+                                unused.size to failed
                             }
                             summary = withContext(Dispatchers.IO) { summarizeImportedAudio(storage.listFiles()) }
+                            val (unusedCount, failedCount) = result
+                            deleteMessage = when {
+                                failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
+                                unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
+                                else -> "$unusedCount file yang tidak dipakai dihapus."
+                            }
                         }
                     }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
-                    deleteFailed = true
+                    deleteMessage = "Sebagian file audio impor tidak dapat dihapus."
                     summary = storage.readImportedAudioSummary()
                 } finally {
                     deleting = false
@@ -149,7 +173,13 @@ private fun ImportedAudioStorageControls(
             }
         },
     ) { Text(if (deleting) "Menghapus…" else "Hapus file yang tidak dipakai") }
-    if (deleteFailed) Text("Sebagian file audio impor tidak dapat dihapus.", style = MaterialTheme.typography.body2)
+    deleteMessage?.let {
+        Text(
+            it,
+            style = MaterialTheme.typography.body2,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
 }
 
 private suspend fun ImportedAudioStorage.readImportedAudioSummary(): ImportedAudioSummary? =

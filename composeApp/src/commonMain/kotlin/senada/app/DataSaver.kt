@@ -1,9 +1,11 @@
 package senada.app
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
@@ -14,7 +16,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
 import coil3.compose.LocalPlatformContext
@@ -32,17 +39,30 @@ internal fun DataSection(preferences: AppearancePreferences) {
     val settings = preferences.settings
     val enabled = settings?.saveMobileData == true
     Column {
-        Text("Data", style = MaterialTheme.typography.h6)
+        Text("Data", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
         Row(
-            Modifier.fillMaxWidth().toggleable(enabled, enabled = settings != null, role = Role.Switch,
-                onValueChange = preferences::saveMobileData).heightIn(min = 48.dp),
+            Modifier.fillMaxWidth()
+                .toggleable(
+                    value = enabled,
+                    enabled = settings != null,
+                    role = Role.Switch,
+                    onValueChange = preferences::saveMobileData,
+                )
+                .semantics { stateDescription = if (enabled) "Aktif" else "Nonaktif" }
+                .heightIn(min = 48.dp)
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Hemat data seluler", Modifier.weight(1f))
             Switch(enabled, onCheckedChange = null, enabled = settings != null)
         }
         if (dataSaverActive(enabled, metered)) {
-            Text("Hemat data aktif di jaringan ini.", style = MaterialTheme.typography.body2)
+            Text(
+                "Hemat data aktif di jaringan ini.",
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
     }
 }

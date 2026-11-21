@@ -1,13 +1,15 @@
 package senada.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -37,7 +39,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -155,7 +165,13 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                 modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { Text("Senada", style = MaterialTheme.typography.h4) }
+                item {
+                    Text(
+                        "Senada",
+                        style = MaterialTheme.typography.h4,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                }
                 item { AppTabs(tab) { tabIndex = it.ordinal } }
                 when (tab) {
                     AppTab.Search -> {
@@ -164,7 +180,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                                 value = query,
                                 onValueChange = { query = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("Cari judul atau artis") },
+                                label = { Text("Cari judul atau artis", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                                 keyboardActions = KeyboardActions(onSearch = {
@@ -230,7 +246,12 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                 }
                 state.currentEntry?.track?.let { track ->
                     item(key = "lyrics-toggle") {
-                        TextButton(onClick = { lyricsOpen = !lyricsOpen }) {
+                        TextButton(
+                            onClick = { lyricsOpen = !lyricsOpen },
+                            modifier = Modifier.semantics {
+                                stateDescription = if (lyricsOpen) "Terbuka" else "Tertutup"
+                            },
+                        ) {
                             Text(if (lyricsOpen) "Tutup lirik" else "Lirik")
                         }
                     }
@@ -240,19 +261,33 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                         }
                     }
                 }
-                item { Text("Antrean", style = MaterialTheme.typography.h6) }
+                item { Text("Antrean", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() }) }
                 if (queue.entries.isEmpty()) {
                     item { Text("Antrean kosong.") }
                 }
                 items(queue.entries, key = { "entry-${it.id}" }) { entry ->
                     val isPlayingEntry = audioState.isActive && audioState.selection?.queueEntryId == entry.id
                     TrackRow(entry.track, favorite = entry.track.id in libraryState.favoriteIds) {
-                        TextButton(onClick = {
-                            if (isPlayingEntry) playback.pause() else playback.playEntry(entry.id)
-                        }) {
+                        TextButton(
+                            onClick = {
+                                if (isPlayingEntry) playback.pause() else playback.playEntry(entry.id)
+                            },
+                            modifier = Modifier.semantics {
+                                contentDescription = if (isPlayingEntry) {
+                                    "Jeda ${entry.track.title}"
+                                } else {
+                                    "Putar ${entry.track.title}"
+                                }
+                            },
+                        ) {
                             Text(if (isPlayingEntry) "Jeda" else "Putar")
                         }
-                        TextButton(onClick = { playback.remove(entry.id) }) {
+                        TextButton(
+                            onClick = { playback.remove(entry.id) },
+                            modifier = Modifier.semantics {
+                                contentDescription = "Hapus ${entry.track.title} dari antrean"
+                            },
+                        ) {
                             Text("Hapus")
                         }
                         TrackMenu(entry.track, libraryState, actions)
@@ -274,28 +309,48 @@ private fun LazyListScope.searchResults(
 ) {
     item {
         val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
-        Text(heading, style = MaterialTheme.typography.h6)
+        Text(heading, style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
     }
     if (search.loading && search.tracks.isEmpty()) {
-        item { Text("Mencari…") }
+        item {
+            Text("Mencari…", modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
     }
     search.error?.let { message ->
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(message, modifier = Modifier.weight(1f), style = MaterialTheme.typography.body2)
-                TextButton(onClick = onRetry) { Text("Coba lagi") }
-            }
+            AdaptiveRow(
+                modifier = Modifier.fillMaxWidth(),
+                minPrimaryWidth = 160.dp,
+                primary = {
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                },
+                trailing = {
+                    TextButton(onClick = onRetry) { Text("Coba lagi") }
+                },
+            )
         }
     }
     if (!search.loading && search.error == null && search.tracks.isEmpty()) {
-        item { Text("Lagu tidak ditemukan.") }
+        item {
+            Text(
+                "Lagu tidak ditemukan.",
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
     items(search.tracks, key = { "result-${it.id}" }) { track ->
         TrackRow(track, favorite = track.id in library.favoriteIds) {
-            Button(onClick = {
-                onResultUsed()
-                actions.enqueue(track)
-            }) { Text("Tambah") }
+            Button(
+                onClick = {
+                    onResultUsed()
+                    actions.enqueue(track)
+                },
+                modifier = Modifier.semantics { contentDescription = "Tambah ${track.title} ke antrean" },
+            ) { Text("Tambah") }
             TrackMenu(track, library, actions)
         }
     }
@@ -311,37 +366,67 @@ private fun LazyListScope.searchResults(
 /** Baris lagu dengan sampul; [favorite] menandai lagu favorit dengan ♥. */
 @Composable
 internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Kotak tetap ada tanpa sampul agar judul di daftar sejajar.
-        Box(
-            Modifier.size(48.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colors.onSurface.copy(alpha = 0.08f)),
-        ) {
-            track.artworkUrl?.let { url ->
-                AsyncImage(
-                    model = remember(url) { resizeGoogleArtwork(url, 120) },
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    contentScale = ContentScale.Crop,
-                )
+    val details = listOfNotNull(
+        "♥".takeIf { favorite },
+        track.artists.joinToString().takeIf { it.isNotEmpty() },
+        track.durationMs?.let(::playbackTime),
+    )
+    AdaptiveRow(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        minPrimaryWidth = 180.dp,
+        primary = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Kotak tetap ada tanpa sampul agar judul di daftar sejajar; sampul murni dekoratif.
+                Box(
+                    Modifier.size(48.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colors.onSurface.copy(alpha = 0.08f)),
+                ) {
+                    track.artworkUrl?.let { url ->
+                        AsyncImage(
+                            model = remember(url) { resizeGoogleArtwork(url, 120) },
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                }
+                Column(
+                    Modifier.weight(1f).clearAndSetSemantics {
+                        contentDescription = trackAccessibilityLabel(track, favorite)
+                    },
+                ) {
+                    Text(
+                        track.title,
+                        style = MaterialTheme.typography.subtitle1,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (details.isNotEmpty()) {
+                        Text(
+                            details.joinToString(" · "),
+                            style = MaterialTheme.typography.body2,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
-        }
-        Column(Modifier.weight(1f)) {
-            Text(track.title, style = MaterialTheme.typography.subtitle1)
-            val details = listOfNotNull(
-                "♥".takeIf { favorite },
-                track.artists.joinToString().takeIf { it.isNotEmpty() },
-                track.durationMs?.let(::playbackTime),
-            )
-            Text(details.joinToString(" · "), style = MaterialTheme.typography.body2)
-        }
-        action()
-    }
+        },
+        trailing = {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                action()
+            }
+        },
+    )
 }
 
 private const val SEARCH_DEBOUNCE_MS = 350L

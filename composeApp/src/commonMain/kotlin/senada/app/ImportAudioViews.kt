@@ -11,6 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -52,6 +56,12 @@ internal fun ImportAudioButton(onImported: (Track) -> Unit) {
                 }
             }
         }, enabled = !busy) { Text(if (busy) "Menyalin file…" else "Impor file audio") }
-        message?.let { Text(it, style = MaterialTheme.typography.body2) }
+        message?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }

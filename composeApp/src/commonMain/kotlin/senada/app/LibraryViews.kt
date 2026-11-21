@@ -4,8 +4,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -25,9 +26,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -133,8 +135,11 @@ internal fun TrackMenu(
     Box {
         IconButton(
             onClick = { open = true },
-            modifier = Modifier.semantics { contentDescription = "Menu ${track.title}" },
-        ) { Text("⋯", style = MaterialTheme.typography.h6) }
+            modifier = Modifier.semantics { contentDescription = "Buka menu ${track.title}" },
+        ) {
+            // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
+            Text("⋯", style = MaterialTheme.typography.h6, modifier = Modifier.clearAndSetSemantics {})
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(onClick = {
                 open = false
@@ -172,13 +177,14 @@ internal fun NameDialog(
     var name by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(title, modifier = Modifier.semantics { heading() }) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Nama playlist") },
+                label = { Text("Nama playlist", maxLines = 1, overflow = TextOverflow.Ellipsis) },
             )
         },
         confirmButton = {
@@ -190,10 +196,16 @@ internal fun NameDialog(
 
 @Composable
 private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
-        if (onPlayAll != null) TextButton(onClick = onPlayAll) { Text("Putar semua") }
-    }
+    AdaptiveRow(
+        modifier = Modifier.fillMaxWidth(),
+        minPrimaryWidth = 140.dp,
+        primary = {
+            Text(title, style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        },
+        trailing = {
+            if (onPlayAll != null) TextButton(onClick = onPlayAll) { Text("Putar semua") }
+        },
+    )
 }
 
 /** Satu daftar lagu library dengan tombol tambah ke antrean dan menu ⋯. */
@@ -205,7 +217,10 @@ private fun LazyListScope.trackList(
 ) {
     items(tracks, key = { "$keyPrefix-${it.id}" }) { track ->
         TrackRow(track, favorite = track.id in library.favoriteIds) {
-            TextButton(onClick = { actions.enqueue(track) }) { Text("Tambah") }
+            TextButton(
+                onClick = { actions.enqueue(track) },
+                modifier = Modifier.semantics { contentDescription = "Tambah ${track.title} ke antrean" },
+            ) { Text("Tambah") }
             TrackMenu(track, library, actions)
         }
     }
@@ -253,13 +268,27 @@ internal fun LazyListScope.playlistsTab(
             item { Text("Belum ada playlist.") }
         }
         items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(playlist.name, style = MaterialTheme.typography.subtitle1)
-                    Text("${playlist.trackCount} lagu", style = MaterialTheme.typography.body2)
-                }
-                TextButton(onClick = { onOpen(playlist.id) }) { Text("Buka") }
-            }
+            AdaptiveRow(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                minPrimaryWidth = 160.dp,
+                primary = {
+                    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+                        Text(
+                            playlist.name,
+                            style = MaterialTheme.typography.subtitle1,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("${playlist.trackCount} lagu", style = MaterialTheme.typography.body2)
+                    }
+                },
+                trailing = {
+                    TextButton(
+                        onClick = { onOpen(playlist.id) },
+                        modifier = Modifier.semantics { contentDescription = "Buka playlist ${playlist.name}" },
+                    ) { Text("Buka") }
+                },
+            )
         }
         return
     }
@@ -270,7 +299,10 @@ internal fun LazyListScope.playlistsTab(
     }
     itemsIndexed(opened.entries, key = { _, entry -> "playlist-item-${entry.itemId}" }) { index, entry ->
         TrackRow(entry.track, favorite = entry.track.id in library.favoriteIds) {
-            TextButton(onClick = { actions.enqueue(entry.track) }) { Text("Tambah") }
+            TextButton(
+                onClick = { actions.enqueue(entry.track) },
+                modifier = Modifier.semantics { contentDescription = "Tambah ${entry.track.title} ke antrean" },
+            ) { Text("Tambah") }
             TrackMenu(entry.track, library, actions) { close ->
                 if (index > 0) {
                     DropdownMenuItem(onClick = {
@@ -298,10 +330,16 @@ internal fun LazyListScope.playlistsTab(
 @Composable
 private fun PlaylistListHeader(actions: LibraryActions) {
     var naming by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Playlist", style = MaterialTheme.typography.h6, modifier = Modifier.weight(1f))
-        TextButton(onClick = { naming = true }) { Text("Playlist baru") }
-    }
+    AdaptiveRow(
+        modifier = Modifier.fillMaxWidth(),
+        minPrimaryWidth = 140.dp,
+        primary = {
+            Text("Playlist", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        },
+        trailing = {
+            TextButton(onClick = { naming = true }) { Text("Playlist baru") }
+        },
+    )
     if (naming) {
         NameDialog(title = "Playlist baru", initial = "", confirmLabel = "Buat", onDismiss = { naming = false }) { name ->
             naming = false
@@ -315,10 +353,23 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(onClick = onClose) { Text("‹ Semua playlist") }
-        Text(playlist.name, style = MaterialTheme.typography.h6)
+        TextButton(
+            onClick = onClose,
+            modifier = Modifier.semantics { contentDescription = "Kembali ke semua playlist" },
+        ) { Text("‹ Semua playlist", modifier = Modifier.clearAndSetSemantics {}) }
+        Text(
+            playlist.name,
+            style = MaterialTheme.typography.h6,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.semantics { heading() },
+        )
         Text("${playlist.entryCount} lagu", style = MaterialTheme.typography.body2)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             TextButton(onClick = { actions.playAllOf(playlist.id) }, enabled = playlist.entryCount > 0) {
                 Text("Putar semua")
             }
@@ -335,7 +386,7 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
     if (deleting) {
         AlertDialog(
             onDismissRequest = { deleting = false },
-            title = { Text("Hapus playlist?") },
+            title = { Text("Hapus playlist?", modifier = Modifier.semantics { heading() }) },
             text = { Text("\"${playlist.name}\" dan urutan lagunya akan dihapus. Lagu di favorit dan riwayat tetap ada.") },
             confirmButton = {
                 TextButton(onClick = {
