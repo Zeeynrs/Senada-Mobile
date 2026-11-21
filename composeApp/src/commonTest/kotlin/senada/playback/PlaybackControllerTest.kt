@@ -161,7 +161,7 @@ class PlaybackControllerTest {
         runCurrent()
         playback.setRepeatMode(RepeatMode.One)
         runCurrent()
-        assertEquals(listOf(b.id, a.id, b.id, a.id), resolved)
+        assertEquals(listOf(b.id, a.id, b.id), resolved)
     }
 
     @Test
@@ -500,6 +500,47 @@ class PlaybackControllerTest {
             resolutions[entry.id] = count
             selection(entry).copy(uri = "https://audio/${entry.id}?v=$count", expiresAtEpochMs = nowMs + HOUR_MS)
         }
+
+    @Test
+    fun repeatOneReusesTheAddressButStartsANewPlayUntilTheAddressExpires() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        playback.setRepeatMode(RepeatMode.One)
+        val entry = playback.state.value.queue.entries.single()
+        val starts = mutableListOf<SampleAudioSelection>()
+        playback.addListener { state ->
+            if (state.audio.status == SampleAudioStatus.Playing) starts += checkNotNull(state.audio.selection)
+        }
+        playback.playEntry(entry.id)
+        runCurrent()
+        assertEquals(1, resolutions[entry.id])
+
+        output.positionMs = 50_000
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        assertEquals(1, resolutions[entry.id])
+        assertEquals(2, starts.size)
+        assertEquals(starts[0].uri, starts[1].uri)
+        assertTrue(starts[0] !== starts[1])
+        assertEquals(listOf(0L, 0L), output.startPositions)
+
+        nowMs += HOUR_MS
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        assertEquals(2, resolutions[entry.id])
+        assertEquals("https://audio/${entry.id}?v=2", starts.last().uri)
+        assertEquals(listOf(0L, 0L, 0L), output.startPositions)
+
+        output.positionMs = 12_000
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+        assertEquals(3, resolutions[entry.id])
+        assertEquals("https://audio/${entry.id}?v=3", starts.last().uri)
+        assertEquals(12_000L, output.startPositions.last())
+    }
 
     @Test
     fun resumingAfterTheAddressExpiresFetchesANewOneAndKeepsThePosition() = runTest {

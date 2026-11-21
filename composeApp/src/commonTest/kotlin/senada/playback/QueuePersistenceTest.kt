@@ -9,6 +9,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -228,6 +229,38 @@ class QueuePersistenceTest {
         playback.playEntry(second.id)
         assertEquals(second.id, QueueJson.decode(store.text)?.selectedEntryId)
         assertEquals(0L, QueueJson.decode(store.text)?.positionMs)
+    }
+
+    @Test
+    fun checkpointsSaveOnlyChangedPositionsWhileTheQueueIsPlaying() = runTest {
+        val store = MemoryQueueStore()
+        val output = FakeAudioOutput()
+        val playback = controller(output, store)
+        playback.add(stream)
+        playback.resume()
+        val initialWrites = store.writes
+
+        output.positionMs = 14_000
+        advanceTimeBy(14_999)
+        assertEquals(initialWrites, store.writes)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(14_000L, QueueJson.decode(store.text)?.positionMs)
+        advanceTimeBy(15_001)
+        assertEquals(initialWrites + 1, store.writes)
+
+        output.positionMs = 31_000
+        advanceTimeBy(15_000)
+        assertEquals(31_000L, QueueJson.decode(store.text)?.positionMs)
+        playback.pause()
+        val pausedWrites = store.writes
+        output.positionMs = 32_000
+        advanceTimeBy(60_000)
+        assertEquals(pausedWrites, store.writes)
+        playback.resume()
+        output.positionMs = 44_000
+        advanceTimeBy(15_001)
+        assertEquals(44_000L, QueueJson.decode(store.text)?.positionMs)
     }
 
     private fun TestScope.controller(
