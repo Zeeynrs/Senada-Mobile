@@ -1,7 +1,6 @@
 package senada.app
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -18,7 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -38,8 +36,7 @@ internal fun DataSection(preferences: AppearancePreferences) {
     val metered by remember(context) { meteredNetwork(context) }.collectAsState()
     val settings = preferences.settings
     val enabled = settings?.saveMobileData == true
-    Column {
-        Text("Data", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    SettingsCard("Data") {
         Row(
             Modifier.fillMaxWidth()
                 .toggleable(
@@ -54,13 +51,19 @@ internal fun DataSection(preferences: AppearancePreferences) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Hemat data seluler", Modifier.weight(1f))
+            Text(
+                "Hemat data seluler",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
             Switch(enabled, onCheckedChange = null, enabled = settings != null)
         }
         if (dataSaverActive(enabled, metered)) {
             Text(
                 "Hemat data aktif di jaringan ini.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }

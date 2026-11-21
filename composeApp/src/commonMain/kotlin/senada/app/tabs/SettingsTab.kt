@@ -10,7 +10,7 @@ import senada.app.StorageSection
 import senada.library.LibraryRepository
 import senada.playback.PlaybackController
 
-/** Tab Pengaturan: Tampilan, Data, Backup, Penyimpanan, lalu Pengembang (uji audio) paling bawah. */
+/** Tab Pengaturan: Tampilan, Data, Backup library, Penyimpanan, lalu Pengembang dalam kartu permukaan. */
 internal fun LazyListScope.settingsTab(
     appearance: AppearancePreferences,
     library: LibraryRepository,

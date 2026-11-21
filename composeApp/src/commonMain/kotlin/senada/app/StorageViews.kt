@@ -1,7 +1,7 @@
 package senada.app
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -14,10 +14,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -63,15 +61,16 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
         readingSize = false
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Penyimpanan", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    SettingsCard("Penyimpanan") {
         Text(
             cacheSize?.let { "Cache sampul: ${formatSize(it)}" }
                 ?: if (readingSize) "Menghitung ukuran cache sampul…" else "Ukuran cache sampul tidak tersedia.",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         OutlinedButton(
             enabled = !readingSize && !clearing,
+            shape = CircleShape,
             modifier = Modifier.minTouchTarget(),
             onClick = {
                 clearing = true
@@ -107,9 +106,11 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
             Text(
                 it,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         val importedAudio = remember(context) { importedAudioStorage(context) }
         ImportedAudioStorageControls(importedAudio, playback, library)
     }
@@ -136,9 +137,11 @@ private fun ImportedAudioStorageControls(
         summary?.let { "File audio impor: ${it.count} file, ${formatSize(it.sizeBytes)}" }
             ?: if (reading) "Menghitung ukuran file audio impor…" else "Ukuran file audio impor tidak tersedia.",
         style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     OutlinedButton(
         enabled = !reading && !deleting,
+        shape = CircleShape,
         modifier = Modifier.minTouchTarget(),
         onClick = {
             deleting = true
@@ -179,6 +182,7 @@ private fun ImportedAudioStorageControls(
         Text(
             it,
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
     }

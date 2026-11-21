@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -17,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -26,8 +26,7 @@ import androidx.compose.ui.unit.dp
 internal fun AppearanceSection(preferences: AppearancePreferences) {
     val settings = preferences.settings ?: Appearance()
     val ready = preferences.settings != null
-    Column {
-        Text("Tampilan", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    SettingsCard("Tampilan") {
         Column(Modifier.selectableGroup()) {
             ThemeMode.entries.forEach { mode ->
                 val selected = mode == settings.mode
@@ -43,10 +42,16 @@ internal fun AppearanceSection(preferences: AppearancePreferences) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     RadioButton(selected, onClick = null, enabled = ready)
-                    Text(mode.label, modifier = Modifier.weight(1f))
+                    Text(
+                        mode.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(
             Modifier.fillMaxWidth()
                 .toggleable(
@@ -61,7 +66,12 @@ internal fun AppearanceSection(preferences: AppearancePreferences) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Warna mengikuti sampul", Modifier.weight(1f))
+            Text(
+                "Warna mengikuti sampul",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
             Switch(settings.followCover, onCheckedChange = null, enabled = ready)
         }
     }
