@@ -44,7 +44,18 @@ internal class ArtworkAccentCache {
     }
 }
 
-/** Delapan tingkat per kanal menyatukan variasi kecil akibat kompresi sampul. */
+private const val MIN_ACCENT_SATURATION = 0.20f
+private const val MIN_ACCENT_CHROMA = 0.10f
+private const val MIN_ACCENT_VALUE = 0.20f
+private const val MIN_ACCENT_LIGHTNESS = 0.12f
+private const val MAX_ACCENT_LIGHTNESS = 0.88f
+
+/**
+ * Delapan tingkat per kanal menyatukan variasi kecil akibat kompresi sampul.
+ * Kelompok warna yang cukup jenuh dengan kecerahan wajar diutamakan dan dipilih berdasarkan
+ * jumlah piksel terbanyak; warna netral (hampir abu-abu, putih, atau hitam) hanya dipakai
+ * sebagai cadangan bila sampul tidak memiliki warna jenuh.
+ */
 internal fun dominantAccent(pixels: IntArray): Color? {
     val counts = IntArray(512)
     val reds = IntArray(512)
@@ -61,10 +72,50 @@ internal fun dominantAccent(pixels: IntArray): Color? {
         greens[bin] += green
         blues[bin] += blue
     }
-    val bin = counts.indices.maxBy { counts[it] }
-    val count = counts[bin]
-    if (count == 0) return null
-    return Color(reds[bin] / count, greens[bin] / count, blues[bin] / count)
+
+    var colorfulBin = -1
+    var colorfulCount = 0
+    var colorfulSaturation = 0f
+    var neutralBin = -1
+    var neutralCount = 0
+
+    for (bin in counts.indices) {
+        val count = counts[bin]
+        if (count == 0) continue
+        if (count > neutralCount) {
+            neutralBin = bin
+            neutralCount = count
+        }
+        val saturation = accentSaturationIfColorful(
+            red = reds[bin] / (count * 255f),
+            green = greens[bin] / (count * 255f),
+            blue = blues[bin] / (count * 255f),
+        ) ?: continue
+        if (count > colorfulCount || (count == colorfulCount && saturation > colorfulSaturation)) {
+            colorfulBin = bin
+            colorfulCount = count
+            colorfulSaturation = saturation
+        }
+    }
+
+    val chosenBin = if (colorfulBin >= 0) colorfulBin else neutralBin
+    if (chosenBin < 0) return null
+    val chosenCount = counts[chosenBin]
+    return Color(reds[chosenBin] / chosenCount, greens[chosenBin] / chosenCount, blues[chosenBin] / chosenCount)
+}
+
+/** Mengembalikan saturasi HSV bila warna cukup jenuh dan tidak hampir hitam/putih/abu-abu, atau null bila netral. */
+private fun accentSaturationIfColorful(red: Float, green: Float, blue: Float): Float? {
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val chroma = max - min
+    val saturation = if (max > 0f) chroma / max else 0f
+    val lightness = (max + min) / 2f
+    val colorful = saturation >= MIN_ACCENT_SATURATION &&
+        chroma >= MIN_ACCENT_CHROMA &&
+        max >= MIN_ACCENT_VALUE &&
+        lightness in MIN_ACCENT_LIGHTNESS..MAX_ACCENT_LIGHTNESS
+    return if (colorful) saturation else null
 }
 
 internal fun contrastRatio(first: Color, second: Color): Float {

@@ -52,7 +52,38 @@ class AppearanceTest {
     fun accent_uses_the_mean_of_the_dominant_group_and_ignores_transparency() {
         val pixels = intArrayOf(0xffb02130.toInt(), 0xffb42334.toInt(), 0xff2288cc.toInt(), 0, 0, 0)
         assertEquals(Color(0xffb22232), dominantAccent(pixels))
-        assertNull(dominantAccent(intArrayOf(0, 0x10667788)))
+        assertNull(dominantAccent(intArrayOf(0, 0x10667788, 0x7fff0000)))
+    }
+
+    @Test
+    fun accent_prefers_saturated_colors_over_neutral_backgrounds_and_weights_by_count() {
+        // Sampul putih atau hampir putih dengan logo merah kecil harus memilih merah.
+        val whiteCoverWithRedLogo =
+            IntArray(70) { 0xffffffff.toInt() } +
+                IntArray(20) { 0xfffaf6f0.toInt() } +
+                IntArray(10) { 0xffd32f2f.toInt() }
+        assertEquals(Color(0xffd32f2f), dominantAccent(whiteCoverWithRedLogo))
+
+        // Sampul hitam dengan teks biru kecil harus memilih biru, bukan hitam atau bintik gelap.
+        val blackCoverWithBlueText =
+            IntArray(75) { 0xff000000.toInt() } +
+                IntArray(10) { 0xff101010.toInt() } +
+                IntArray(10) { 0xff0a0a14.toInt() } +
+                IntArray(5) { 0xff1e88e5.toInt() }
+        assertEquals(Color(0xff1e88e5), dominantAccent(blackCoverWithBlueText))
+
+        // Sampul abu-abu murni tetap menghasilkan warna netral.
+        val pureGrayCover = IntArray(12) { 0xff808080.toInt() } + IntArray(4) { 0xffb0b0b0.toInt() }
+        assertEquals(Color(0xff808080), dominantAccent(pureGrayCover))
+
+        // Piksel transparan diabaikan meskipun bernilai warna jenuh.
+        val mostlyTransparent =
+            IntArray(20) { 0x7fff0000 } + IntArray(20) { 0 } + IntArray(2) { 0xff2288cc.toInt() }
+        assertEquals(Color(0xff2288cc), dominantAccent(mostlyTransparent))
+
+        // Antara dua warna jenuh, kelompok warna dengan piksel lebih banyak menang.
+        val twoSaturatedColors = IntArray(6) { 0xff26a69a.toInt() } + IntArray(4) { 0xffff0000.toInt() }
+        assertEquals(Color(0xff26a69a), dominantAccent(twoSaturatedColors))
     }
 
     @Test
