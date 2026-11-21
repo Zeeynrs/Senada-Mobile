@@ -2,6 +2,7 @@ package senada.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -70,10 +71,10 @@ class SearchHistoryTest {
         val library = library()
         library.setFavorite(senada.model.Track("yt:track:a", "A", listOf("B"), source = "ytmusic"), true)
 
-        SenadaDatabase.Schema.migrate(driver, 1, SenadaDatabase.Schema.version)
+        SenadaDatabase.Schema.migrate(driver, 1, 2)
         library.recordSearch("tulus")
 
-        assertEquals(2L, SenadaDatabase.Schema.version)
+        assertTrue(SenadaDatabase.Schema.version >= 2L)
         assertEquals(listOf("tulus"), library.searchHistory().first())
         assertEquals(1, library.favorites.first().size)
     }

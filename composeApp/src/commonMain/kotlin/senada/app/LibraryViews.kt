@@ -20,6 +20,7 @@ import androidx.compose.material.ScrollableTabRow
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,14 +66,20 @@ internal fun AppTabs(selected: AppTab, onSelect: (AppTab) -> Unit) {
     }
 }
 
-/** Isi library yang sedang tampil, dikumpulkan dari [LibraryRepository]. */
+/** Ukuran halaman daftar library; daftar bertambah sebanyak ini saat ujungnya terlihat. */
+internal const val LIBRARY_PAGE_SIZE = 50
+
+/**
+ * Isi library yang sedang tampil, dikumpulkan dari [LibraryRepository]. [favorites] hanya halaman yang
+ * sudah dimuat; [favoriteIds] berisi semua ID favorit untuk penanda hati.
+ */
 internal data class LibraryState(
     val favorites: List<Track> = emptyList(),
+    val favoriteTotal: Int = 0,
+    val favoriteIds: Set<String> = emptySet(),
     val playlists: List<PlaylistSummary> = emptyList(),
     val history: List<Track> = emptyList(),
-) {
-    val favoriteIds: Set<String> = favorites.mapTo(mutableSetOf()) { it.id }
-}
+)
 
 /** Perintah library dan antrean dari layar. Penulisan database berjalan di latar dan tidak menahan UI. */
 internal class LibraryActions(
@@ -89,6 +96,16 @@ internal class LibraryActions(
     fun removeFromPlaylist(id: String, itemId: Long) = write { library.removeFromPlaylist(id, itemId) }
 
     fun enqueue(track: Track) = playback.add(track)
+
+    /** Seluruh favorit, bukan hanya halaman yang sudah dimuat. */
+    fun playAllFavorites() {
+        scope.launch { playAll(library.allFavorites()) }
+    }
+
+    /** Seluruh isi playlist, bukan hanya halaman yang sudah dimuat. */
+    fun playAllOf(playlistId: String) {
+        scope.launch { playAll(library.playlistTracks(playlistId)) }
+    }
 
     /** Menambahkan semua lagu ke akhir antrean lalu memutar yang pertama. */
     fun playAll(tracks: List<Track>) {
@@ -194,13 +211,24 @@ private fun LazyListScope.trackList(
     }
 }
 
-internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryActions) {
+internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryActions, onLoadMore: () -> Unit) {
     val favorites = library.favorites
-    item { SectionHeader("Favorit", onPlayAll = { actions.playAll(favorites) }.takeIf { favorites.isNotEmpty() }) }
-    if (favorites.isEmpty()) {
+    val title = if (library.favoriteTotal > 0) "Favorit (${library.favoriteTotal})" else "Favorit"
+    item { SectionHeader(title, onPlayAll = actions::playAllFavorites.takeIf { library.favoriteTotal > 0 }) }
+    if (library.favoriteTotal == 0) {
         item { Text("Belum ada favorit. Buka menu ⋯ pada lagu untuk menambahkannya.") }
     }
     trackList("favorite", favorites, library, actions)
+    loadMoreItem("favorite-more", loaded = favorites.size, total = library.favoriteTotal, onLoadMore)
+}
+
+/** Saat baris ini mulai terlihat di ujung daftar, halaman berikutnya diminta. */
+private fun LazyListScope.loadMoreItem(key: String, loaded: Int, total: Int, onLoadMore: () -> Unit) {
+    if (loaded >= total) return
+    item(key = key) {
+        LaunchedEffect(loaded) { onLoadMore() }
+        Text("Memuat…", style = MaterialTheme.typography.body2)
+    }
 }
 
 internal fun LazyListScope.historyTab(library: LibraryState, actions: LibraryActions) {
@@ -217,6 +245,7 @@ internal fun LazyListScope.playlistsTab(
     opened: Playlist?,
     actions: LibraryActions,
     onOpen: (String?) -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     if (opened == null) {
         item { PlaylistListHeader(actions) }
@@ -236,7 +265,7 @@ internal fun LazyListScope.playlistsTab(
     }
 
     item(key = "playlist-header-${opened.id}") { PlaylistHeader(opened, actions, onClose = { onOpen(null) }) }
-    if (opened.entries.isEmpty()) {
+    if (opened.entryCount == 0) {
         item { Text("Playlist ini masih kosong. Tambahkan lagu lewat menu ⋯.") }
     }
     itemsIndexed(opened.entries, key = { _, entry -> "playlist-item-${entry.itemId}" }) { index, entry ->
@@ -249,7 +278,8 @@ internal fun LazyListScope.playlistsTab(
                         actions.moveInPlaylist(opened.id, index, index - 1)
                     }) { Text("Pindah ke atas") }
                 }
-                if (index < opened.entries.lastIndex) {
+                // Urutan memakai indeks di seluruh playlist; halaman yang dimuat selalu awal playlist.
+                if (index < opened.entryCount - 1) {
                     DropdownMenuItem(onClick = {
                         close()
                         actions.moveInPlaylist(opened.id, index, index + 1)
@@ -262,6 +292,7 @@ internal fun LazyListScope.playlistsTab(
             }
         }
     }
+    loadMoreItem("playlist-more-${opened.id}", loaded = opened.entries.size, total = opened.entryCount, onLoadMore)
 }
 
 @Composable
@@ -286,9 +317,9 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TextButton(onClick = onClose) { Text("‹ Semua playlist") }
         Text(playlist.name, style = MaterialTheme.typography.h6)
-        Text("${playlist.entries.size} lagu", style = MaterialTheme.typography.body2)
+        Text("${playlist.entryCount} lagu", style = MaterialTheme.typography.body2)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { actions.playAll(playlist.entries.map { it.track }) }, enabled = playlist.entries.isNotEmpty()) {
+            TextButton(onClick = { actions.playAllOf(playlist.id) }, enabled = playlist.entryCount > 0) {
                 Text("Putar semua")
             }
             TextButton(onClick = { renaming = true }) { Text("Ganti nama") }
