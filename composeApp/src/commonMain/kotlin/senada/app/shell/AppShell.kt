@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.nowplaying.NowPlayingScreen
+import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
 import senada.app.tabs.rememberSearchTabState
@@ -67,6 +69,9 @@ internal fun AppShell(
 ) {
     val navigator = rememberAppNavigator()
     val state by playback.state.collectAsState()
+    LaunchedEffect(state.queue.entries.isEmpty()) {
+        if (playback.state.value.queue.entries.isEmpty()) PlaySourceState.current.value = null
+    }
     val uiScope = rememberCoroutineScope()
     val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
 

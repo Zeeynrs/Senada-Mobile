@@ -1,28 +1,22 @@
 package senada.app
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
 import kotlin.math.roundToLong
@@ -40,7 +34,6 @@ import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
 import senada.playback.QueueStore
-import senada.playback.RepeatMode
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioSelection
 import senada.playback.SampleAudioSource
@@ -111,100 +104,9 @@ internal fun createPlaybackController(
         .apply { persistQueue(queueStore) }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SampleAudioControls(
-    state: SampleAudioState,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    canResume: Boolean,
-    onSeek: (Long) -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    canGoPrevious: Boolean,
-    canGoNext: Boolean,
-    repeatMode: RepeatMode,
-    onRepeatModeChange: (RepeatMode) -> Unit,
-    shuffleEnabled: Boolean,
-    onShuffleChange: (Boolean) -> Unit,
-    problem: String? = null,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        PlaybackProgress(state, onSeek)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            TextButton(onClick = onPrevious, enabled = canGoPrevious, modifier = Modifier.minTouchTarget()) {
-                Text("Sebelumnya")
-            }
-            // Satu tombol putar/jeda: melanjutkan lagu terpilih dari posisinya, atau memulai antrean.
-            if (state.isActive) {
-                TextButton(onClick = onPause, modifier = Modifier.minTouchTarget()) { Text("Jeda") }
-            } else {
-                TextButton(onClick = onResume, enabled = canResume, modifier = Modifier.minTouchTarget()) {
-                    Text("Putar")
-                }
-            }
-            TextButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.minTouchTarget()) {
-                Text("Berikutnya")
-            }
-        }
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            val (repeatLabel, nextMode) = when (repeatMode) {
-                RepeatMode.Off -> "Mati" to RepeatMode.All
-                RepeatMode.All -> "Semua" to RepeatMode.One
-                RepeatMode.One -> "Satu" to RepeatMode.Off
-            }
-            TextButton(onClick = { onRepeatModeChange(nextMode) }, modifier = Modifier.minTouchTarget()) {
-                Text("Ulangi: $repeatLabel")
-            }
-            TextButton(onClick = { onShuffleChange(!shuffleEnabled) }, modifier = Modifier.minTouchTarget()) {
-                Text(if (shuffleEnabled) "Acak: Nyala" else "Acak: Mati")
-            }
-        }
-
-        val status = when (state.status) {
-            SampleAudioStatus.Idle -> null
-            SampleAudioStatus.Loading -> "Memuat audio…"
-            SampleAudioStatus.Playing -> when (state.selection?.source) {
-                SampleAudioSource.Local -> "Memutar file lokal"
-                SampleAudioSource.Https -> "Memutar dari HTTPS"
-                SampleAudioSource.YouTubeMusic -> "Memutar dari YouTube Music"
-                null -> null
-            }
-            SampleAudioStatus.Paused -> "Dijeda"
-            SampleAudioStatus.Ended -> "Pemutaran selesai"
-            SampleAudioStatus.Failed -> problem ?: "Audio gagal diputar. Coba lagi."
-        }
-        val selectedTitle = state.selection?.title
-        if (status != null) {
-            // Judul dipisahkan agar judul panjang tidak memotong status atau pesan galat pemutaran.
-            Column(
-                modifier = Modifier.semantics(mergeDescendants = true) {
-                    liveRegion = LiveRegionMode.Polite
-                },
-            ) {
-                selectedTitle?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(status, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
+internal fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
     val duration = state.durationMs
     if (duration == null) {
         if (state.status == SampleAudioStatus.Paused && state.selection?.isPending == true && state.positionMs > 0) {
@@ -231,6 +133,9 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
             scrubFraction = null
         },
         enabled = state.canSeek,
+        track = { slider ->
+            SliderDefaults.Track(sliderState = slider, enabled = state.canSeek, modifier = Modifier.height(4.dp))
+        },
         modifier = Modifier.fillMaxWidth().excludeSystemGestures().semantics {
             contentDescription = "Posisi pemutaran"
             stateDescription = spokenProgress

@@ -2,7 +2,13 @@ package senada.lyrics
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.sizeIn
@@ -11,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import senada.model.Track
@@ -63,6 +72,43 @@ internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepos
     val panelHeight = (200f * fontScale.coerceAtMost(1.5f)).dp
     val syncedVerticalPadding = if (fontScale > 1.3f) 56.dp else 84.dp
 
+    var expanded by remember(track.id) { mutableStateOf(false) }
+    val document = (result as? LyricsPanelResult.Ready)?.document
+    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            LyricsContent(track, result, positionMs, panelHeight, syncedVerticalPadding) { attempt++ }
+            if (document is LyricsDocument.Plain || document is LyricsDocument.Synced) {
+                TextButton(onClick = { expanded = true }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                    Text("Buka lirik penuh")
+                }
+            }
+        }
+    }
+    if (expanded) {
+        Dialog(onDismissRequest = { expanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
+                Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp)) {
+                    TextButton(onClick = { expanded = false }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
+                        Text("Tutup lirik")
+                    }
+                    BoxWithConstraints {
+                        LyricsContent(track, result, positionMs, maxHeight, syncedVerticalPadding) { attempt++ }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LyricsContent(
+    track: Track,
+    shown: LyricsPanelResult,
+    positionMs: Long,
+    panelHeight: Dp,
+    syncedVerticalPadding: Dp,
+    onRetry: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             track.title,
@@ -71,7 +117,7 @@ internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepos
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.semantics { heading() },
         )
-        when (val shown = result) {
+        when (shown) {
             LyricsPanelResult.Loading -> Text(
                 "Memuat lirik…",
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -79,7 +125,7 @@ internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepos
             is LyricsPanelResult.Error -> {
                 Text(shown.message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                 TextButton(
-                    onClick = { attempt++ },
+                    onClick = onRetry,
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 ) { Text("Coba lagi") }
             }
@@ -125,8 +171,9 @@ private fun SyncedLyrics(lines: List<LyricLine>, active: Int, panelHeight: Dp, v
                     selected = current
                     if (current) stateDescription = "Baris aktif"
                 },
-                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (current) FontWeight.ExtraBold else FontWeight.Medium,
+                color = if (current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

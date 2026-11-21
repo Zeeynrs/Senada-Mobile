@@ -34,7 +34,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import senada.app.nowplaying.PlaySource
+import senada.app.nowplaying.PlaySourceState
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
@@ -98,18 +101,23 @@ internal class LibraryActions(
 
     /** Seluruh favorit, bukan hanya halaman yang sudah dimuat. */
     fun playAllFavorites() {
-        scope.launch { playAll(library.allFavorites()) }
+        scope.launch { playAll(library.allFavorites(), PlaySource.Favorites) }
     }
 
     /** Seluruh isi playlist, bukan hanya halaman yang sudah dimuat. */
     fun playAllOf(playlistId: String) {
-        scope.launch { playAll(library.playlistTracks(playlistId)) }
+        scope.launch {
+            val playlist = library.playlist(playlistId).first() ?: return@launch
+            playAll(playlist.entries.map { it.track }, PlaySource.Playlist(playlist.name))
+        }
     }
 
     /** Menambahkan semua lagu ke akhir antrean lalu memutar yang pertama. */
-    fun playAll(tracks: List<Track>) {
+    fun playAll(tracks: List<Track>, source: PlaySource? = null) {
+        if (tracks.isEmpty()) return
         val firstNew = playback.state.value.queue.entries.size
         tracks.forEach(playback::add)
+        PlaySourceState.current.value = source
         playback.state.value.queue.entries.getOrNull(firstNew)?.let { playback.playEntry(it.id) }
     }
 
