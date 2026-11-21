@@ -1,5 +1,6 @@
 package senada.playback
 
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -8,6 +9,24 @@ import senada.model.Track
 
 class QueueTest {
     private val track = Track("demo:track:hujan", "Hujan", listOf("Senada"), source = "demo")
+
+    @Test
+    fun shuffleVariesBothRemainingOrderAndInsertionPosition() {
+        val original = Queue().append(track).append(track).append(track).append(track)
+        val active = original.entries[1]
+        val orders = mutableSetOf<List<QueueItem>>()
+        val positions = mutableSetOf<Int>()
+        for (seed in 0..63) {
+            val random = Random(seed)
+            val shuffled = original.withShuffle(true, active.id, random)
+            assertEquals(active, shuffled.playOrder.first())
+            orders.add(shuffled.playOrder)
+            val appended = shuffled.append(track, active.id, random)
+            positions.add(appended.playOrder.indexOf(appended.entries.last()))
+        }
+        assertNotEquals(1, orders.size)
+        assertEquals(setOf(1, 2, 3, 4), positions)
+    }
 
     @Test
     fun removingOneOccurrencePreservesTheOther() {

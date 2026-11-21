@@ -10,6 +10,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import senada.model.Track
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -23,6 +26,56 @@ class QueuePersistenceTest {
         source = "youtube-music",
     )
     private val local = Track("demo:track:hujan", "Hujan", emptyList(), source = "demo")
+
+    @Test
+    fun oldSnapshotDefaultsToLinearPlaybackWithoutRepeat() = runTest {
+        val store = MemoryQueueStore("""{
+            "version":1,"nextId":2,"selectedEntryId":1,"positionMs":7000,
+            "entries":[{"id":1,"track":{"id":"a","title":"A","artists":[],
+                "durationMs":null,"artworkUrl":null,"source":"demo"}}]
+        }""")
+        val state = controller(FakeAudioOutput(), store).state.value
+        assertEquals(1L, state.currentEntry?.id)
+        assertEquals(7000L, state.audio.positionMs)
+        assertEquals(RepeatMode.Off, state.queue.repeatMode)
+        assertFalse(state.queue.shuffleEnabled)
+        assertFalse(state.canGoNext)
+    }
+
+    @Test
+    fun modeChangesAndExactPermutationSurviveReopening() = runTest {
+        val store = MemoryQueueStore()
+        val playback = controller(FakeAudioOutput(), store)
+        repeat(6) { playback.add(local) }
+        playback.playEntry(playback.state.value.queue.entries.last().id)
+        playback.setRepeatMode(RepeatMode.One)
+        playback.setShuffleEnabled(true)
+        playback.next()
+        val saved = playback.state.value
+        val restored = controller(FakeAudioOutput(), store).state.value
+        assertEquals(saved.currentEntry, restored.currentEntry)
+        assertEquals(saved.queue.entries, restored.queue.entries)
+        assertEquals(saved.queue.playOrder, restored.queue.playOrder)
+        assertTrue(restored.queue.shuffleEnabled)
+        assertEquals(RepeatMode.One, restored.queue.repeatMode)
+    }
+
+    @Test
+    fun invalidModeOrPermutationRejectsSnapshot() {
+        val queue = Queue().append(local).append(stream)
+        val text = QueueJson.encode(QueueSnapshot(queue, null, 0))
+        for (fields in listOf(
+            """"repeat":"invalid"""",
+            """"shuffle":"true"""",
+            """"shuffle":true,"shuffleOrder":[1,1]""",
+            """"shuffle":true,"shuffleOrder":[2]""",
+            """"shuffle":true,"shuffleOrder":[1,7]""",
+        )) {
+            val corrupt = Json.parseToJsonElement(text).jsonObject.toMutableMap()
+            corrupt.putAll(Json.parseToJsonElement("{$fields}").jsonObject)
+            assertNull(QueueJson.decode(JsonObject(corrupt).toString()), fields)
+        }
+    }
 
     @Test
     fun restoredShuffleContinuesInSavedOrderAndWraps() = runTest {

@@ -21,6 +21,7 @@ import senada.app.createPlaybackController
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.QueueStore
+import senada.playback.RepeatMode as QueueRepeatMode
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioStatus
 
@@ -125,7 +126,13 @@ internal class SessionPlayer(
         val state = playback.state.value
         val items = sessionItems(state)
         val builder = SimpleBasePlayer.State.Builder()
-            .setAvailableCommands(SESSION_COMMANDS)
+            .setAvailableCommands(if (state.canGoNext) SESSION_COMMANDS_WITH_NEXT else SESSION_COMMANDS)
+            .setRepeatMode(when (state.queue.repeatMode) {
+                QueueRepeatMode.Off -> Player.REPEAT_MODE_OFF
+                QueueRepeatMode.All -> Player.REPEAT_MODE_ALL
+                QueueRepeatMode.One -> Player.REPEAT_MODE_ONE
+            })
+            .setShuffleModeEnabled(state.queue.shuffleEnabled)
             .setPlaylist(items.map { it.toMediaItemData() })
         if (items.isNotEmpty()) {
             builder.setCurrentMediaItemIndex(currentIndex(state, items))
@@ -161,7 +168,30 @@ internal class SessionPlayer(
         return Futures.immediateVoidFuture()
     }
 
+    override fun handleSetRepeatMode(repeatMode: Int): ListenableFuture<*> {
+        playback.setRepeatMode(when (repeatMode) {
+            Player.REPEAT_MODE_ALL -> QueueRepeatMode.All
+            Player.REPEAT_MODE_ONE -> QueueRepeatMode.One
+            else -> QueueRepeatMode.Off
+        })
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSetShuffleModeEnabled(shuffleModeEnabled: Boolean): ListenableFuture<*> {
+        playback.setShuffleEnabled(shuffleModeEnabled)
+        return Futures.immediateVoidFuture()
+    }
+
     override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
+        when (seekCommand) {
+            Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM -> playback.next()
+            Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> playback.previous()
+            else -> seekToItem(mediaItemIndex, positionMs)
+        }
+        return Futures.immediateVoidFuture()
+    }
+
+    private fun seekToItem(mediaItemIndex: Int, positionMs: Long) {
         val state = playback.state.value
         val items = sessionItems(state)
         val target = items.getOrNull(mediaItemIndex)
@@ -171,7 +201,6 @@ internal class SessionPlayer(
                 target.entryId?.let(playback::playEntry)
             positionMs != C.TIME_UNSET -> playback.seekTo(positionMs)
         }
-        return Futures.immediateVoidFuture()
     }
 
     private fun SessionItem.toMediaItemData(): SimpleBasePlayer.MediaItemData {
@@ -205,12 +234,16 @@ private val SESSION_COMMANDS: Player.Commands = Player.Commands.Builder().addAll
     Player.COMMAND_SEEK_TO_MEDIA_ITEM,
     Player.COMMAND_SEEK_TO_PREVIOUS,
     Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
-    Player.COMMAND_SEEK_TO_NEXT,
-    Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+    Player.COMMAND_SET_REPEAT_MODE,
+    Player.COMMAND_SET_SHUFFLE_MODE,
     Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
     Player.COMMAND_GET_TIMELINE,
     Player.COMMAND_GET_METADATA,
 ).build()
+
+private val SESSION_COMMANDS_WITH_NEXT = SESSION_COMMANDS.buildUpon()
+    .addAll(Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+    .build()
 
 /** Antrean menjadi playlist sesi; sampel uji di luar antrean tampil sebagai satu item. */
 private fun sessionItems(state: PlaybackState): List<SessionItem> {
@@ -218,7 +251,7 @@ private fun sessionItems(state: PlaybackState): List<SessionItem> {
     if (selection != null && selection.queueEntryId == null) {
         return listOf(SessionItem("sample:${selection.source}", null, selection.title, emptyList(), state.audio.durationMs))
     }
-    return state.queue.entries.map { entry ->
+    return state.queue.playOrder.map { entry ->
         val isCurrent = entry.id == selection?.queueEntryId
         SessionItem(
             uid = "entry:${entry.id}",

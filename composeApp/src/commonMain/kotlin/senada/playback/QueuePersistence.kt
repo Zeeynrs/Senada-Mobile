@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -57,6 +58,13 @@ internal object QueueJson {
         put("nextId", snapshot.queue.nextId)
         put("selectedEntryId", snapshot.selectedEntryId)
         put("positionMs", snapshot.positionMs)
+        put("repeat", snapshot.queue.repeatMode.name.lowercase())
+        put("shuffle", snapshot.queue.shuffleEnabled)
+        if (snapshot.queue.shuffleEnabled) {
+            put("shuffleOrder", buildJsonArray {
+                snapshot.queue.playOrder.forEach { add(JsonPrimitive(it.id)) }
+            })
+        }
         put("entries", buildJsonArray {
             snapshot.queue.entries.forEach { entry ->
                 add(buildJsonObject {
@@ -76,11 +84,21 @@ internal object QueueJson {
                 val item = element.jsonObject
                 QueueItem(item.getValue("id").readLong(), item.getValue("track").jsonObject.readTrack())
             }
-            val queue = Queue.restore(entries, root.getValue("nextId").readLong())
             val selected = root.getValue("selectedEntryId").takeUnless { it == JsonNull }?.readLong()
             val position = root.getValue("positionMs").readLong()
             require(position in 0..MAX_TIME_MS)
             require(if (selected == null) position == 0L else entries.any { it.id == selected })
+            val repeat = root["repeat"]?.readString()?.let { value ->
+                RepeatMode.entries.first { it.name.lowercase() == value }
+            } ?: RepeatMode.Off
+            val shuffle = root["shuffle"]?.jsonPrimitive?.run {
+                require(!isString)
+                boolean
+            } ?: false
+            val order = root["shuffleOrder"]?.jsonArray?.map { it.readLong() }
+            require(shuffle || order == null)
+            val queue = Queue.restore(entries, root.getValue("nextId").readLong(), repeat, order)
+                .withShuffle(shuffle, selected)
             QueueSnapshot(queue, selected, position)
         } catch (_: Exception) {
             null

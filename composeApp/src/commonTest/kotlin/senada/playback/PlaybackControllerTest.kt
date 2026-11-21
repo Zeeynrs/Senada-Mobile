@@ -38,6 +38,133 @@ class PlaybackControllerTest {
     private fun address(entry: QueueItem) = addresses.getOrPut(entry.id) { CompletableDeferred() }
 
     @Test
+    fun shuffle_preserves_active_entry() = runTest {
+        val playback = controller()
+        repeat(6) { playback.add(first) }
+        val original = playback.state.value.queue.entries
+        val active = original.last()
+        playback.playEntry(active.id)
+        output.positionMs = 4_000
+        playback.pause()
+        playback.setShuffleEnabled(true)
+
+        assertEquals(active.id, playback.selectedEntryId)
+        assertEquals(4_000L, playback.state.value.audio.positionMs)
+        assertEquals(SampleAudioStatus.Paused, playback.state.value.audio.status)
+        assertEquals(original, playback.state.value.queue.entries)
+        val visited = mutableListOf(active.id)
+        repeat(original.size - 1) {
+            assertTrue(playback.state.value.canGoNext)
+            playback.next()
+            visited += checkNotNull(playback.selectedEntryId)
+        }
+        assertEquals(original.map { it.id }.toSet(), visited.toSet())
+        assertEquals(false, playback.state.value.canGoNext)
+        playback.previous()
+        assertEquals(visited[visited.lastIndex - 1], playback.selectedEntryId)
+
+        playback.setShuffleEnabled(false)
+        val index = original.indexOfFirst { it.id == playback.selectedEntryId }
+        playback.next()
+        assertEquals(original[index + 1].id, playback.selectedEntryId)
+    }
+
+    @Test
+    fun editingShuffledQueuePreservesHistoryAndInsertsAfterSelection() = runTest {
+        val playback = controller()
+        repeat(5) { playback.add(first) }
+        playback.resume()
+        playback.setShuffleEnabled(true)
+        playback.next()
+        val active = playback.selectedEntryId
+        val before = playback.state.value.queue.playOrder
+        val removed = before.last()
+        playback.remove(removed.id)
+        playback.add(second)
+        val queue = playback.state.value.queue
+        val added = queue.entries.last()
+        assertEquals(active, playback.selectedEntryId)
+        assertEquals(before.take(2), queue.playOrder.take(2))
+        assertEquals(before - removed, queue.playOrder - added)
+
+        val remaining = mutableListOf<QueueItem>()
+        repeat(3) {
+            playback.next()
+            remaining += checkNotNull(playback.state.value.currentEntry)
+        }
+        assertEquals(queue.playOrder.drop(2), remaining)
+        assertTrue(added in remaining)
+        assertEquals(false, playback.state.value.canGoNext)
+        playback.remove(checkNotNull(playback.selectedEntryId))
+        assertNull(playback.selectedEntryId)
+        playback.resume()
+        assertEquals(before.first().id, playback.selectedEntryId)
+    }
+
+    @Test
+    fun repeat_modes_select_expected_next_entry() = runTest {
+        for (mode in RepeatMode.entries) {
+            val playback = controller()
+            playback.add(first)
+            playback.add(second)
+            val (a, b) = playback.state.value.queue.entries
+            playback.setRepeatMode(mode)
+            playback.playEntry(a.id)
+            playback.previous()
+            assertEquals(if (mode == RepeatMode.Off) a.id else b.id, playback.selectedEntryId)
+            playback.playEntry(b.id)
+            assertEquals(mode != RepeatMode.Off, playback.state.value.canGoNext)
+            playback.next()
+            assertEquals(if (mode == RepeatMode.Off) b.id else a.id, playback.selectedEntryId)
+
+            for (entry in listOf(a, b)) {
+                playback.playEntry(entry.id)
+                runCurrent()
+                output.positionMs = 9_000
+                output.status = SampleAudioStatus.Ended
+                output.emitEvent()
+                runCurrent()
+                val stopped = entry == b && mode == RepeatMode.Off
+                val expected = when {
+                    mode == RepeatMode.One || stopped -> entry
+                    entry == a -> b
+                    else -> a
+                }
+                assertEquals(expected.id, playback.selectedEntryId)
+                assertEquals(if (stopped) SampleAudioStatus.Ended else SampleAudioStatus.Playing,
+                    playback.state.value.audio.status)
+                if (!stopped) assertEquals(0L, playback.state.value.audio.positionMs)
+            }
+        }
+    }
+
+    @Test
+    fun prefetchFollowsShuffleAndAutomaticRepeatTarget() = runTest {
+        val resolved = mutableListOf<Long>()
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            resolved += entry.id
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        val (a, b) = playback.state.value.queue.entries
+        playback.playEntry(b.id)
+        playback.setShuffleEnabled(true)
+        runCurrent()
+        assertEquals(listOf(b.id, a.id), resolved)
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        assertEquals(a.id, playback.selectedEntryId)
+        assertEquals(listOf(b.id, a.id), resolved)
+        playback.setRepeatMode(RepeatMode.All)
+        runCurrent()
+        playback.setRepeatMode(RepeatMode.One)
+        runCurrent()
+        assertEquals(listOf(b.id, a.id, b.id, a.id), resolved)
+    }
+
+    @Test
     fun hidingTheUiKeepsAudioPlaying() = runTest {
         val playback = controller()
         playback.add(first)
