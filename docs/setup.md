@@ -1,6 +1,6 @@
 # Menjalankan Senada Mobile
 
-Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan dua lagu katalog contoh yang ikut di dalam aplikasi. Ketik judul atau artis untuk mencari di YouTube Music (perlu internet). Pilih **Tambah** dua kali pada lagu yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean disimpan di memori selama sesi aplikasi.
+Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan dua lagu katalog contoh yang ikut di dalam aplikasi. Ketik judul atau artis untuk mencari di YouTube Music (perlu internet). Pilih **Tambah** dua kali pada lagu yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean disimpan di penyimpanan lokal aplikasi dan dipulihkan saat Senada dibuka kembali.
 
 ## Struktur kode
 
@@ -49,7 +49,7 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 
 1. Dari tab **Actions**, jalankan workflow [iPhone test build](../.github/workflows/ios-device.yml) lewat **Run workflow**. Buka hasil run, unduh artefak `Senada-iPhone-unsigned-<nomor>` dari **Artifacts**, dan ekstrak `Senada-unsigned.ipa`. Artefak disimpan selama 14 hari.
 2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. Cara lain dari PC: sambungkan iPhone, tahan **Shift** sambil mengklik ikon AltServer di tray, pilih **Sideload .ipa…**, lalu pilih file `.ipa`. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
-3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali. Antrean demo direset saat sesi aplikasi berakhir.
+3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali dan antreannya tetap ada.
 
 ## Uji audio contoh
 
@@ -60,6 +60,8 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Audio tetap berjalan saat aplikasi masuk latar belakang atau layar dikunci.
 
 Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Setelah lebih dari 3 detik diputar, **Sebelumnya** kembali ke awal lagu yang sama; tekan sekali lagi dalam 3 detik pertama untuk pindah ke entri sebelumnya. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
+
+Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu buka Senada kembali. Cek bahwa urutan antrean, entri terpilih, dan posisi jeda kembali tanpa audio berbunyi. Tekan **Putar** dan pastikan lagu berlanjut dari posisi jeda tadi.
 
 ## Uji YouTube Music
 

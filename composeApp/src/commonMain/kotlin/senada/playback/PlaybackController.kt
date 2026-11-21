@@ -77,6 +77,13 @@ internal class PlaybackController(
         listener(mutableState.value)
     }
 
+    /** Memulihkan antrean saat controller dibuat, tanpa menyiapkan pemutar native. */
+    fun restore(snapshot: QueueSnapshot) {
+        queue = snapshot.queue
+        snapshot.selectedEntryId?.let(::entry)?.let { player.restorePaused(it, snapshot.positionMs) }
+        publish()
+    }
+
     fun add(track: Track) {
         queue = queue.append(track)
         prefetchNext()

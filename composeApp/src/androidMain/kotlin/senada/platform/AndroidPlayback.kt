@@ -3,6 +3,7 @@ package senada.platform
 import android.content.Context
 import android.net.Uri
 import android.os.Looper
+import android.util.AtomicFile
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -15,9 +16,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import java.io.File
 import senada.app.createPlaybackController
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
+import senada.playback.QueueStore
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioStatus
 
@@ -31,10 +34,27 @@ internal object AndroidPlayback {
 
     private fun create(context: Context): Components {
         val output = ExoAudioOutput(context)
-        val controller = createPlaybackController(output)
+        val controller = createPlaybackController(output, AndroidQueueStore(context))
         val sessionPlayer = SessionPlayer(controller) { output.positionMs }
         controller.addListener { sessionPlayer.refresh() }
         return Components(controller, sessionPlayer)
+    }
+}
+
+private class AndroidQueueStore(context: Context) : QueueStore {
+    private val file = AtomicFile(File(context.filesDir, "playback-queue.json"))
+
+    override fun load(): String = file.readFully().decodeToString(throwOnInvalidSequence = true)
+
+    override fun save(text: String) {
+        val stream = file.startWrite()
+        try {
+            stream.write(text.encodeToByteArray())
+            file.finishWrite(stream)
+        } catch (e: Exception) {
+            file.failWrite(stream)
+            throw e
+        }
     }
 }
 
@@ -109,7 +129,13 @@ internal class SessionPlayer(
             .setPlaylist(items.map { it.toMediaItemData() })
         if (items.isNotEmpty()) {
             builder.setCurrentMediaItemIndex(currentIndex(state, items))
-                .setContentPositionMs(SimpleBasePlayer.PositionSupplier { if (state.audio.selection == null) 0 else positionMs() })
+                .setContentPositionMs(SimpleBasePlayer.PositionSupplier {
+                    when (state.audio.selection?.isPending) {
+                        true -> state.audio.positionMs
+                        false -> positionMs()
+                        null -> 0
+                    }
+                })
         }
 
         val (playbackState, playWhenReady) = when (state.audio.status) {

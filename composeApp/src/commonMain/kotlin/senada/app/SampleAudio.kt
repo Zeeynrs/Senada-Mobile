@@ -26,11 +26,13 @@ import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
+import senada.playback.QueueStore
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioSelection
 import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
+import senada.playback.persistQueue
 import senada.resources.Res
 
 private const val HTTPS_SAMPLE = "https://raw.githubusercontent.com/Zeeynrs/Senada-Mobile/" +
@@ -69,8 +71,9 @@ private fun localAudioSelection(track: Track, queueEntryId: Long? = null): Sampl
 }
 
 /** Satu controller untuk seluruh proses aplikasi; dibuat oleh titik masuk Android atau iOS. */
-internal fun createPlaybackController(output: SampleAudioOutput): PlaybackController =
+internal fun createPlaybackController(output: SampleAudioOutput, queueStore: QueueStore): PlaybackController =
     PlaybackController(output, MainScope(), selectionFor = ::queueAudioSelection)
+        .apply { persistQueue(queueStore) }
 
 @Composable
 internal fun SampleAudioControls(
@@ -132,7 +135,13 @@ internal fun SampleAudioControls(
 
 @Composable
 private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
-    val duration = state.durationMs ?: return
+    val duration = state.durationMs
+    if (duration == null) {
+        if (state.status == SampleAudioStatus.Paused && state.selection?.isPending == true && state.positionMs > 0) {
+            Text(playbackTime(state.positionMs), style = MaterialTheme.typography.body2)
+        }
+        return
+    }
     var scrubFraction by remember(state.selection, state.canSeek) { mutableStateOf<Float?>(null) }
     val progress = scrubFraction ?: (state.positionMs.toDouble() / duration).toFloat()
     val shownPosition = scrubFraction?.let { (it * duration.toDouble()).roundToLong() } ?: state.positionMs
