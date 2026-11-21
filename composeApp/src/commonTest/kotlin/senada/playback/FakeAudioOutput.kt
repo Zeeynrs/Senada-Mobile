@@ -2,6 +2,8 @@ package senada.playback
 
 internal class FakeAudioOutput : SampleAudioOutput {
     val restarts = mutableListOf<Boolean>()
+    /** Titik mulai setiap kali audio dimuat ulang. */
+    val startPositions = mutableListOf<Long>()
     val seeks = mutableListOf<Long>()
     var pauseCount = 0
     var emitEventOnPlay = false
@@ -10,10 +12,13 @@ internal class FakeAudioOutput : SampleAudioOutput {
     override var durationMs: Long? = null
     override var onEvent: (() -> Unit)? = null
 
-    override fun play(uri: String, restart: Boolean) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
         restarts += restart
         status = SampleAudioStatus.Playing
-        if (restart) positionMs = 0
+        if (restart) {
+            startPositions += startAtMs
+            positionMs = startAtMs
+        }
         if (emitEventOnPlay) emitEvent()
     }
 

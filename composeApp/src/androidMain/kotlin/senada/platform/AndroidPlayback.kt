@@ -1,6 +1,7 @@
 package senada.platform
 
 import android.content.Context
+import android.net.Uri
 import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -73,9 +74,9 @@ private class ExoAudioOutput(context: Context) : SampleAudioOutput {
 
     override val durationMs get() = player.duration.takeIf { it > 0 }
 
-    override fun play(uri: String, restart: Boolean) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
         if (restart) {
-            player.setMediaItem(MediaItem.fromUri(uri))
+            player.setMediaItem(MediaItem.fromUri(uri), startAtMs)
             player.prepare()
         }
         player.play()
@@ -151,6 +152,8 @@ internal class SessionPlayer(
         val metadata = MediaMetadata.Builder()
             .setTitle(title)
             .setArtist(artists.joinToString().ifEmpty { null })
+            // MediaSession mengunduh gambarnya sendiri untuk notifikasi dan layar kunci.
+            .setArtworkUri(artworkUrl?.let(Uri::parse))
             .build()
         return SimpleBasePlayer.MediaItemData.Builder(uid)
             .setMediaItem(MediaItem.Builder().setMediaId(uid).setMediaMetadata(metadata).build())
@@ -166,6 +169,7 @@ private class SessionItem(
     val title: String,
     val artists: List<String>,
     val durationMs: Long?,
+    val artworkUrl: String? = null,
 )
 
 private val SESSION_COMMANDS: Player.Commands = Player.Commands.Builder().addAll(
@@ -196,6 +200,7 @@ private fun sessionItems(state: PlaybackState): List<SessionItem> {
             title = entry.track.title,
             artists = entry.track.artists,
             durationMs = if (isCurrent) state.audio.durationMs ?: entry.track.durationMs else entry.track.durationMs,
+            artworkUrl = entry.track.artworkUrl,
         )
     }
 }

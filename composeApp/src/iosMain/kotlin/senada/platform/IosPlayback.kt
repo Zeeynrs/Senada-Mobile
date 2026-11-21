@@ -34,8 +34,12 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSString
 import platform.Foundation.NSURL
+import platform.Foundation.NSURLSession
+import platform.Foundation.dataTaskWithURL
 import platform.MediaPlayer.MPChangePlaybackPositionCommandEvent
+import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyArtist
+import platform.MediaPlayer.MPMediaItemPropertyArtwork
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPNowPlayingInfoCenter
@@ -44,6 +48,7 @@ import platform.MediaPlayer.MPNowPlayingInfoPropertyPlaybackRate
 import platform.MediaPlayer.MPRemoteCommandCenter
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusCommandFailed
 import platform.MediaPlayer.MPRemoteCommandHandlerStatusSuccess
+import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlaybackController
@@ -62,6 +67,11 @@ internal object IosPlayback {
 
     private val observers = mutableListOf<Any>()
 
+    /** Sampul lagu terakhir yang sudah diunduh; layar kunci hanya memakai sampul lagu yang sedang dipilih. */
+    private var artwork: Pair<String, MPMediaItemArtwork>? = null
+    private var artworkLoading: String? = null
+    private var refreshNowPlaying: () -> Unit = {}
+
     private fun create(): PlaybackController {
         // Kategori playback membuat audio tetap berjalan saat layar terkunci (bersama UIBackgroundModes audio).
         AVAudioSession.sharedInstance().setCategory(
@@ -75,6 +85,11 @@ internal object IosPlayback {
         observeInterruptions(controller)
         registerRemoteCommands(controller)
         controller.addListener(::updateNowPlaying)
+        // Sampul tiba belakangan; posisi diambil langsung dari pemutar karena status bisa sudah lama.
+        refreshNowPlaying = {
+            val state = controller.state.value
+            updateNowPlaying(state.copy(audio = state.audio.copy(positionMs = output.positionMs)))
+        }
         return controller
     }
 
@@ -147,11 +162,35 @@ internal object IosPlayback {
         )
         track?.artists?.joinToString()?.takeIf { it.isNotEmpty() }?.let { info[MPMediaItemPropertyArtist] = it }
         state.audio.durationMs?.let { info[MPMediaItemPropertyPlaybackDuration] = NSNumber(double = it / 1_000.0) }
+        artworkFor(track?.artworkUrl)?.let { info[MPMediaItemPropertyArtwork] = it }
         // Kirim NSDictionary asli; Map Kotlin dibungkus kelas Kotlin yang bisa ditolak saat dikirim ke sistem.
         val dictionary = NSMutableDictionary()
         info.forEach { (key, value) -> dictionary.setObject(value, forKey = key as NSString) }
         @Suppress("UNCHECKED_CAST")
         center.nowPlayingInfo = dictionary as Map<Any?, *>
+    }
+
+    /** Sampul yang sudah siap, atau null sambil mengunduhnya lalu memperbarui layar kunci. */
+    private fun artworkFor(url: String?): MPMediaItemArtwork? {
+        if (url == null) return null
+        artwork?.let { (loadedUrl, loaded) -> if (loadedUrl == url) return loaded }
+        if (artworkLoading == url) return null
+        val nsUrl = NSURL.URLWithString(url) ?: return null
+
+        artworkLoading = url
+        NSURLSession.sharedSession.dataTaskWithURL(nsUrl) { data, _, _ ->
+            val image = data?.let { UIImage.imageWithData(it) }
+            dispatch_async(dispatch_get_main_queue()) {
+                // Lagu bisa sudah berganti dan sampul lain sedang diunduh.
+                if (artworkLoading != url) return@dispatch_async
+                artworkLoading = null
+                if (image != null) {
+                    artwork = url to MPMediaItemArtwork(boundsSize = image.size) { _ -> image }
+                    refreshNowPlaying()
+                }
+            }
+        }.resume()
+        return null
     }
 }
 
@@ -202,12 +241,14 @@ private class AvAudioOutput : SampleAudioOutput {
             ?.takeIf { it.isFinite() && it > 0 }
             ?.let { (it * 1_000).roundToLong() }
 
-    override fun play(uri: String, restart: Boolean) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
         if (restart) {
             pendingSeek = null
             player.pause()
             val url = NSURL.URLWithString(uri)
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
+            // AVPlayer menahan permintaan seek sampai item baru siap diputar.
+            if (startAtMs > 0 && player.currentItem() != null) seekTo(startAtMs)
         }
         if (player.currentItem() != null) player.play()
     }

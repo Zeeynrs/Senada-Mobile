@@ -362,4 +362,135 @@ class PlaybackControllerTest {
         assertEquals(secondEntry.id, playback.selectedEntryId)
         assertEquals(listOf(true, true), output.restarts)
     }
+
+    /** Jam tes dan alamat stream yang berlaku satu jam, seperti YouTube Music tapi lebih singkat. */
+    private var nowMs = 0L
+    private val resolutions = mutableMapOf<Long, Int>()
+
+    private fun TestScope.expiringController() =
+        PlaybackController(output, backgroundScope, now = { nowMs }) { entry ->
+            val count = (resolutions[entry.id] ?: 0) + 1
+            resolutions[entry.id] = count
+            selection(entry).copy(uri = "https://audio/${entry.id}?v=$count", expiresAtEpochMs = nowMs + HOUR_MS)
+        }
+
+    @Test
+    fun resumingAfterTheAddressExpiresFetchesANewOneAndKeepsThePosition() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+        output.positionMs = 90_000
+        playback.pause()
+
+        nowMs += 2 * HOUR_MS
+        playback.resume()
+
+        assertEquals(2, resolutions[entry.id])
+        assertEquals("https://audio/${entry.id}?v=2", playback.state.value.audio.selection?.uri)
+        assertEquals(listOf(true, true), output.restarts)
+        assertEquals(listOf(0L, 90_000L), output.startPositions)
+        assertEquals(90_000L, playback.state.value.audio.positionMs)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+    }
+
+    @Test
+    fun aShortPauseResumesWithTheSameAddress() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+        output.positionMs = 90_000
+        playback.pause()
+
+        nowMs += 60_000
+        playback.resume()
+
+        assertEquals(1, resolutions[entry.id])
+        assertEquals(listOf(true, false), output.restarts)
+    }
+
+    @Test
+    fun aStreamFailureIsRetriedOnceFromTheSamePosition() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+
+        output.positionMs = 60_000
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(2, resolutions[entry.id])
+        assertEquals(listOf(0L, 60_000L), output.startPositions)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(2, resolutions[entry.id])
+        assertEquals(SampleAudioStatus.Failed, playback.state.value.audio.status)
+    }
+
+    @Test
+    fun playAfterAFailureContinuesFromTheLastPosition() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+        output.positionMs = 30_000
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+        output.positionMs = 45_000
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+
+        playback.resume()
+
+        assertEquals(3, resolutions[entry.id])
+        assertEquals(listOf(0L, 30_000L, 45_000L), output.startPositions)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+    }
+
+    @Test
+    fun anExpiredPreparedAddressIsFetchedAgainBeforeAdvancing() = runTest {
+        val playback = expiringController()
+        playback.add(first)
+        playback.add(second)
+        val (firstEntry, secondEntry) = playback.state.value.queue.entries
+        playback.playEntry(firstEntry.id)
+        runCurrent()
+        assertEquals(1, resolutions[secondEntry.id])
+
+        nowMs += 2 * HOUR_MS
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(secondEntry.id, playback.selectedEntryId)
+        assertEquals(2, resolutions[secondEntry.id])
+        assertEquals("https://audio/${secondEntry.id}?v=2", playback.state.value.audio.selection?.uri)
+    }
+
+    @Test
+    fun localAudioIsNotRetriedAutomatically() = runTest {
+        val playback = controller()
+        playback.add(first)
+        playback.playEntry(playback.state.value.queue.entries.single().id)
+
+        output.status = SampleAudioStatus.Failed
+        output.emitEvent()
+        runCurrent()
+
+        assertEquals(listOf(true), output.restarts)
+        assertEquals(SampleAudioStatus.Failed, playback.state.value.audio.status)
+    }
+
+    private companion object {
+        const val HOUR_MS = 3_600_000L
+    }
 }

@@ -10,7 +10,8 @@ import senada.catalog.youtube.YouTubeMusicResolver
 
 /** Sumber katalog dan audio bersama untuk seluruh proses, termasuk pemutaran di latar belakang. */
 internal object SenadaSources {
-    private val http by lazy {
+    /** Dipakai bersama juga untuk gambar sampul. */
+    val http by lazy {
         // Engine dipilih dari dependency platform: OkHttp di Android, NSURLSession di iOS.
         HttpClient {
             install(HttpTimeout) {

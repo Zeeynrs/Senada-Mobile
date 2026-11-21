@@ -49,12 +49,16 @@ internal fun sampleAudioSelection(source: SampleAudioSource): SampleAudioSelecti
 
 /** Alamat audio entri antrean: file contoh di aplikasi, atau stream YouTube Music yang dicari saat diputar. */
 internal suspend fun queueAudioSelection(entry: QueueItem): SampleAudioSelection = when (entry.track.source) {
-    YOUTUBE_MUSIC_SOURCE -> SampleAudioSelection(
-        entry.track.title,
-        SampleAudioSource.YouTubeMusic,
-        SenadaSources.streams.resolve(entry.track).location,
-        entry.id,
-    )
+    YOUTUBE_MUSIC_SOURCE -> {
+        val audio = SenadaSources.streams.resolve(entry.track)
+        SampleAudioSelection(
+            entry.track.title,
+            SampleAudioSource.YouTubeMusic,
+            audio.location,
+            entry.id,
+            expiresAtEpochMs = audio.expiresAtEpochMs,
+        )
+    }
     else -> localAudioSelection(entry.track, entry.id)
 }
 
