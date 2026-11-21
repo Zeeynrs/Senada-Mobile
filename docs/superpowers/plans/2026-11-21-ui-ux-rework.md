@@ -52,16 +52,16 @@
 - Produces: `@Composable internal fun senadaTypography(): Typography` dan `internal val SenadaShapes: Shapes` (extraSmall 8, small 12, medium 20, large 24, extraLarge 28 dp)
 - Produces: `SenadaTheme(artworkUrl, visible, content: @Composable (AppearancePreferences) -> Unit)` tetap dengan tanda tangan sama, kini membungkus `androidx.compose.material3.MaterialTheme(colorScheme, typography, shapes)`
 
-- [ ] **Step 1: Tulis tes yang gagal** — `SenadaTokensTest`:
+- [x] **Step 1: Tulis tes yang gagal** — `SenadaTokensTest`:
   - `darkSchemeUsesSenadaColors`: `senadaColorScheme(true, null).background == Color(0xFF0B0C0E)`, `.primary == Color(0xFF67CDB1)`
   - `lightSchemeUsesDarkerTeal`: `senadaColorScheme(false, null).primary == Color(0xFF0F7B67)`, `.background == Color(0xFFF7F6F3)`
   - `coverAccentIsMadeReadable`: untuk `accent = Color(0xFFFFF3B0)` di skema terang, `contrastRatio(primary, background) >= 4.5f`
   - `textOnPrimaryIsReadable`: untuk kedua skema dan aksen `Color(0xFF67CDB1)`, `Color(0xFF1F5FB0)`, `contrastRatio(onPrimary, primary) >= 4.5f`
   - `mutedTextIsReadable`: `contrastRatio(onSurfaceVariant, background) >= 4.5f` di kedua skema
-- [ ] **Step 2: Jalankan** — push, buka draft PR; Mobile checks gagal di tes baru.
-- [ ] **Step 3: Implementasikan** token, `senadaColorScheme`, `senadaTypography` (memakai `Font(Res.font.plus_jakarta_sans_*, FontWeight.W500..W800)`), `SenadaShapes`, dan `SenadaTheme` di Material 3. Map: `background/surface/surfaceVariant/outline/onBackground/onSurface/onSurfaceVariant` dari palet; `error` tetap bawaan M3.
-- [ ] **Step 4: Jalankan** — Mobile checks lulus.
-- [ ] **Step 5: Commit** — `feat(theme): add Senada Material 3 tokens and Plus Jakarta Sans`
+- [x] **Step 2: Jalankan** — push, buka draft PR; Mobile checks gagal di tes baru.
+- [x] **Step 3: Implementasikan** token, `senadaColorScheme`, `senadaTypography` (memakai `Font(Res.font.plus_jakarta_sans_*, FontWeight.W500..W800)`), `SenadaShapes`, dan `SenadaTheme` di Material 3. Map: `background/surface/surfaceVariant/outline/onBackground/onSurface/onSurfaceVariant` dari palet; `error` tetap bawaan M3.
+- [x] **Step 4: Jalankan** — Mobile checks lulus.
+- [x] **Step 5: Commit** — `feat(theme): add Senada Material 3 tokens and Plus Jakarta Sans`
 
 ### Task 2: Pindahkan semua layar ke komponen Material 3
 
@@ -73,10 +73,10 @@
 - Consumes: Task 1 (`SenadaTheme`, tipografi)
 - Produces: tidak ada API baru; tampilan masih tata letak lama dengan komponen M3
 
-- [ ] **Step 1: Ganti impor dan komponen** dengan pemetaan tetap: `typography.h4→headlineMedium`, `h6→titleLarge`, `subtitle1→titleMedium`, `body1→bodyLarge`, `body2→bodyMedium`; `colors.X→colorScheme.X`; `DropdownMenuItem(onClick){Text}` → `DropdownMenuItem(text = { Text(...) }, onClick = ...)`; `ScrollableTabRow` → M3 `ScrollableTabRow`; `AlertDialog`, `Switch`, `RadioButton`, `Slider`, `OutlinedTextField`, `Button`, `TextButton`, `OutlinedButton`, `IconButton`, `Surface` → padanan `androidx.compose.material3`. Teks tombol dan `contentDescription` yang ada tidak berubah.
-- [ ] **Step 2: Hapus dependency `compose.material`**; pastikan tidak ada impor `androidx.compose.material.` tersisa (`grep -rn "androidx.compose.material\." composeApp/src` hanya menemukan `material3` dan `material.icons` bila ada).
-- [ ] **Step 3: Verifikasi** — Mobile checks lulus; `gh workflow run android-emulator.yml --ref feat/m3-foundation` lulus tanpa mengubah skrip.
-- [ ] **Step 4: Commit dan PR** — `refactor(ui): move every screen to Material 3 components`; isi PR mencantumkan kedua run.
+- [x] **Step 1: Ganti impor dan komponen** dengan pemetaan tetap: `typography.h4→headlineMedium`, `h6→titleLarge`, `subtitle1→titleMedium`, `body1→bodyLarge`, `body2→bodyMedium`; `colors.X→colorScheme.X`; `DropdownMenuItem(onClick){Text}` → `DropdownMenuItem(text = { Text(...) }, onClick = ...)`; `ScrollableTabRow` → M3 `ScrollableTabRow`; `AlertDialog`, `Switch`, `RadioButton`, `Slider`, `OutlinedTextField`, `Button`, `TextButton`, `OutlinedButton`, `IconButton`, `Surface` → padanan `androidx.compose.material3`. Teks tombol dan `contentDescription` yang ada tidak berubah.
+- [x] **Step 2: Hapus dependency `compose.material`**; pastikan tidak ada impor `androidx.compose.material.` tersisa (`grep -rn "androidx.compose.material\." composeApp/src` hanya menemukan `material3` dan `material.icons` bila ada).
+- [x] **Step 3: Verifikasi** — Mobile checks lulus; `gh workflow run android-emulator.yml --ref feat/m3-foundation` lulus tanpa mengubah skrip.
+- [x] **Step 4: Commit dan PR** — `refactor(ui): move every screen to Material 3 components`; isi PR mencantumkan kedua run.
 
 ---
 
@@ -97,14 +97,14 @@
 - Produces: `@Composable internal fun rememberAppNavigator(): AppNavigator` (tahan rotasi lewat `rememberSaveable` dengan Saver sendiri)
 - Produces: `@Composable internal expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)`
 
-- [ ] **Step 1: Tulis tes yang gagal** — `AppNavigatorTest`:
+- [x] **Step 1: Tulis tes yang gagal** — `AppNavigatorTest`:
   - `backClosesNowPlayingFirst`: select(Library), openPlaylist("p"), openNowPlaying() → `back()` true dan `nowPlayingOpen == false`, `openedPlaylistId == "p"`
   - `backThenClosesPlaylistThenGoesHome`: lanjutan → `back()` menutup playlist; `back()` berikutnya → `destination == Home`; `back()` di Beranda → false
   - `selectingATabClosesDetailScreens`: openPlaylist("p"), select(Search) → `openedPlaylistId == null`
-- [ ] **Step 2: Jalankan** — Mobile checks gagal.
-- [ ] **Step 3: Implementasikan** `AppNavigator`, Saver, dan `PlatformBackHandler` (Android: `BackHandler(enabled, onBack)`; iOS: kosong).
-- [ ] **Step 4: Jalankan** — lulus.
-- [ ] **Step 5: Commit** — `feat(shell): add app navigator and back handling`
+- [x] **Step 2: Jalankan** — Mobile checks gagal.
+- [x] **Step 3: Implementasikan** `AppNavigator`, Saver, dan `PlatformBackHandler` (Android: `BackHandler(enabled, onBack)`; iOS: kosong).
+- [x] **Step 4: Jalankan** — lulus.
+- [x] **Step 5: Commit** — `feat(shell): add app navigator and back handling`
 
 ### Task 4: Navigasi mengambang, mini player, dan pemindahan isi ke tab
 
@@ -132,14 +132,14 @@
 - Produces: `@Composable internal fun DeveloperSection(playback: PlaybackController)` — judul "Pengembang", tombol teks "Putar lokal" dan "Putar HTTPS", status pemutaran sampel
 - Isi tab sementara: **Cari** = kolom cari, riwayat pencarian, impor file audio, hasil (dengan tombol "Tambah"); **Beranda** = daftar Favorit dan Riwayat lama; **Library** = sub-tab Favorit/Playlist/Riwayat lama; **Pengaturan** = bagian yang ada + `DeveloperSection` di paling bawah.
 
-- [ ] **Step 1: Tulis tes yang gagal** — `MiniPlayerTest`:
+- [x] **Step 1: Tulis tes yang gagal** — `MiniPlayerTest`:
   - `hiddenWithEmptyQueueAndNothingSelected`: `PlaybackState()` → false
   - `shownWhenQueueHasSongsButNothingIsSelected`: antrean satu entri, `audio.selection == null` → true
   - `shownForTheSampleButtons`: antrean kosong, `audio.selection` sampel → true
-- [ ] **Step 2: Jalankan** — gagal.
-- [ ] **Step 3: Implementasikan** ikon, `FloatingNavBar`, `MiniPlayer`, `AppShell`, keempat tab (memindahkan kode yang ada tanpa mengubah perilakunya), `NowPlayingScreen` sementara, `DeveloperSection`, dan `SenadaApp` yang menipis.
-- [ ] **Step 4: Jalankan** — Mobile checks lulus.
-- [ ] **Step 5: Commit** — `feat(shell): floating navigation, mini player and tab screens`
+- [x] **Step 2: Jalankan** — gagal.
+- [x] **Step 3: Implementasikan** ikon, `FloatingNavBar`, `MiniPlayer`, `AppShell`, keempat tab (memindahkan kode yang ada tanpa mengubah perilakunya), `NowPlayingScreen` sementara, `DeveloperSection`, dan `SenadaApp` yang menipis.
+- [x] **Step 4: Jalankan** — Mobile checks lulus.
+- [x] **Step 5: Commit** — `feat(shell): floating navigation, mini player and tab screens`
 
 ### Task 5: Uji emulator mengikuti kerangka baru
 
@@ -149,9 +149,9 @@
 **Interfaces:**
 - Consumes: label dari Task 4 — tab "Beranda"/"Cari"/"Library"/"Pengaturan" (content-desc), mini player "Buka Sedang diputar", "Putar"/"Jeda"/"Berikutnya" (content-desc), "Tutup", "Tambah" dan "Putar HTTPS" (teks), slider "Posisi pemutaran"
 
-- [ ] **Step 1: Ubah alur** — buka aplikasi → ketuk tab `Cari` (content-desc) → "Tambah" ×2 → ketuk `Putar` di mini player (content-desc) → sesi PLAYING lagu pertama → buka Sedang diputar lewat "Buka Sedang diputar" sebelum pemeriksaan Jeda/Putar, slider, Berikutnya/Sebelumnya (tombol di Sedang diputar boleh dicari lewat teks atau content-desc) → "Tutup" → HOME + layar mati dan seterusnya seperti sekarang → buka lagi aplikasi, ketuk tab `Pengaturan`, gulir ke "Putar HTTPS". Tambahkan pemeriksaan: "Tombol kembali menutup Sedang diputar" (`input keyevent KEYCODE_BACK` saat terbuka → aplikasi tetap di depan dan mini player terlihat).
-- [ ] **Step 2: Verifikasi** — `gh workflow run android-emulator.yml --ref feat/app-shell` lulus dengan semua pemeriksaan lama ditambah pemeriksaan kembali.
-- [ ] **Step 3: Commit dan PR** — `test(emulator): follow the new app shell`; PR "Kerangka navigasi" mencantumkan Mobile checks dan run emulator.
+- [x] **Step 1: Ubah alur** — buka aplikasi → ketuk tab `Cari` (content-desc) → "Tambah" ×2 → ketuk `Putar` di mini player (content-desc) → sesi PLAYING lagu pertama → buka Sedang diputar lewat "Buka Sedang diputar" sebelum pemeriksaan Jeda/Putar, slider, Berikutnya/Sebelumnya (tombol di Sedang diputar boleh dicari lewat teks atau content-desc) → "Tutup" → HOME + layar mati dan seterusnya seperti sekarang → buka lagi aplikasi, ketuk tab `Pengaturan`, gulir ke "Putar HTTPS". Tambahkan pemeriksaan: "Tombol kembali menutup Sedang diputar" (`input keyevent KEYCODE_BACK` saat terbuka → aplikasi tetap di depan dan mini player terlihat).
+- [x] **Step 2: Verifikasi** — `gh workflow run android-emulator.yml --ref feat/app-shell` lulus dengan semua pemeriksaan lama ditambah pemeriksaan kembali.
+- [x] **Step 3: Commit dan PR** — `test(emulator): follow the new app shell`; PR "Kerangka navigasi" mencantumkan Mobile checks dan run emulator.
 
 ---
 
@@ -174,14 +174,14 @@
 - Produces: `internal fun nowPlayingColorScheme(accent: Color?): ColorScheme` = `senadaColorScheme(dark = true, accent)` apa pun tema aplikasi
 - Tata letak (dari mockup A): bar atas (Tutup, label sumber, menu ⋯), sampul besar radius 20 dp, judul + artis + tombol favorit, slider "Posisi pemutaran" tipis, baris kontrol Acak (`contentDescription` "Acak: mati/nyala") – Sebelumnya – Putar/Jeda bulat putih 76 dp – Berikutnya – Ulangi ("Ulangi: mati/semua/satu"), kartu bawah dengan pilihan **Lirik** dan **Antrean**; latar gradien dari aksen sampul ke `#0B0C0E`.
 
-- [ ] **Step 1: Tulis tes yang gagal** — `NowPlayingTest`:
+- [x] **Step 1: Tulis tes yang gagal** — `NowPlayingTest`:
   - `sourceLabels`: `PlaySource.Favorites.label() == "Dari Favorit"`, `PlaySource.Playlist("Senja").label() == "Dari playlist Senja"`, `null.label() == null`
   - `alwaysDarkEvenInLightTheme`: `nowPlayingColorScheme(null).background == Color(0xFF0B0C0E)`
   - `coverAccentStaysReadableOnDark`: aksen `Color(0xFF1A1A40)` → `contrastRatio(primary, background) >= 4.5f`
-- [ ] **Step 2: Jalankan** — gagal.
-- [ ] **Step 3: Implementasikan** layar, `PlaySource`, `nowPlayingColorScheme`, gaya lirik; Sedang diputar membungkus isinya dengan `MaterialTheme(colorScheme = nowPlayingColorScheme(accent))`.
-- [ ] **Step 4: Verifikasi** — Mobile checks dan run emulator lulus.
-- [ ] **Step 5: Commit dan PR** — `feat(now-playing): immersive now playing screen`
+- [x] **Step 2: Jalankan** — gagal.
+- [x] **Step 3: Implementasikan** layar, `PlaySource`, `nowPlayingColorScheme`, gaya lirik; Sedang diputar membungkus isinya dengan `MaterialTheme(colorScheme = nowPlayingColorScheme(accent))`.
+- [x] **Step 4: Verifikasi** — Mobile checks dan run emulator lulus.
+- [x] **Step 5: Commit dan PR** — `feat(now-playing): immersive now playing screen`
 
 ---
 
@@ -204,7 +204,7 @@
 - Produces: `internal sealed interface HomeHero { data class FromPlaylist(val summary: PlaylistSummary, val artworkUrl: String?, val plays: Int); data class FromTrack(val track: Track, val plays: Int); data object Welcome }`
 - Produces di `LibraryRepository` (ekstensi di `PlayStats.kt`): `suspend fun recordTrackPlay(track: Track)`, `suspend fun recordPlaylistPlay(playlistId: String)`, `fun homeHero(): Flow<HomeHero>`, `fun mostPlayed(limit: Int = 20): Flow<List<Track>>`. Jendela waktu dihitung dari `now()` milik repository; setiap pencatatan juga menghapus kejadian lebih tua dari 30 hari. Seri diputus oleh waktu putar terakhir yang lebih baru. Hitungan tidak ikut backup.
 
-- [ ] **Step 1: Tulis tes yang gagal** — `PlayStatsTest` (jam tes terkendali):
+- [x] **Step 1: Tulis tes yang gagal** — `PlayStatsTest` (jam tes terkendali):
   - `heroWelcomesBeforeAnyPlays`: `homeHero().first() == HomeHero.Welcome`
   - `heroShowsMostPlayedTrack`: lagu A diputar 3×, B 1× → `FromTrack(A, 3)`
   - `tiesGoToTheMoreRecentPlay`: A dan B masing-masing 2×, B terakhir → `FromTrack(B, 2)`
@@ -216,10 +216,10 @@
   - `mostPlayedListsTopTracks`: urutan menurun berdasarkan hitungan, maksimal `limit`
   - `countedSongsSurviveCleanup`: lagu dengan `play_event` dalam jendela tidak terhapus oleh `deleteUnusedTracks`
   - `aVersionThreeDatabaseGainsPlayStats`: buang kedua tabel, `Schema.migrate(driver, 3, 4)`, catat satu putaran → hero lagu itu
-- [ ] **Step 2: Jalankan** — gagal.
-- [ ] **Step 3: Implementasikan** tabel, migrasi, query, fungsi repository, dan pemanggilan dari `HistoryRecorder` serta `playAllOf`.
-- [ ] **Step 4: Jalankan** — Mobile checks lulus.
-- [ ] **Step 5: Commit** — `feat(library): count plays over the last 30 days`
+- [x] **Step 2: Jalankan** — gagal.
+- [x] **Step 3: Implementasikan** tabel, migrasi, query, fungsi repository, dan pemanggilan dari `HistoryRecorder` serta `playAllOf`.
+- [x] **Step 4: Jalankan** — Mobile checks lulus.
+- [x] **Step 5: Commit** — `feat(library): count plays over the last 30 days`
 
 ### Task 8: Beranda gaya B
 
@@ -239,11 +239,11 @@
   - `Welcome` → reason "Selamat datang di Senada", title "Mulai dengarkan", aksi "Cari lagu" / null
 - Tata letak (dari mockup B): hero tinggi ±420 dp dengan latar dari aksen sampul isi hero dan judul display 800; deret "Baru diputar" (kartu 150 dp radius 24, kartu Favorit di depan) dari `history()`; deret "Playlist kamu" dari `playlists`. "Lihat" pada lagu membuka `MostPlayedScreen` (daftar + "Putar semua" dengan `PlaySource.MostPlayed`).
 
-- [ ] **Step 1: Tulis tes yang gagal** — `HomeHeroTest`: tiga kasus `heroCopy` dengan teks persis di atas.
-- [ ] **Step 2: Jalankan** — gagal.
-- [ ] **Step 3: Implementasikan** `heroCopy`, `HomeHeroCard`, `HomeTab`, `MostPlayedScreen`, dan rutenya.
-- [ ] **Step 4: Verifikasi** — Mobile checks dan run emulator lulus (Beranda tidak diketuk oleh skrip; pastikan tab Cari tetap dibuka lewat content-desc).
-- [ ] **Step 5: Commit dan PR** — `feat(home): hero from your own listening`
+- [x] **Step 1: Tulis tes yang gagal** — `HomeHeroTest`: tiga kasus `heroCopy` dengan teks persis di atas.
+- [x] **Step 2: Jalankan** — gagal.
+- [x] **Step 3: Implementasikan** `heroCopy`, `HomeHeroCard`, `HomeTab`, `MostPlayedScreen`, dan rutenya.
+- [x] **Step 4: Verifikasi** — Mobile checks dan run emulator lulus (Beranda tidak diketuk oleh skrip; pastikan tab Cari tetap dibuka lewat content-desc).
+- [x] **Step 5: Commit dan PR** — `feat(home): hero from your own listening`
 
 ---
 
@@ -255,9 +255,9 @@ Ketiga task ini menyentuh file berbeda dan boleh dikerjakan paralel setelah Fase
 
 **Files:** Modify `composeApp/src/commonMain/kotlin/senada/app/tabs/SearchTab.kt`, `SearchHistoryViews.kt`, `ImportAudioViews.kt`
 
-- [ ] **Step 1: Terapkan gaya**: kolom cari pil tinggi 52 dp, riwayat sebagai baris dengan ikon jam, tombol impor sebagai baris aksi, hasil memakai baris lagu baru (sampul 48 dp radius 8, judul/artis/durasi, "Tambah", menu ⋯). Teks "Tambah" tetap.
-- [ ] **Step 2: Verifikasi** — Mobile checks dan run emulator lulus.
-- [ ] **Step 3: Commit** — `feat(search): restyle the search tab`
+- [x] **Step 1: Terapkan gaya**: kolom cari pil tinggi 52 dp, riwayat sebagai baris dengan ikon jam, tombol impor sebagai baris aksi, hasil memakai baris lagu baru (sampul 48 dp radius 8, judul/artis/durasi, "Tambah", menu ⋯). Teks "Tambah" tetap.
+- [x] **Step 2: Verifikasi** — Mobile checks dan run emulator lulus.
+- [x] **Step 3: Commit** — `feat(search): restyle the search tab`
 
 ### Task 10: Library dengan chip
 
@@ -270,20 +270,43 @@ Ketiga task ini menyentuh file berbeda dan boleh dikerjakan paralel setelah Fase
 - Produces: `internal enum class LibraryFilter(val label: String) { Favorites("Favorit"), Playlists("Playlist"), History("Riwayat"), Imported("File impor") }`; `fun LibraryRepository.localTracks(): Flow<List<Track>>`
 - Chip filter (gaya C) menggantikan sub-tab; favorit dan playlist tetap per halaman 50; "File impor" kosong menampilkan "Belum ada file impor. Impor dari tab Cari."
 
-- [ ] **Step 1: Tulis tes yang gagal** — `localTracksListsOnlyImportedSongs`: favorit satu lagu `ytmusic` dan satu lagu `local` → `localTracks()` hanya lagu lokal.
-- [ ] **Step 2: Jalankan** — gagal; **Step 3:** implementasikan query, filter, dan tampilan; **Step 4:** Mobile checks dan run emulator lulus.
-- [ ] **Step 5: Commit** — `feat(library): one library tab with filter chips`
+- [x] **Step 1: Tulis tes yang gagal** — `localTracksListsOnlyImportedSongs`: favorit satu lagu `ytmusic` dan satu lagu `local` → `localTracks()` hanya lagu lokal.
+- [x] **Step 2: Jalankan** — gagal; **Step 3:** implementasikan query, filter, dan tampilan; **Step 4:** Mobile checks dan run emulator lulus.
+- [x] **Step 5: Commit** — `feat(library): one library tab with filter chips`
 
 ### Task 11: Pengaturan
 
 **Files:** Modify `composeApp/src/commonMain/kotlin/senada/app/tabs/SettingsTab.kt`, `AppearanceViews.kt`, `DataSaver.kt`, `SettingsViews.kt`, `StorageViews.kt`, `DeveloperSection.kt`
 
-- [ ] **Step 1: Terapkan gaya**: setiap bagian (Tampilan, Data, Backup library, Penyimpanan, Pengembang) dalam kartu permukaan radius 24 dp dengan judul bagian; perilaku dan teks tombol tetap ("Putar HTTPS" tetap teks).
-- [ ] **Step 2: Verifikasi** — Mobile checks dan run emulator lulus.
-- [ ] **Step 3: Commit dan PR** — `feat(settings): restyle settings`; PR Fase 5 mencantumkan semua run.
+- [x] **Step 1: Terapkan gaya**: setiap bagian (Tampilan, Data, Backup library, Penyimpanan, Pengembang) dalam kartu permukaan radius 24 dp dengan judul bagian; perilaku dan teks tombol tetap ("Putar HTTPS" tetap teks).
+- [x] **Step 2: Verifikasi** — Mobile checks dan run emulator lulus.
+- [x] **Step 3: Commit dan PR** — `feat(settings): restyle settings`; PR Fase 5 mencantumkan semua run.
 
 ---
 
 ## Setelah Fase 5
 
-- [ ] Build IPA dari `main` (`gh workflow run ios-device.yml --ref main`), taruh di `Downloads/Senada-iPhone-<sha>/`, dan minta sesi uji iPhone: tema gelap/terang, aksen sampul, mini player di semua tab, buka/tutup Sedang diputar (tombol dan usap), lirik dan antrean, hero (sambutan, lagu, playlist), Library chip, teks besar, VoiceOver dasar.
+- [x] Build IPA dari `main` (`gh workflow run ios-device.yml --ref main`), taruh di `Downloads/Senada-iPhone-<sha>/`, dan minta sesi uji iPhone: tema gelap/terang, aksen sampul, mini player di semua tab, buka/tutup Sedang diputar (tombol dan usap), lirik dan antrean, hero (sambutan, lagu, playlist), Library chip, teks besar, VoiceOver dasar.
+
+---
+
+## Status (2026-11-22)
+
+Seluruh rencana selesai dan masuk `main` lewat rebase merge. Diuji di emulator Android (CI) dan di iPhone fisik dengan IPA dari `8368101` (run 44938452989); semua lulus.
+
+| Fase | PR | Dikerjakan | Catatan |
+|---|---|---|---|
+| 1. Fondasi Material 3 | #34 | Claude | Token, Plus Jakarta Sans, migrasi ke `compose.material3`. |
+| 2. Kerangka navigasi | #35 | Claude | Navigasi mengambang, mini player, tombol kembali. Slider dikecualikan dari gestur sistem Android; jarak bawah daftar mengikuti tinggi bilah bawah. |
+| 3. Sedang diputar | #37 | Astra | Selalu gelap, label sumber, ikon bilah sistem terang. Tambahan: `secondaryContainer` diisi token Senada (sebelumnya ungu bawaan Material). |
+| 4. Hitungan putar + Beranda | #38 | Sol | Skema versi 4. Saat integrasi: `playAllOf` memasang sumber dan mencatat hitungan; `PlaySource.MostPlayed` disambungkan. |
+| 5. Cari, Library, Pengaturan | #36 | Neon | Chip `LibraryFilter`; alias sementara `AppTab` dihapus saat integrasi. |
+
+Skrip emulator kini menyembunyikan dan menutup dialog ANR aplikasi sistem (Pixel Launcher di emulator CI sempat menutupi layar pertama).
+
+## Lanjutan yang belum dikerjakan
+
+- [ ] **File impor di Library**: chip "File impor" hanya menampilkan lagu lokal yang tercatat di tabel `track` (pernah diputar, difavoritkan, atau masuk playlist). File yang baru diimpor ke antrean belum muncul. Pertimbangkan membaca daftar dari penyimpanan file impor (`LocalAudioFiles`) atau mencatat lagu saat diimpor.
+- [ ] **Keyboard di tab Cari**: navigasi mengambang dan mini player ikut naik di atas keyboard saat mengetik. Pertimbangkan menyembunyikannya saat IME terbuka (Android dan iOS).
+- [ ] **Pembersihan**: hapus cabang `docs/ui-rework-design` di GitHub (isinya sudah di `main`) bila pemilik setuju.
+
