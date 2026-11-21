@@ -14,7 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import senada.local.LocalAudioException
+import senada.local.importedAudioLock
 import senada.local.toTrack
 import senada.model.Track
 
@@ -32,10 +34,12 @@ internal fun ImportAudioButton(onImported: (Track) -> Unit) {
             message = null
             scope.launch {
                 message = try {
-                    importer.import()?.let { audio ->
-                        val track = audio.toTrack()
-                        onImported(track)
-                        "\"${track.title}\" (${formatSize(audio.sizeBytes)}) ditambahkan ke antrean."
+                    importedAudioLock.withLock {
+                        importer.import()?.let { audio ->
+                            val track = audio.toTrack()
+                            onImported(track)
+                            "\"${track.title}\" (${formatSize(audio.sizeBytes)}) ditambahkan ke antrean."
+                        }
                     }
                 } catch (e: CancellationException) {
                     throw e

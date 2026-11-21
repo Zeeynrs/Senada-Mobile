@@ -177,6 +177,30 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun localTrackIdsIncludeFavoritesPlaylistsAndHistory() = runTest {
+        val library = library()
+        val favorite = duet.copy(id = "local:favorite.mp3", source = "local")
+        val playlistTrack = duet.copy(id = "local:playlist.m4a", source = "local")
+        val historyTrack = duet.copy(id = "local:history.flac", source = "local")
+        library.setFavorite(favorite, true)
+        library.createPlaylist("Audio lokal", listOf(playlistTrack))
+        library.recordPlay(historyTrack)
+        library.setFavorite(duet.copy(id = "local:catalog.mp3"), true)
+        library.recordPlay(duet.copy(id = "LOCAL:wrong-prefix.mp3", source = "local"))
+
+        assertEquals(
+            setOf("local:favorite.mp3", "local:playlist.m4a", "local:history.flac"),
+            library.withLocalTrackIds { it.toSet() },
+        )
+
+        library.setFavorite(favorite, false)
+        assertEquals(
+            setOf("local:playlist.m4a", "local:history.flac"),
+            library.withLocalTrackIds { it.toSet() },
+        )
+    }
+
+    @Test
     fun savedItemsKeepTheirMetadata() = runTest {
         val library = library()
         val metadata = """{"kind":"album","id":"MPREb_x","name":"Manusia"}"""

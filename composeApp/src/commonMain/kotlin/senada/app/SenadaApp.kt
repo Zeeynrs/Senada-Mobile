@@ -185,7 +185,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                         item(key = "appearance") { AppearanceSection(appearance) }
                         item(key = "data") { DataSection(appearance) }
                         item(key = "backup") { BackupSection(library) }
-                        item(key = "storage") { StorageSection() }
+                        item(key = "storage") { StorageSection(playback, library) }
                     }
                 }
                 // Kontrol, lirik dan antrean tampil di semua tab.
