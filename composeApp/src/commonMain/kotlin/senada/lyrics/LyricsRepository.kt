@@ -44,6 +44,14 @@ internal class LyricsRepository(private val http: HttpClient) {
     }
 
     private suspend fun fetch(track: Track): LyricsDocument {
+        val original = fetchByTitle(track)
+        if (original != LyricsDocument.Unavailable) return original
+
+        val cleanedTitle = cleanTitle(track.title)
+        return if (cleanedTitle == track.title) original else fetchByTitle(track.copy(title = cleanedTitle))
+    }
+
+    private suspend fun fetchByTitle(track: Track): LyricsDocument {
         if (track.artists.firstOrNull()?.isNotBlank() == true) {
             when (val exact = request("get", track)) {
                 is JsonObject -> exact.document()?.let { return it }
@@ -101,6 +109,23 @@ internal class LyricsRepository(private val http: HttpClient) {
 }
 
 private const val UNREADABLE = "Balasan LRCLIB tidak dapat dibaca."
+private const val TITLE_CREDIT = """(?:feat|ft)\.\s+[^\s()\[\]][^()\[\]]*"""
+private const val TITLE_VERSION = """official (?:audio|(?:music )?video)|lyric video|remaster(?:ed)?(?:\s+[0-9]{4})?|live"""
+
+private val titleSuffix = Regex(
+    """(?:\(\s*(?:$TITLE_CREDIT|$TITLE_VERSION)\s*\)|\[\s*(?:$TITLE_CREDIT|$TITLE_VERSION)\s*\]""" +
+        """|\s+-\s+(?:$TITLE_VERSION)|\s+$TITLE_CREDIT)\s*$""",
+    RegexOption.IGNORE_CASE,
+)
+
+private fun cleanTitle(title: String): String {
+    var cleaned = title
+    while (true) {
+        val suffix = titleSuffix.find(cleaned) ?: return cleaned
+        cleaned = cleaned.substring(0, suffix.range.first).trimEnd()
+        if (cleaned.isBlank()) return title
+    }
+}
 
 private fun JsonObject.document(): LyricsDocument? {
     fun lyrics(key: String) = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
