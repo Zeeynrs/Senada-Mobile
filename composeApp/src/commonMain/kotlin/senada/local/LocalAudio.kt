@@ -43,20 +43,6 @@ internal fun newLocalFileName(displayName: String, random: Random = Random.Defau
     return if (extension == null) id else "$id.$extension"
 }
 
-/** Ukuran untuk pengguna, misalnya "4,2 MB". */
-internal fun describeSize(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val units = listOf("KB", "MB", "GB")
-    var value = bytes / 1024.0
-    var unit = 0
-    while (value >= 1024 && unit < units.lastIndex) {
-        value /= 1024
-        unit++
-    }
-    val tenths = kotlin.math.round(value * 10).toLong()
-    return "${tenths / 10},${tenths % 10} ${units[unit]}"
-}
-
 /** Ruang yang disisakan setelah menyalin, supaya ponsel tidak kehabisan penyimpanan sama sekali. */
 internal const val FREE_SPACE_MARGIN_BYTES = 50L * 1024 * 1024
 
