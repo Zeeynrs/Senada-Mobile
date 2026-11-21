@@ -1,9 +1,7 @@
 package senada.app
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.darkColors
-import androidx.compose.material.lightColors
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,6 +12,9 @@ import androidx.compose.ui.graphics.Color
 import coil3.compose.LocalPlatformContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import senada.app.theme.SenadaShapes
+import senada.app.theme.senadaColorScheme
+import senada.app.theme.senadaTypography
 
 private val artworkColors = ArtworkAccentCache()
 
@@ -54,13 +55,6 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     LaunchedEffect(url, visible) {
         if (url != null && visible) source = artworkColors.get(url) { loadArtworkAccent(context, url) }
     }
-    val colors = remember(dark, source) {
-        val base = if (dark) darkColors() else lightColors()
-        val sample = source ?: return@remember base
-        val accent = accessibleAccent(sample, base.background)
-        val text = textOnAccent(accent)
-        base.copy(primary = accent, primaryVariant = accent, onPrimary = text,
-            secondary = accent, secondaryVariant = accent, onSecondary = text)
-    }
-    MaterialTheme(colors = colors) { content(preferences) }
+    val colors = remember(dark, source) { senadaColorScheme(dark, source) }
+    MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
 }
