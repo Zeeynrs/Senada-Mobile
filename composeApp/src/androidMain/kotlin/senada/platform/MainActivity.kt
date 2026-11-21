@@ -17,7 +17,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val playback = AndroidPlayback.get(this).controller
-        setContent { SenadaApp(playback) }
+        val library = AndroidLibrary.get(this)
+        setContent { SenadaApp(playback, library) }
     }
 
     override fun onStart() {
