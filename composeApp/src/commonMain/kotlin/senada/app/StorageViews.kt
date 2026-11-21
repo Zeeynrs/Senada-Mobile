@@ -2,9 +2,9 @@ package senada.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,11 +64,11 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Penyimpanan", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        Text("Penyimpanan", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Text(
             cacheSize?.let { "Cache sampul: ${formatSize(it)}" }
                 ?: if (readingSize) "Menghitung ukuran cache sampul…" else "Ukuran cache sampul tidak tersedia.",
-            style = MaterialTheme.typography.body2,
+            style = MaterialTheme.typography.bodyMedium,
         )
         OutlinedButton(
             enabled = !readingSize && !clearing,
@@ -106,7 +106,7 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
         clearMessage?.let {
             Text(
                 it,
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
@@ -135,7 +135,7 @@ private fun ImportedAudioStorageControls(
     Text(
         summary?.let { "File audio impor: ${it.count} file, ${formatSize(it.sizeBytes)}" }
             ?: if (reading) "Menghitung ukuran file audio impor…" else "Ukuran file audio impor tidak tersedia.",
-        style = MaterialTheme.typography.body2,
+        style = MaterialTheme.typography.bodyMedium,
     )
     OutlinedButton(
         enabled = !reading && !deleting,
@@ -178,7 +178,7 @@ private fun ImportedAudioStorageControls(
     deleteMessage?.let {
         Text(
             it,
-            style = MaterialTheme.typography.body2,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
     }

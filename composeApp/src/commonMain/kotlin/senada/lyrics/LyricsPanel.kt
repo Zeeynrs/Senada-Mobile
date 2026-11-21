@@ -10,9 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,7 +66,7 @@ internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepos
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             track.title,
-            style = MaterialTheme.typography.subtitle1,
+            style = MaterialTheme.typography.titleMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.semantics { heading() },
@@ -126,7 +126,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, active: Int, panelHeight: Dp, v
                     if (current) stateDescription = "Baris aktif"
                 },
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                color = if (current) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface,
+                color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
         }
     }
