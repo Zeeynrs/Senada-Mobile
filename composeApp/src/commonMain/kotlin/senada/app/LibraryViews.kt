@@ -1,24 +1,29 @@
 package senada.app
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,10 +41,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
+import senada.app.tabs.LibraryFilter
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
@@ -47,29 +54,8 @@ import senada.library.recordPlaylistPlay
 import senada.model.Track
 import senada.playback.PlaybackController
 
-/** Bagian di dalam tab Library (sementara, sebelum diganti chip di Fase 5). */
-internal enum class AppTab(val label: String) {
-    Favorites("Favorit"),
-    Playlists("Playlist"),
-    History("Riwayat"),
-}
-
-@Composable
-internal fun AppTabs(selected: AppTab, onSelect: (AppTab) -> Unit) {
-    ScrollableTabRow(
-        selectedTabIndex = selected.ordinal,
-        containerColor = MaterialTheme.colorScheme.surface,
-        edgePadding = 0.dp,
-    ) {
-        AppTab.entries.forEach { tab ->
-            Tab(
-                selected = tab == selected,
-                onClick = { onSelect(tab) },
-                text = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
-        }
-    }
-}
+/** Alias sementara agar AppShell.kt tetap tidak berubah saat integrasi paralel Fase 4–5. */
+internal typealias AppTab = LibraryFilter
 
 /** Ukuran halaman daftar library; daftar bertambah sebanyak ini saat ujungnya terlihat. */
 internal const val LIBRARY_PAGE_SIZE = 50
@@ -92,6 +78,7 @@ internal class LibraryActions(
     private val playback: PlaybackController,
     private val scope: CoroutineScope,
 ) {
+    fun localTracks(): Flow<List<Track>> = library.localTracks()
     fun toggleFavorite(track: Track) = write { library.toggleFavorite(track) }
     fun addToPlaylist(playlistId: String, track: Track) = write { library.addToPlaylist(playlistId, listOf(track)) }
     fun createPlaylist(name: String, tracks: List<Track> = emptyList()) = write { library.createPlaylist(name, tracks) }
@@ -224,7 +211,7 @@ private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
         modifier = Modifier.fillMaxWidth(),
         minPrimaryWidth = 140.dp,
         primary = {
-            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         },
         trailing = {
             if (onPlayAll != null) {
@@ -243,8 +230,14 @@ private fun LazyListScope.trackList(
 ) {
     items(tracks, key = { "$keyPrefix-${it.id}" }) { track ->
         TrackRow(track, favorite = track.id in library.favoriteIds) {
-            TextButton(
+            FilledTonalButton(
                 onClick = { actions.enqueue(track) },
+                shape = CircleShape,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.minTouchTarget().semantics {
                     contentDescription = "Tambah ${track.title} ke antrean"
                 },
@@ -259,7 +252,13 @@ internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryA
     val title = if (library.favoriteTotal > 0) "Favorit (${library.favoriteTotal})" else "Favorit"
     item { SectionHeader(title, onPlayAll = actions::playAllFavorites.takeIf { library.favoriteTotal > 0 }) }
     if (library.favoriteTotal == 0) {
-        item { Text("Belum ada favorit. Buka menu ⋯ pada lagu untuk menambahkannya.") }
+        item {
+            Text(
+                "Belum ada favorit. Buka menu ⋯ pada lagu untuk menambahkannya.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
     trackList("favorite", favorites, library, actions)
     loadMoreItem("favorite-more", loaded = favorites.size, total = library.favoriteTotal, onLoadMore)
@@ -270,14 +269,20 @@ private fun LazyListScope.loadMoreItem(key: String, loaded: Int, total: Int, onL
     if (loaded >= total) return
     item(key = key) {
         LaunchedEffect(loaded) { onLoadMore() }
-        Text("Memuat…", style = MaterialTheme.typography.bodyMedium)
+        Text("Memuat…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 internal fun LazyListScope.historyTab(library: LibraryState, actions: LibraryActions) {
     item { SectionHeader("Riwayat", onPlayAll = null) }
     if (library.history.isEmpty()) {
-        item { Text("Riwayat masih kosong. Lagu yang diputar dari antrean muncul di sini.") }
+        item {
+            Text(
+                "Riwayat masih kosong. Lagu yang diputar dari antrean muncul di sini.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
     trackList("history", library.history, library, actions)
 }
@@ -293,44 +298,74 @@ internal fun LazyListScope.playlistsTab(
     if (opened == null) {
         item { PlaylistListHeader(actions) }
         if (library.playlists.isEmpty()) {
-            item { Text("Belum ada playlist.") }
+            item {
+                Text(
+                    "Belum ada playlist.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
-            AdaptiveRow(
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                minPrimaryWidth = 160.dp,
-                primary = {
-                    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-                        Text(
-                            playlist.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text("${playlist.trackCount} lagu", style = MaterialTheme.typography.bodyMedium)
-                    }
-                },
-                trailing = {
-                    TextButton(
-                        onClick = { onOpen(playlist.id) },
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Buka playlist ${playlist.name}"
-                        },
-                    ) { Text("Buka") }
-                },
-            )
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                AdaptiveRow(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+                    minPrimaryWidth = 160.dp,
+                    primary = {
+                        Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+                            Text(
+                                playlist.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "${playlist.trackCount} lagu",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    },
+                    trailing = {
+                        TextButton(
+                            onClick = { onOpen(playlist.id) },
+                            modifier = Modifier.minTouchTarget().semantics {
+                                contentDescription = "Buka playlist ${playlist.name}"
+                            },
+                        ) { Text("Buka") }
+                    },
+                )
+            }
         }
         return
     }
 
     item(key = "playlist-header-${opened.id}") { PlaylistHeader(opened, actions, onClose = { onOpen(null) }) }
     if (opened.entryCount == 0) {
-        item { Text("Playlist ini masih kosong. Tambahkan lagu lewat menu ⋯.") }
+        item {
+            Text(
+                "Playlist ini masih kosong. Tambahkan lagu lewat menu ⋯.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
     itemsIndexed(opened.entries, key = { _, entry -> "playlist-item-${entry.itemId}" }) { index, entry ->
         TrackRow(entry.track, favorite = entry.track.id in library.favoriteIds) {
-            TextButton(
+            FilledTonalButton(
                 onClick = { actions.enqueue(entry.track) },
+                shape = CircleShape,
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.minTouchTarget().semantics {
                     contentDescription = "Tambah ${entry.track.title} ke antrean"
                 },
@@ -366,7 +401,7 @@ private fun PlaylistListHeader(actions: LibraryActions) {
         modifier = Modifier.fillMaxWidth(),
         minPrimaryWidth = 140.dp,
         primary = {
-            Text("Playlist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+            Text("Playlist", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         },
         trailing = {
             TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) { Text("Playlist baru") }
