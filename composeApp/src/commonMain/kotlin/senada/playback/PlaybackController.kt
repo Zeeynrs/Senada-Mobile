@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
+import senada.local.LocalAudioException
 import senada.epochMillis
 import senada.model.Track
 
@@ -255,7 +256,9 @@ internal class PlaybackController(
                 throw e
             } catch (e: Exception) {
                 player.failPreparing()
-                problem = (e as? CatalogException)?.userMessage ?: "Audio gagal disiapkan. Coba lagi."
+                problem = (e as? CatalogException)?.userMessage
+                    ?: (e as? LocalAudioException)?.userMessage
+                    ?: "Audio gagal disiapkan. Coba lagi."
                 publish()
                 return@launch
             }

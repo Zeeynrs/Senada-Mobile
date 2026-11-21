@@ -35,7 +35,7 @@ internal object AndroidPlayback {
 
     private fun create(context: Context): Components {
         val output = ExoAudioOutput(context)
-        val controller = createPlaybackController(output, AndroidQueueStore(context))
+        val controller = createPlaybackController(output, AndroidQueueStore(context), AndroidLocalAudioFiles(context))
         val sessionPlayer = SessionPlayer(controller) { output.positionMs }
         controller.addListener { sessionPlayer.refresh() }
         return Components(controller, sessionPlayer)

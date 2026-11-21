@@ -23,6 +23,10 @@ import kotlinx.coroutines.MainScope
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import senada.catalog.DemoCatalog
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
+import senada.local.LOCAL_FILE_SOURCE
+import senada.local.LocalAudioException
+import senada.local.LocalAudioFiles
+import senada.local.localFileNameOf
 import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
@@ -49,8 +53,11 @@ internal fun sampleAudioSelection(source: SampleAudioSource): SampleAudioSelecti
     }
 }
 
-/** Alamat audio entri antrean: file contoh di aplikasi, atau stream YouTube Music yang dicari saat diputar. */
-internal suspend fun queueAudioSelection(entry: QueueItem): SampleAudioSelection = when (entry.track.source) {
+/**
+ * Alamat audio entri antrean: stream YouTube Music yang dicari saat diputar, file audio yang diimpor
+ * pengguna, atau file contoh di aplikasi.
+ */
+internal suspend fun queueAudioSelection(entry: QueueItem, localFiles: LocalAudioFiles): SampleAudioSelection = when (entry.track.source) {
     YOUTUBE_MUSIC_SOURCE -> {
         val audio = SenadaSources.streams.resolve(entry.track)
         SampleAudioSelection(
@@ -60,6 +67,11 @@ internal suspend fun queueAudioSelection(entry: QueueItem): SampleAudioSelection
             entry.id,
             expiresAtEpochMs = audio.expiresAtEpochMs,
         )
+    }
+    LOCAL_FILE_SOURCE -> {
+        val uri = localFileNameOf(entry.track)?.let(localFiles::uriFor)
+            ?: throw LocalAudioException("File audio ini sudah tidak ada di ponsel. Impor ulang file tersebut.")
+        SampleAudioSelection(entry.track.title, SampleAudioSource.Local, uri, entry.id)
     }
     else -> localAudioSelection(entry.track, entry.id)
 }
@@ -71,8 +83,12 @@ private fun localAudioSelection(track: Track, queueEntryId: Long? = null): Sampl
 }
 
 /** Satu controller untuk seluruh proses aplikasi; dibuat oleh titik masuk Android atau iOS. */
-internal fun createPlaybackController(output: SampleAudioOutput, queueStore: QueueStore): PlaybackController =
-    PlaybackController(output, MainScope(), selectionFor = ::queueAudioSelection)
+internal fun createPlaybackController(
+    output: SampleAudioOutput,
+    queueStore: QueueStore,
+    localFiles: LocalAudioFiles,
+): PlaybackController =
+    PlaybackController(output, MainScope()) { entry -> queueAudioSelection(entry, localFiles) }
         .apply { persistQueue(queueStore) }
 
 @Composable
