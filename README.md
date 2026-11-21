@@ -10,7 +10,7 @@ Senada sudah bisa mencari dan memutar lagu dari YouTube Music serta menampilkan 
 
 - **Emulator Android di CI.** Uji dengan lagu contoh mencakup pemutaran saat layar mati, perpindahan otomatis, kontrol media sistem, dan penggeseran posisi saat dijeda. [Hasil uji emulator Android](https://github.com/Zeeynrs/Senada-Mobile/pull/14)
 - **iPhone fisik.** Pencarian dan pemutaran YouTube Music, kontrol layar kunci, sampul, pemulihan antrean, lirik sinkron, ulangi dan acak, serta favorit, playlist, dan riwayat sudah diuji. [YouTube Music](https://github.com/Zeeynrs/Senada-Mobile/pull/9) · [Sampul](https://github.com/Zeeynrs/Senada-Mobile/pull/10) · [Antrean](https://github.com/Zeeynrs/Senada-Mobile/pull/11) · [Lirik](https://github.com/Zeeynrs/Senada-Mobile/pull/12) · [Ulangi dan acak](https://github.com/Zeeynrs/Senada-Mobile/pull/15) · [Library](https://github.com/Zeeynrs/Senada-Mobile/pull/16)
-- **Cadangan library.** Ekspor dan impor data library dalam format Senada Desktop versi 1 tersedia di lapisan data dan tercakup dalam tes otomatis. Layar ekspor dan impor sedang dikerjakan. [Implementasi dan hasil tes cadangan](https://github.com/Zeeynrs/Senada-Mobile/pull/18)
+- **Cadangan library.** Ekspor dan impor library dalam format Senada Desktop versi 1 tersedia di tab **Pengaturan**, dengan ringkasan sebelum impor diterapkan. Format dan aturan penggabungan tercakup dalam tes otomatis; pemilih file dan pertukaran dengan Senada Desktop belum diuji di iPhone fisik. [Lapisan data](https://github.com/Zeeynrs/Senada-Mobile/pull/18) · [Layar ekspor dan impor](https://github.com/Zeeynrs/Senada-Mobile/pull/20)
 
 ## Sumber audio dan distribusi
 
@@ -50,12 +50,12 @@ Versi dependensi lainnya tercatat di [version catalog](gradle/libs.versions.toml
 - [x] Lirik sinkron per baris.
 - [x] Tema terang dan gelap yang mengikuti pengaturan sistem.
 - [ ] Warna tema yang mengikuti sampul lagu.
-- [ ] Layar ekspor dan impor cadangan library yang kompatibel dengan Senada Desktop.
+- [x] Ekspor dan impor cadangan library yang kompatibel dengan Senada Desktop (uji di perangkat masih berjalan).
 - [ ] Impor satu file audio lewat pemilih dokumen.
 
 ## Langkah berikutnya
 
-1. Selesaikan layar cadangan dengan pratinjau impor, lalu uji pertukaran data dengan Senada Desktop.
+1. Uji layar cadangan di iPhone dan Android, termasuk pertukaran data dengan Senada Desktop.
 2. Tambahkan warna tema yang mengikuti sampul, pilihan tema, dan impor satu file audio lewat pemilih dokumen.
 3. Uji sesi pemutaran panjang, kestabilan, dan performa dengan build rilis di perangkat Android dan iPhone fisik.
 4. Bagikan build beta lewat sideload ke komunitas kecil setelah memastikan pembaruan mempertahankan data pengguna.
