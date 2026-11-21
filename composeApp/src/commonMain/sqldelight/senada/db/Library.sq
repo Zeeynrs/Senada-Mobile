@@ -42,6 +42,20 @@ CREATE TABLE history (
     played_at INTEGER NOT NULL
 );
 
+CREATE TABLE play_event (
+    track_id TEXT NOT NULL,
+    played_at INTEGER NOT NULL
+);
+
+CREATE INDEX play_event_played_at ON play_event(played_at);
+
+CREATE TABLE playlist_play (
+    playlist_id TEXT NOT NULL,
+    played_at INTEGER NOT NULL
+);
+
+CREATE INDEX playlist_play_played_at ON playlist_play(played_at);
+
 -- Album/playlist katalog yang disimpan; metadata JSON utuh agar backup desktop tidak kehilangan data.
 CREATE TABLE saved_item (
     kind TEXT NOT NULL,
@@ -64,12 +78,13 @@ upsertTrack:
 INSERT OR REPLACE INTO track(id, title, artists, duration_ms, artwork_url, source)
 VALUES (?, ?, ?, ?, ?, ?);
 
--- Lagu yang tidak lagi dirujuk favorit, playlist atau riwayat.
+-- Lagu yang tidak lagi dirujuk favorit, playlist, riwayat atau hitungan putar.
 deleteUnusedTracks:
 DELETE FROM track
 WHERE id NOT IN (SELECT track_id FROM favorite)
   AND id NOT IN (SELECT track_id FROM playlist_item)
-  AND id NOT IN (SELECT track_id FROM history);
+  AND id NOT IN (SELECT track_id FROM history)
+  AND id NOT IN (SELECT track_id FROM play_event);
 
 localTrackIds:
 SELECT id FROM track WHERE source = 'local' AND id GLOB 'local:*';
@@ -173,6 +188,51 @@ DELETE FROM history
 WHERE track_id NOT IN (
     SELECT track_id FROM history ORDER BY played_at DESC, rowid DESC LIMIT ?
 );
+
+-- Hitungan putar --
+
+insertTrackPlay:
+INSERT INTO play_event(track_id, played_at) VALUES (?, ?);
+
+insertPlaylistPlay:
+INSERT INTO playlist_play(playlist_id, played_at) VALUES (?, ?);
+
+deleteExpiredTrackPlays:
+DELETE FROM play_event WHERE played_at < ?;
+
+deleteExpiredPlaylistPlays:
+DELETE FROM playlist_play WHERE played_at < ?;
+
+deletePlaylistPlays:
+DELETE FROM playlist_play WHERE playlist_id = ?;
+
+rankedTrackPlays:
+SELECT track.*, count(*) AS plays
+FROM play_event JOIN track ON track.id = play_event.track_id
+WHERE play_event.played_at >= :cutoff
+GROUP BY track.id
+ORDER BY count(*) DESC, max(play_event.played_at) DESC, track.id
+LIMIT :row_limit;
+
+topPlaylistPlay:
+SELECT playlist.id, playlist.name, playlist.description, playlist.created_at,
+       (SELECT count(*) FROM playlist_item WHERE playlist_item.playlist_id = playlist.id) AS track_count,
+       (SELECT track.artwork_url
+        FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+        WHERE playlist_item.playlist_id = playlist.id
+        ORDER BY playlist_item.position
+        LIMIT 1) AS artwork_url,
+       count(*) AS plays
+FROM playlist_play JOIN playlist ON playlist.id = playlist_play.playlist_id
+WHERE playlist_play.played_at >= :cutoff
+  AND EXISTS (
+    SELECT 1 FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+    WHERE playlist_item.playlist_id = playlist.id
+  )
+GROUP BY playlist.id
+HAVING count(*) >= :min_plays
+ORDER BY count(*) DESC, max(playlist_play.played_at) DESC, playlist.id
+LIMIT 1;
 
 -- Item tersimpan --
 

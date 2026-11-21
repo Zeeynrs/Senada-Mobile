@@ -10,7 +10,7 @@ import senada.playback.SampleAudioStatus
 private var recordingController: PlaybackController? = null
 
 /**
- * Mencatat lagu antrean ke riwayat saat mulai berbunyi. Melanjutkan lagu yang dijeda tidak dicatat ulang;
+ * Mencatat riwayat dan hitungan saat lagu antrean mulai berbunyi. Melanjutkan lagu yang dijeda tidak dicatat ulang;
  * memutar entri lain, atau entri yang sama dari awal lagi, dicatat sebagai pemutaran baru.
  */
 internal fun PlaybackController.recordHistoryTo(library: LibraryRepository, scope: CoroutineScope) {
@@ -25,8 +25,8 @@ internal fun PlaybackController.recordHistoryTo(library: LibraryRepository, scop
         if (selection === recorded) return@addListener
         recorded = selection
         scope.launch {
-            // Riwayat bukan hal penting; kegagalan database tidak boleh mengganggu pemutaran.
-            runCatching { library.recordPlay(track) }
+            // Kegagalan pencatatan tidak boleh mengganggu pemutaran.
+            runCatching { library.recordTrackPlay(track, includeHistory = true) }
         }
     }
 }

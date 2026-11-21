@@ -126,11 +126,13 @@ class LibraryPagingTest {
     @Test
     fun aVersionTwoDatabaseGainsTheFavoriteIndex() = runTest {
         driver.execute(null, "DROP INDEX favorite_added_at", 0)
+        driver.execute(null, "DROP TABLE play_event", 0)
+        driver.execute(null, "DROP TABLE playlist_play", 0)
         fillFavorites(3)
 
         SenadaDatabase.Schema.migrate(driver, 2, SenadaDatabase.Schema.version)
 
-        assertEquals(3L, SenadaDatabase.Schema.version)
+        assertEquals(4L, SenadaDatabase.Schema.version)
         assertEquals(3, library().favoritesPage(50).first().size)
     }
 }

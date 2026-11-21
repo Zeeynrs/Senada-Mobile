@@ -161,6 +161,7 @@ class LibraryRepository internal constructor(
         } else {
             queries.deletePlaylistItems(id)
             queries.deletePlaylist(id)
+            queries.deletePlaylistPlays(id)
             queries.deleteUnusedTracks()
             true
         }
@@ -205,10 +206,14 @@ class LibraryRepository internal constructor(
     suspend fun recordPlay(track: Track) {
         write {
             upsert(track)
-            queries.recordPlay(track.id, now())
-            queries.trimHistory(HISTORY_LIMIT.toLong())
+            recordHistoryNow(track.id, now())
             queries.deleteUnusedTracks()
         }
+    }
+
+    internal fun recordHistoryNow(trackId: String, playedAt: Long) {
+        queries.recordPlay(trackId, playedAt)
+        queries.trimHistory(HISTORY_LIMIT.toLong())
     }
 
     // -- Riwayat pencarian --
@@ -250,7 +255,7 @@ class LibraryRepository internal constructor(
 
     // -- Bantuan --
 
-    private suspend fun <T> write(block: () -> T): T = writeLock.withLock {
+    internal suspend fun <T> write(block: () -> T): T = writeLock.withLock {
         withContext(dispatcher) { database.transactionWithResult { block() } }
     }
 
@@ -280,7 +285,7 @@ class LibraryRepository internal constructor(
     private fun playlistExists(id: String) = queries.playlistById(id).executeAsOneOrNull() != null
 
     /** Data lagu terbaru menang, misalnya sampul yang baru tersedia. */
-    private fun upsert(track: Track) {
+    internal fun upsert(track: Track) {
         queries.upsertTrack(
             track.id,
             track.title,
