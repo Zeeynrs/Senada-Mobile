@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
 import senada.catalog.DemoCatalog
+import senada.lyrics.LyricsPanel
 import senada.model.Track
 import senada.playback.PlaybackController
 
@@ -64,6 +65,8 @@ internal fun SenadaApp(playback: PlaybackController) {
     val queue = state.queue
     val audioState = state.audio
     var query by rememberSaveable { mutableStateOf("") }
+    var lyricsOpen by rememberSaveable { mutableStateOf(false) }
+    var screenVisible by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf(SearchState()) }
     var searchAttempt by remember { mutableStateOf(0) }
     var moreJob by remember { mutableStateOf<Job?>(null) }
@@ -91,8 +94,12 @@ internal fun SenadaApp(playback: PlaybackController) {
 
     // Audio tetap berjalan di latar belakang; layar hanya mengatur kapan posisi perlu dibaca berkala.
     LifecycleStartEffect(playback) {
+        screenVisible = true
         playback.setUiVisible(true)
-        onStopOrDispose { playback.setUiVisible(false) }
+        onStopOrDispose {
+            screenVisible = false
+            playback.setUiVisible(false)
+        }
     }
 
     MaterialTheme(colors = if (isSystemInDarkTheme()) darkColors() else lightColors()) {
@@ -158,6 +165,18 @@ internal fun SenadaApp(playback: PlaybackController) {
                         canGoNext = state.canGoNext,
                         problem = state.problem,
                     )
+                }
+                state.currentEntry?.track?.let { track ->
+                    item(key = "lyrics-toggle") {
+                        TextButton(onClick = { lyricsOpen = !lyricsOpen }) {
+                            Text(if (lyricsOpen) "Tutup lirik" else "Lirik")
+                        }
+                    }
+                    if (lyricsOpen && screenVisible) {
+                        item(key = "lyrics-${track.id}") {
+                            LyricsPanel(track, audioState.positionMs, SenadaSources.lyrics)
+                        }
+                    }
                 }
                 item { Text("Antrean", style = MaterialTheme.typography.h6) }
                 if (queue.entries.isEmpty()) {
