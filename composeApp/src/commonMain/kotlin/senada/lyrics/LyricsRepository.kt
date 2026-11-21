@@ -37,6 +37,10 @@ internal class LyricsRepository(private val http: HttpClient) {
     private val cache = mutableMapOf<String, LyricsDocument>()
     private val cacheLock = Mutex()
 
+    suspend fun clearCache() {
+        cacheLock.withLock { cache.clear() }
+    }
+
     suspend fun get(track: Track): LyricsDocument {
         // File impor hanya punya nama file; mencari dengan judul saja mudah salah lagu.
         if (track.source == "demo" || track.source == LOCAL_FILE_SOURCE) return LyricsDocument.Unavailable

@@ -40,6 +40,8 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.setSingletonImageLoaderFactory
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -60,6 +62,13 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
     setSingletonImageLoaderFactory { context ->
         ImageLoader.Builder(context)
             .components { add(KtorNetworkFetcherFactory(SenadaSources.http)) }
+            .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.10).build() }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(artworkCacheDirectory(context))
+                    .maxSizeBytes(100L * 1024 * 1024)
+                    .build()
+            }
             .build()
     }
     val state by playback.state.collectAsState()
@@ -149,6 +158,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                     AppTab.Settings -> {
                         item(key = "appearance") { AppearanceSection(appearance) }
                         item(key = "backup") { BackupSection(library) }
+                        item(key = "storage") { StorageSection() }
                     }
                 }
                 // Kontrol, lirik dan antrean tampil di semua tab.
