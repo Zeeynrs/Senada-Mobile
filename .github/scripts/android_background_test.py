@@ -172,7 +172,7 @@ def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> No
     x1, y1, x2, y2 = sliders[0]
     y = (y1 + y2) // 2
     before_ms = int(before["position"])
-    start_x = x1 + round((x2 - x1) * min(before_ms, 12_000) / 12_000)
+    start_x = x1 + round((x2 - x1) * max(0.04, before_ms / 12_000))
     shell(f"input swipe {start_x} {y} {(x1 + x2) // 2} {y} 400")
 
     sought = wait_session("PAUSED", FIRST, 5, min_ms=max(4_800, before_ms + 1_500), max_ms=7_200)
@@ -293,6 +293,10 @@ def scenario() -> None:
 
     tap(play_pause)
     before_seek = wait_session("PAUSED", FIRST, 5)
+    if before_seek:
+        # Entri pertama kembali ke awal tanpa memutar audio agar jarak geser selalu cukup.
+        shell("cmd media_session dispatch previous")
+        before_seek = wait_session("PAUSED", FIRST, 5, max_ms=1_000)
     if check(before_seek, "Entri pertama dijeda untuk uji slider", before_seek or session()):
         check_paused_seek(play_pause, before_seek)
 

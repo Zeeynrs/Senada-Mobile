@@ -136,13 +136,13 @@ internal class SessionPlayer(
             .setPlaylist(items.map { it.toMediaItemData() })
         if (items.isNotEmpty()) {
             builder.setCurrentMediaItemIndex(currentIndex(state, items))
-                .setContentPositionMs(SimpleBasePlayer.PositionSupplier {
-                    when (state.audio.selection?.isPending) {
-                        true -> state.audio.positionMs
-                        false -> positionMs()
-                        null -> 0
-                    }
-                })
+            when {
+                // Media3 perlu membandingkan nilai tetap sebelum dan sesudah seek saat dijeda.
+                state.audio.status == SampleAudioStatus.Paused || state.audio.selection?.isPending == true ->
+                    builder.setContentPositionMs(state.audio.positionMs)
+                state.audio.selection == null -> builder.setContentPositionMs(0)
+                else -> builder.setContentPositionMs(SimpleBasePlayer.PositionSupplier { positionMs() })
+            }
         }
 
         val (playbackState, playWhenReady) = when (state.audio.status) {
