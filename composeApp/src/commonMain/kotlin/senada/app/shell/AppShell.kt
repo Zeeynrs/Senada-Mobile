@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,11 +47,15 @@ import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
+import senada.app.tabs.mostPlayedScreen
 import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
+import senada.library.HomeHero
 import senada.library.LibraryRepository
 import senada.library.Playlist
+import senada.library.homeHero
+import senada.library.mostPlayed
 import senada.playback.PlaybackController
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
@@ -86,6 +92,16 @@ internal fun AppShell(
     val libraryState = remember(favorites, favoriteTotal, favoriteIds, playlists, history) {
         LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history)
     }
+    val hero = if (navigator.destination == AppDestination.Home) {
+        remember(library, screenVisible) { library.homeHero() }.collectAsState(HomeHero.Welcome).value
+    } else {
+        HomeHero.Welcome
+    }
+    val mostPlayed = if (navigator.mostPlayedOpen) {
+        remember(library, screenVisible) { library.mostPlayed() }.collectAsState(emptyList()).value
+    } else {
+        emptyList()
+    }
     val openedPlaylistId = navigator.openedPlaylistId
     val openedPlaylist by remember(openedPlaylistId) {
         playlistLimit.value = LIBRARY_PAGE_SIZE
@@ -112,6 +128,7 @@ internal fun AppShell(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
+                state = key(navigator.destination, navigator.mostPlayedOpen) { rememberLazyListState() },
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
@@ -123,15 +140,37 @@ internal fun AppShell(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item(key = "title-${navigator.destination}") {
-                    Text(
-                        navigator.destination.label,
-                        style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.semantics { heading() },
-                    )
+                if (navigator.mostPlayedOpen) {
+                    mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
+                    return@LazyColumn
+                }
+                if (navigator.destination != AppDestination.Home) {
+                    item(key = "title-${navigator.destination}") {
+                        Text(
+                            navigator.destination.label,
+                            style = MaterialTheme.typography.headlineMedium,
+                            modifier = Modifier.semantics { heading() },
+                        )
+                    }
                 }
                 when (navigator.destination) {
-                    AppDestination.Home -> homeTab(libraryState, actions) { favoritesLimit.value += LIBRARY_PAGE_SIZE }
+                    AppDestination.Home -> homeTab(
+                        library = libraryState,
+                        actions = actions,
+                        hero = hero,
+                        screenVisible = screenVisible,
+                        onSearch = { navigator.select(AppDestination.Search) },
+                        onOpenFavorites = {
+                            librarySection = AppTab.Favorites
+                            navigator.select(AppDestination.Library)
+                        },
+                        onOpenPlaylist = { id ->
+                            librarySection = AppTab.Playlists
+                            navigator.select(AppDestination.Library)
+                            navigator.openPlaylist(id)
+                        },
+                        onOpenMostPlayed = navigator::openMostPlayed,
+                    )
                     AppDestination.Search -> searchTab(
                         tab = search,
                         searchHistory = searchHistory,
