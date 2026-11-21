@@ -30,15 +30,29 @@ internal data class ImportedAudio(
     val durationMs: Long? = null,
 )
 
+private val COLLAB_SEPARATOR_REGEX = Regex("\\s+(?:feat\\.|ft\\.|featuring)\\s+", RegexOption.IGNORE_CASE)
+private val EXTRA_WHITESPACE_REGEX = Regex("\\s+")
+
 internal fun ImportedAudio.toTrack(): Track = Track(
     id = LOCAL_TRACK_PREFIX + fileName,
     title = title?.trim()?.takeIf { it.isNotEmpty() }
         ?: displayName.substringBeforeLast('.').trim().ifEmpty { displayName.ifBlank { "File audio" } },
-    artists = artist?.split(";", " / ", ", ", " & ", " feat. ", ignoreCase = true)
-        ?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty(),
+    artists = parseImportedArtists(artist),
     durationMs = durationMs?.takeIf { it > 0 && it < DAY_MS },
     source = LOCAL_FILE_SOURCE,
 )
+
+/**
+ * Memecah tag artis hanya pada pemisah multi-artis yang eksplisit (`;`, `/`, NUL ID3v2.4, dan
+ * penanda kolaborasi) agar nama artis dengan `,` atau `&` tetap utuh.
+ */
+private fun parseImportedArtists(rawArtist: String?): List<String> {
+    if (rawArtist.isNullOrBlank()) return emptyList()
+    return rawArtist.split(';', '/', '\u0000')
+        .flatMap { it.split(COLLAB_SEPARATOR_REGEX) }
+        .map { it.trim().replace(EXTRA_WHITESPACE_REGEX, " ") }
+        .filter { it.isNotEmpty() }
+}
 
 /** Nama file di penyimpanan aplikasi untuk lagu impor, atau null untuk sumber lain. */
 internal fun localFileNameOf(track: Track): String? =

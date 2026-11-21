@@ -50,16 +50,29 @@ class LocalAudioTest {
     }
 
     @Test
-    fun artistCreditsSplitOnCommonSeparatorsWithoutEmptyNames() {
+    fun artistCreditsKeepCommasAndAmpersandsWhileSplittingExplicitSeparators() {
         val audio = ImportedAudio("a1b2.mp3", "Rekaman.mp3", 1)
 
-        val artist = ";Satu;; Dua / Tiga, Empat & Lima feat. Enam;"
+        assertEquals(listOf("Simon & Garfunkel"), audio.copy(artist = "Simon & Garfunkel").toTrack().artists)
+        assertEquals(listOf("Tyler, The Creator"), audio.copy(artist = "Tyler, The Creator").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A; B").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A/B").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A / B").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A feat. B").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A FT. B").toTrack().artists)
+        assertEquals(listOf("A", "B"), audio.copy(artist = "A featuring B").toTrack().artists)
+        assertEquals(listOf("A", "B", "C"), audio.copy(artist = "A\u0000B\u0000C\u0000").toTrack().artists)
         assertEquals(
-            listOf("Satu", "Dua", "Tiga", "Empat", "Lima", "Enam"),
-            audio.copy(artist = artist).toTrack().artists,
+            listOf("Simon & Garfunkel", "Artis Lain"),
+            audio.copy(artist = "  Simon   &   Garfunkel  ;  Artis\t  Lain  ").toTrack().artists,
         )
-        assertEquals(listOf("AC/DC"), audio.copy(artist = " AC/DC ").toTrack().artists)
-        assertEquals(emptyList(), audio.copy(artist = " ; ; ").toTrack().artists)
+        assertEquals(
+            listOf("A", "B", "C", "D"),
+            audio.copy(artist = ";A;;  B  /  C  feat.  D;").toTrack().artists,
+        )
+        assertEquals(listOf("Featuring"), audio.copy(artist = "Featuring").toTrack().artists)
+        assertEquals(listOf("Draft.io"), audio.copy(artist = "Draft.io").toTrack().artists)
+        assertEquals(emptyList(), audio.copy(artist = " ; / \u0000 feat. ; ").toTrack().artists)
     }
 
     @Test
