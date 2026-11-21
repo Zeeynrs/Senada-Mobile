@@ -2,6 +2,7 @@
 
 package senada.platform
 
+import coil3.PlatformContext
 import kotlin.math.roundToLong
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFAudio.AVAudioSession
@@ -90,7 +91,7 @@ internal object IosPlayback {
             error = null,
         )
         val output = AvAudioOutput()
-        val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles())
+        val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE)
         for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
             observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
                 controller.saveQueueNow()

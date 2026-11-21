@@ -85,6 +85,13 @@ class InnertubeClientTest {
     }
 
     @Test
+    fun resolverUsesTheDataSaverChoiceForEachRequest() = runTest {
+        val resolver = YouTubeMusicResolver(innertube { json(PLAYER_OK) })
+        assertTrue(resolver.resolve(track, saveData = true).location.contains("itag=139"))
+        assertTrue(resolver.resolve(track, saveData = false).location.contains("itag=140"))
+    }
+
+    @Test
     fun http429IsReportedAsRateLimiting() = runTest {
         val catalog = YouTubeMusicCatalog(innertube { json("{}", HttpStatusCode.TooManyRequests) })
 

@@ -62,6 +62,27 @@ class YouTubeMusicParsingTest {
     }
 
     @Test
+    fun dataSaverSelectsLowBitrateAacWithStandardAacAsFallback() {
+        assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = true).location.contains("itag=139"))
+        assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = false).location.contains("itag=140"))
+        assertEquals("https://example.invalid/standard",
+            parsePlayer(json(PLAYER_WITHOUT_LOW_BITRATE), 0, saveData = true).location)
+    }
+
+    @Test
+    fun artworkResizesOnlyGoogleImagePathsAndPreservesOptions() {
+        val base = "https://lh3.googleusercontent.com/album"
+        val suffix = "-l90-rj?token=a=w9-h9#cover"
+        assertEquals("$base=w120-h120$suffix", resizeGoogleArtwork("$base=w544-h544$suffix", 120))
+        assertEquals("$base=w120-h120", resizeGoogleArtwork(base, 120))
+        assertEquals("$base=w120-h120?token=abc", resizeGoogleArtwork("$base?token=abc", 120))
+        for (other in listOf("https://example.invalid/a=w544-h544", "file:///a=w544-h544",
+            "https://googleusercontent.com.example.invalid/a=w544-h544", "$base=s120")) {
+            assertEquals(other, resizeGoogleArtwork(other, 120))
+        }
+    }
+
+    @Test
     fun loginRequiredMeansTheSongIsUnavailable() {
         val error = assertFailsWith<CatalogException> { parsePlayer(json(PLAYER_LOGIN_REQUIRED), nowMs = 0) }
         assertEquals(CatalogException.Kind.Unavailable, error.kind)

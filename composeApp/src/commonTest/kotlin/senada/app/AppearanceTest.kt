@@ -15,11 +15,27 @@ class AppearanceTest {
         assertEquals(Appearance(), open().load())
         for (mode in ThemeMode.entries) {
             for (follow in listOf(false, true)) {
-                val settings = Appearance(mode, follow)
-                open().save(settings)
-                assertEquals(settings, open().load())
+                for (saveData in listOf(false, true)) {
+                    val settings = Appearance(mode, follow, saveData)
+                    open().save(settings)
+                    assertEquals(settings, open().load())
+                }
             }
         }
+    }
+
+    @Test
+    fun older_settings_keep_the_theme_and_default_to_full_quality() {
+        val legacy = """{"version":1,"mode":"Dark","followCover":false}"""
+        assertEquals(Appearance(ThemeMode.Dark, false, false), AppearanceStore({ legacy }, {}).load())
+    }
+
+    @Test
+    fun saving_data_requires_both_the_setting_and_a_metered_network() {
+        assertEquals(false, dataSaverActive(false, false))
+        assertEquals(false, dataSaverActive(false, true))
+        assertEquals(false, dataSaverActive(true, false))
+        assertEquals(true, dataSaverActive(true, true))
     }
 
     @Test

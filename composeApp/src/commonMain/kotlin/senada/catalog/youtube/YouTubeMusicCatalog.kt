@@ -76,7 +76,27 @@ private fun pageType(run: JsonElement): String? = run.string(
 private fun artwork(item: JsonElement): String? {
     val thumbnails = item.array("thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails")
     val url = thumbnails.lastOrNull()?.string("url") ?: return null
-    return url.replace(Regex("=w\\d+-h\\d+"), "=w$ARTWORK_SIZE-h$ARTWORK_SIZE")
+    return resizeGoogleArtwork(url, ARTWORK_SIZE)
+}
+
+private val GOOGLE_ARTWORK_HOST = Regex(
+    """^https?://(?:[a-z0-9-]+\.)*(?:googleusercontent\.com|ggpht\.com)/""", RegexOption.IGNORE_CASE,
+)
+private val ARTWORK_DIMENSIONS = Regex("""=w[0-9]+-h[0-9]+(?=-|$)""")
+
+/** Hanya ubah ukuran pada nama gambar; pertahankan opsi potong, kueri, dan fragmen URL. */
+internal fun resizeGoogleArtwork(url: String, size: Int): String {
+    if (!GOOGLE_ARTWORK_HOST.containsMatchIn(url)) return url
+    val end = url.indexOfAny(charArrayOf('?', '#')).let { if (it < 0) url.length else it }
+    val start = url.lastIndexOf('/', end) + 1
+    val name = url.substring(start, end)
+    val dimensions = "=w$size-h$size"
+    val resized = when {
+        ARTWORK_DIMENSIONS.containsMatchIn(name) -> ARTWORK_DIMENSIONS.replaceFirst(name, dimensions)
+        name.isNotEmpty() && '=' !in name -> name + dimensions
+        else -> return url
+    }
+    return url.replaceRange(start, end, resized)
 }
 
 private const val SEPARATOR = " • "
