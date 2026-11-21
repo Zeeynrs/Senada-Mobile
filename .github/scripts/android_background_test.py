@@ -365,6 +365,16 @@ def check_initial_accessibility() -> None:
     )
 
 
+def overlay_top(root: ET.Element, height: int) -> int:
+    """Batas atas mini player dan navigasi bawah yang mengambang di atas isi tab."""
+    tops = [
+        box[1]
+        for label in ("Buka Sedang diputar", "Beranda")
+        for box in ui_bounds(label, attribute="content-desc", root=root)
+    ]
+    return min(tops, default=height)
+
+
 def collect_while_scrolling(
     targets: list[tuple[str, str]], scrolls: int = 6, *, save_first: str | None = None,
 ) -> dict[str, tuple[tuple[int, int, int, int], ET.Element]]:
@@ -383,8 +393,9 @@ def collect_while_scrolling(
                     continue
                 box, node = matches[0]
                 partial[label] = (box, node)
-                # Tunggu sampai elemen tidak terpotong di tepi atas/bawah layar sebelum mengunci ukurannya.
-                near_vertical_edge = box[1] <= 80 or box[3] >= height - 80
+                # Tunggu sampai elemen tidak terpotong di tepi atas layar atau tertutup bilah bawah yang
+                # mengambang (Compose melaporkan hanya bagian yang tidak tertutup) sebelum mengunci ukurannya.
+                near_vertical_edge = box[1] <= 80 or box[3] >= overlay_top(root, height) - 80
                 if not near_vertical_edge or (box[3] - box[1]) >= min_px:
                     found[label] = (box, node)
         if len(found) == len(targets) or step == scrolls:

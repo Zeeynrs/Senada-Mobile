@@ -231,7 +231,7 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
             scrubFraction = null
         },
         enabled = state.canSeek,
-        modifier = Modifier.fillMaxWidth().semantics {
+        modifier = Modifier.fillMaxWidth().excludeSystemGestures().semantics {
             contentDescription = "Posisi pemutaran"
             stateDescription = spokenProgress
         },
