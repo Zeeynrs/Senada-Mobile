@@ -9,7 +9,7 @@ Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan 
 | `composeApp/src/commonMain/kotlin/senada/model` | Metadata dan ID lagu. Dua entri antrean boleh merujuk ke ID lagu yang sama. |
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh, kontrak pencarian berhalaman dan resolusi alamat audio, serta `catalog/youtube` untuk pencarian dan alamat audio YouTube Music lewat Innertube. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
-| `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight): favorit, playlist, riwayat 200 lagu dan item tersimpan. Belum punya layar. |
+| `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight): favorit, playlist, riwayat 200 lagu dan item tersimpan. Layarnya ada di tab Favorit, Playlist dan Riwayat (`app/LibraryViews.kt`). |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan `SenadaSources` (klien HTTP, katalog dan resolver bersama). Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
@@ -63,6 +63,14 @@ Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan 
 Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Setelah lebih dari 3 detik diputar, **Sebelumnya** kembali ke awal lagu yang sama; tekan sekali lagi dalam 3 detik pertama untuk pindah ke entri sebelumnya. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
 
 Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu buka Senada kembali. Cek bahwa urutan antrean, entri terpilih, dan posisi jeda kembali tanpa audio berbunyi. Tekan **Putar** dan pastikan lagu berlanjut dari posisi jeda tadi.
+
+## Uji library
+
+1. Di tab **Cari**, buka menu **⋯** pada sebuah lagu, lalu pilih **Tambah ke favorit**. Lagu itu mendapat tanda ♥ di semua daftar dan muncul di tab **Favorit**.
+2. Dari menu **⋯**, pilih **Playlist baru…**, beri nama, lalu tambahkan lagu lain ke playlist yang sama lewat **Tambah ke <nama>**. Lagu yang sama boleh ditambahkan dua kali.
+3. Di tab **Playlist**, buka playlist itu. Ubah urutan lewat **Pindah ke atas**/**Pindah ke bawah**, hapus satu entri, lalu **Ganti nama**. **Putar semua** menambahkan seluruh lagu ke akhir antrean dan memutar yang pertama.
+4. Putar dua lagu dari antrean. Keduanya muncul di tab **Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
+5. Tutup aplikasi sepenuhnya lalu buka lagi. Favorit, playlist dan riwayat tetap ada, termasuk tanpa internet.
 
 ## Uji YouTube Music
 

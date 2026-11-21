@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
@@ -46,15 +47,18 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
 import senada.catalog.DemoCatalog
+import senada.library.LibraryRepository
+import senada.library.Playlist
 import senada.lyrics.LyricsPanel
 import senada.model.Track
 import senada.playback.PlaybackController
 
 @Composable
-internal fun SenadaApp(playback: PlaybackController) {
+internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository) {
     // Sampul diunduh dengan klien HTTP yang sama dengan katalog.
     setSingletonImageLoaderFactory { context ->
         ImageLoader.Builder(context)
@@ -71,6 +75,18 @@ internal fun SenadaApp(playback: PlaybackController) {
     var searchAttempt by remember { mutableStateOf(0) }
     var moreJob by remember { mutableStateOf<Job?>(null) }
     val uiScope = rememberCoroutineScope()
+
+    var tabIndex by rememberSaveable { mutableStateOf(AppTab.Search.ordinal) }
+    val tab = AppTab.entries[tabIndex]
+    var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    val favorites by library.favorites.collectAsState(emptyList())
+    val playlists by library.playlists.collectAsState(emptyList())
+    val history by remember(library) { library.history() }.collectAsState(emptyList())
+    val libraryState = remember(favorites, playlists, history) { LibraryState(favorites, playlists, history) }
+    val openedPlaylist by remember(openPlaylistId) {
+        openPlaylistId?.let(library::playlist) ?: flowOf<Playlist?>(null)
+    }.collectAsState(null)
+    val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
 
     // Hasil terbaru menang: mengetik lagi membatalkan pencarian dan "muat lebih banyak" sebelumnya.
     LaunchedEffect(query, searchAttempt) {
@@ -109,47 +125,31 @@ internal fun SenadaApp(playback: PlaybackController) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Text("Senada", style = MaterialTheme.typography.h4) }
-                item {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Cari judul atau artis") },
-                        singleLine = true,
-                    )
-                }
-                item {
-                    val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
-                    Text(heading, style = MaterialTheme.typography.h6)
-                }
-                if (search.loading && search.tracks.isEmpty()) {
-                    item { Text("Mencari…") }
-                }
-                search.error?.let { message ->
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(message, modifier = Modifier.weight(1f), style = MaterialTheme.typography.body2)
-                            TextButton(onClick = {
-                                if (search.nextPageToken != null) loadMore() else searchAttempt++
-                            }) { Text("Coba lagi") }
+                item { AppTabs(tab) { tabIndex = it.ordinal } }
+                when (tab) {
+                    AppTab.Search -> {
+                        item {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Cari judul atau artis") },
+                                singleLine = true,
+                            )
                         }
+                        searchResults(
+                            search = search,
+                            library = libraryState,
+                            actions = actions,
+                            onRetry = { if (search.nextPageToken != null) loadMore() else searchAttempt++ },
+                            onLoadMore = loadMore,
+                        )
                     }
+                    AppTab.Favorites -> favoritesTab(libraryState, actions)
+                    AppTab.Playlists -> playlistsTab(libraryState, openedPlaylist, actions) { openPlaylistId = it }
+                    AppTab.History -> historyTab(libraryState, actions)
                 }
-                if (!search.loading && search.error == null && search.tracks.isEmpty()) {
-                    item { Text("Lagu tidak ditemukan.") }
-                }
-                items(search.tracks, key = { "result-${it.id}" }) { track ->
-                    TrackRow(track) {
-                        Button(onClick = { playback.add(track) }) { Text("Tambah") }
-                    }
-                }
-                if (search.nextPageToken != null && search.error == null) {
-                    item {
-                        TextButton(onClick = loadMore, enabled = !search.loading) {
-                            Text(if (search.loading) "Memuat…" else "Muat lebih banyak")
-                        }
-                    }
-                }
+                // Kontrol, lirik dan antrean tampil di semua tab.
                 item {
                     SampleAudioControls(
                         title = DemoCatalog.tracks.first().title,
@@ -186,7 +186,7 @@ internal fun SenadaApp(playback: PlaybackController) {
                 }
                 items(queue.entries, key = { "entry-${it.id}" }) { entry ->
                     val isPlayingEntry = audioState.isActive && audioState.selection?.queueEntryId == entry.id
-                    TrackRow(entry.track) {
+                    TrackRow(entry.track, favorite = entry.track.id in libraryState.favoriteIds) {
                         TextButton(onClick = {
                             if (isPlayingEntry) playback.pause() else playback.playEntry(entry.id)
                         }) {
@@ -195,6 +195,7 @@ internal fun SenadaApp(playback: PlaybackController) {
                         TextButton(onClick = { playback.remove(entry.id) }) {
                             Text("Hapus")
                         }
+                        TrackMenu(entry.track, libraryState, actions)
                     }
                 }
             }
@@ -202,8 +203,50 @@ internal fun SenadaApp(playback: PlaybackController) {
     }
 }
 
+/** Hasil pencarian YouTube Music, atau katalog contoh saat kolom cari kosong. */
+private fun LazyListScope.searchResults(
+    search: SearchState,
+    library: LibraryState,
+    actions: LibraryActions,
+    onRetry: () -> Unit,
+    onLoadMore: () -> Unit,
+) {
+    item {
+        val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
+        Text(heading, style = MaterialTheme.typography.h6)
+    }
+    if (search.loading && search.tracks.isEmpty()) {
+        item { Text("Mencari…") }
+    }
+    search.error?.let { message ->
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(message, modifier = Modifier.weight(1f), style = MaterialTheme.typography.body2)
+                TextButton(onClick = onRetry) { Text("Coba lagi") }
+            }
+        }
+    }
+    if (!search.loading && search.error == null && search.tracks.isEmpty()) {
+        item { Text("Lagu tidak ditemukan.") }
+    }
+    items(search.tracks, key = { "result-${it.id}" }) { track ->
+        TrackRow(track, favorite = track.id in library.favoriteIds) {
+            Button(onClick = { actions.enqueue(track) }) { Text("Tambah") }
+            TrackMenu(track, library, actions)
+        }
+    }
+    if (search.nextPageToken != null && search.error == null) {
+        item {
+            TextButton(onClick = onLoadMore, enabled = !search.loading) {
+                Text(if (search.loading) "Memuat…" else "Muat lebih banyak")
+            }
+        }
+    }
+}
+
+/** Baris lagu dengan sampul; [favorite] menandai lagu favorit dengan ♥. */
 @Composable
-private fun TrackRow(track: Track, action: @Composable () -> Unit) {
+internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composable () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -227,6 +270,7 @@ private fun TrackRow(track: Track, action: @Composable () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(track.title, style = MaterialTheme.typography.subtitle1)
             val details = listOfNotNull(
+                "♥".takeIf { favorite },
                 track.artists.joinToString().takeIf { it.isNotEmpty() },
                 track.durationMs?.let(::playbackTime),
             )
