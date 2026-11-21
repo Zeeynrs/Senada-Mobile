@@ -117,8 +117,7 @@ internal class LibraryActions(
     }
 
     fun playAllMostPlayed(tracks: List<Track>) {
-        // Sumber PlaySource.MostPlayed dipasang saat integrasi Fase 3.
-        playAll(tracks)
+        playAll(tracks, PlaySource.MostPlayed)
     }
 
     /** Menambahkan semua lagu ke akhir antrean lalu memutar yang pertama. */
