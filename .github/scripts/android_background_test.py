@@ -131,21 +131,37 @@ def screen_size() -> tuple[int, int]:
     return (int(match.group(1)), int(match.group(2))) if match else (1080, 2400)
 
 
-def ui_bounds(label: str, *, attribute: str = "text") -> list[tuple[int, int, int, int]]:
+def screen_density() -> int:
+    out = shell("wm density")
+    match = re.search(r"Override density:\s*(\d+)", out) or re.search(r"Physical density:\s*(\d+)", out)
+    return int(match.group(1)) if match else 420
+
+
+def parse_bounds(node: ET.Element) -> tuple[int, int, int, int] | None:
+    nums = re.findall(r"\d+", node.get("bounds", ""))
+    return (int(nums[0]), int(nums[1]), int(nums[2]), int(nums[3])) if len(nums) == 4 else None
+
+
+def ui_tree() -> ET.Element | None:
     for _ in range(3):
         shell("uiautomator dump /sdcard/senada-ui.xml")
         xml = shell("cat /sdcard/senada-ui.xml")
         if "<?xml" in xml:
-            break
+            return ET.fromstring(xml[xml.index("<?xml") :])
         time.sleep(1)
-    else:
+    return None
+
+
+def ui_bounds(label: str, *, attribute: str = "text", root: ET.Element | None = None) -> list[tuple[int, int, int, int]]:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
         return []
-    root = ET.fromstring(xml[xml.index("<?xml") :])
     bounds = []
-    for node in root.iter("node"):
+    for node in tree.iter("node"):
         if node.get(attribute) == label:
-            x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds", "")))
-            bounds.append((x1, y1, x2, y2))
+            box = parse_bounds(node)
+            if box:
+                bounds.append(box)
     return sorted(bounds, key=lambda box: box[1] + box[3])
 
 
@@ -255,6 +271,166 @@ def check_https() -> None:
         check(False, name, f"Sesi HTTPS tidak mencapai PLAYING: {session()}")
 
 
+def min_touch_px() -> int:
+    # Toleransi 1 px untuk pembulatan piksel pada kepadatan layar non-bulat (mis. 420 dpi).
+    return int(48 * screen_density() / 160) - 1
+
+
+def check_initial_accessibility() -> None:
+    root = ui_tree()
+    menu_label = f"Buka menu {FIRST}"
+    menu_boxes = ui_bounds(menu_label, attribute="content-desc", root=root)
+    check(menu_boxes, f"Tombol menu ⋯ punya content-desc '{menu_label}'", menu_boxes)
+
+    min_px = min_touch_px()
+    targets = [
+        ("Tambah", "text", True),
+        (menu_label, "content-desc", True),
+        ("Putar lokal", "text", True),
+        ("Putar HTTPS", "text", True),
+        ("Sebelumnya", "text", False),
+        ("Putar", "text", False),
+        ("Berikutnya", "text", False),
+    ]
+    missing = []
+    undersized = []
+    checked = 0
+    for label, attr, required in targets:
+        boxes = ui_bounds(label, attribute=attr, root=root)
+        if not boxes:
+            if required:
+                missing.append(label)
+            continue
+        checked += 1
+        x1, y1, x2, y2 = boxes[0]
+        if (x2 - x1) < min_px or (y2 - y1) < min_px:
+            undersized.append(f"{label}={x2 - x1}x{y2 - y1}px")
+    check(
+        checked > 0 and not missing and not undersized,
+        "Tombol utama memenuhi ukuran sentuh minimal 48 dp",
+        f"min {min_px}px, dicek {checked}, hilang {missing}, kekecilan {undersized}",
+    )
+
+
+def collect_while_scrolling(
+    targets: list[tuple[str, str]], scrolls: int = 6,
+) -> dict[str, tuple[tuple[int, int, int, int], ET.Element]]:
+    width, height = screen_size()
+    found: dict[str, tuple[tuple[int, int, int, int], ET.Element]] = {}
+    for step in range(scrolls + 1):
+        root = ui_tree()
+        if root is not None:
+            for label, attr in targets:
+                if label in found:
+                    continue
+                for node in root.iter("node"):
+                    if node.get(attr) == label:
+                        box = parse_bounds(node)
+                        if box:
+                            found[label] = (box, node)
+                            break
+        if len(found) == len(targets) or step == scrolls:
+            break
+        shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 300")
+        time.sleep(0.6)
+    return found
+
+
+def scroll_to_top(swipes: int = 4) -> None:
+    width, height = screen_size()
+    for _ in range(swipes):
+        shell(f"input swipe {width // 2} {height // 4} {width // 2} {height * 3 // 4} 250")
+        time.sleep(0.35)
+
+
+def check_large_font_accessibility() -> None:
+    width, height = screen_size()
+    min_px = min_touch_px()
+    shell("settings put system font_scale 2.0")
+    time.sleep(2)
+    shell(f"am start -W -n {ACTIVITY}")
+    time.sleep(1.5)
+    scroll_to_top(3)
+    screenshot("06-large-font")
+
+    menu_label = f"Buka menu {FIRST}"
+    cari_targets = [
+        (menu_label, "content-desc"),
+        ("Putar lokal", "text"),
+        ("Putar HTTPS", "text"),
+        ("Sebelumnya", "text"),
+        ("Berikutnya", "text"),
+    ]
+    cari_found = collect_while_scrolling(cari_targets, scrolls=7)
+    cari_missing = [label for label, _ in cari_targets if label not in cari_found]
+    cari_clipped = [
+        f"{label}={box}"
+        for label, (box, _) in cari_found.items()
+        if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+    ]
+    check(
+        not cari_missing and not cari_clipped,
+        "Kontrol tab Cari tidak terpotong dan minimal 48 dp pada skala font 200%",
+        f"lebar {width}px, hilang {cari_missing}, terpotong/kekecilan {cari_clipped}",
+    )
+
+    scroll_to_top(6)
+    # Tab Pengaturan bisa berada di luar layar kanan pada skala font 200%, geser bilah tab ke kiri.
+    tab_boxes = ui_bounds("Cari") or ui_bounds("Favorit")
+    settings_opened = False
+    if tab_boxes:
+        tab_y = (tab_boxes[0][1] + tab_boxes[0][3]) // 2
+        for _ in range(4):
+            pts = ui_points("Pengaturan")
+            if pts:
+                tap(pts[0])
+                time.sleep(1)
+                settings_opened = True
+                break
+            shell(f"input swipe {width * 4 // 5} {tab_y} {width // 5} {tab_y} 300")
+            time.sleep(0.6)
+    if not check(settings_opened, "Tab Pengaturan dapat dibuka pada skala font 200%"):
+        return
+
+    screenshot("07-settings-large-font")
+    settings_targets = [
+        ("Ikuti sistem", "text"),
+        ("Warna mengikuti sampul", "text"),
+        ("Ekspor backup", "text"),
+        ("Impor backup", "text"),
+    ]
+    settings_found = collect_while_scrolling(settings_targets, scrolls=7)
+    settings_missing = [label for label, _ in settings_targets if label not in settings_found]
+    radio_node = settings_found["Ikuti sistem"][1] if "Ikuti sistem" in settings_found else None
+    switch_node = settings_found["Warna mengikuti sampul"][1] if "Warna mengikuti sampul" in settings_found else None
+    radio_ok = radio_node is not None and (
+        radio_node.get("checkable") == "true" or radio_node.get("selected") == "true"
+    )
+    switch_ok = switch_node is not None and switch_node.get("checkable") == "true"
+    check(
+        radio_ok and switch_ok,
+        "Pilihan radio dan sakelar di Pengaturan mengumumkan statusnya",
+        f"radio={radio_node.attrib if radio_node is not None else None}, "
+        f"switch={switch_node.attrib if switch_node is not None else None}",
+    )
+    backup_clipped = [
+        f"{label}={settings_found[label][0]}"
+        for label in ("Ekspor backup", "Impor backup")
+        if label in settings_found
+        and (
+            settings_found[label][0][0] < 0
+            or settings_found[label][0][2] > width
+            or (settings_found[label][0][2] - settings_found[label][0][0]) < min_px
+            or (settings_found[label][0][3] - settings_found[label][0][1]) < min_px
+        )
+    ]
+    check(
+        not settings_missing and not backup_clipped,
+        "Tombol Ekspor/Impor backup tidak terpotong dan minimal 48 dp pada skala font 200%",
+        f"lebar {width}px, hilang {settings_missing}, terpotong/kekecilan {backup_clipped}",
+    )
+
+
 def scenario() -> None:
     run("adb", "install", "-r", APK)
     shell("logcat -c")
@@ -266,6 +442,7 @@ def scenario() -> None:
         screenshot("01-app")
         return
     screenshot("01-app")
+    check_initial_accessibility()
 
     added = tap_text("Tambah", 0) and tap_text("Tambah", 1)
     started = added and tap_text("Putar", 0)
@@ -293,6 +470,12 @@ def scenario() -> None:
         return
 
     screenshot("02-paused")
+    paused_tree = ui_tree()
+    paused_readable = paused_tree is not None and any(
+        "Dijeda" in (node.get("text") or "") or "Dijeda" in (node.get("content-desc") or "")
+        for node in paused_tree.iter("node")
+    )
+    check(paused_readable, "Status pemutaran 'Dijeda' terbaca di layar")
     notification = wait_for(media_notification, 10)
     check(notification, "Notifikasi media tampil", notification)
     open_shade("03-notification")
@@ -354,6 +537,7 @@ def scenario() -> None:
     ended = wait_for(finished, 25)
     check(ended, "Berhenti setelah entri terakhir selesai", ended or session())
     check_https()
+    check_large_font_accessibility()
 
 
 def main() -> int:
@@ -363,6 +547,10 @@ def main() -> int:
     except Exception as error:  # noqa: BLE001 - laporkan lalu tetap simpan bukti
         check(False, "Skenario berjalan tanpa error", repr(error))
     finally:
+        try:
+            shell("settings put system font_scale 1.0")
+        except Exception:  # noqa: BLE001
+            pass
         crashes = shell("logcat -d -b crash")
         check(PKG not in crashes, "Tidak ada crash aplikasi", crashes.strip()[-2000:] if PKG in crashes else "")
         save("logcat.txt", shell("logcat -d"))

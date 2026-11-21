@@ -2,7 +2,7 @@ package senada.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
@@ -15,8 +15,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.PlatformContext
 import kotlin.math.roundToLong
@@ -125,18 +131,26 @@ internal fun SampleAudioControls(
     problem: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Uji audio", style = MaterialTheme.typography.h6)
-        Text(title)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onPlay(SampleAudioSource.Local) }, modifier = Modifier.weight(1f)) {
+        Text("Uji audio", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Button(onClick = { onPlay(SampleAudioSource.Local) }) {
                 Text("Putar lokal")
             }
-            Button(onClick = { onPlay(SampleAudioSource.Https) }, modifier = Modifier.weight(1f)) {
+            Button(onClick = { onPlay(SampleAudioSource.Https) }) {
                 Text("Putar HTTPS")
             }
         }
         PlaybackProgress(state, onSeek)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             TextButton(onClick = onPrevious, enabled = canGoPrevious) { Text("Sebelumnya") }
             // Satu tombol putar/jeda: melanjutkan lagu terpilih dari posisinya, atau memulai antrean.
             if (state.isActive) {
@@ -146,7 +160,11 @@ internal fun SampleAudioControls(
             }
             TextButton(onClick = onNext, enabled = canGoNext) { Text("Berikutnya") }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             val (repeatLabel, nextMode) = when (repeatMode) {
                 RepeatMode.Off -> "Mati" to RepeatMode.All
                 RepeatMode.All -> "Semua" to RepeatMode.One
@@ -172,8 +190,23 @@ internal fun SampleAudioControls(
             SampleAudioStatus.Failed -> problem ?: "Audio gagal diputar. Coba lagi."
         }
         val selectedTitle = state.selection?.title
-        if (status != null && selectedTitle != null) {
-            Text("$selectedTitle · $status", style = MaterialTheme.typography.body2)
+        if (status != null) {
+            // Judul dipisahkan agar judul panjang tidak memotong status atau pesan galat pemutaran.
+            Column(
+                modifier = Modifier.semantics(mergeDescendants = true) {
+                    liveRegion = LiveRegionMode.Polite
+                },
+            ) {
+                selectedTitle?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.body2,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(status, style = MaterialTheme.typography.body2)
+            }
         }
     }
 }
@@ -183,13 +216,20 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
     val duration = state.durationMs
     if (duration == null) {
         if (state.status == SampleAudioStatus.Paused && state.selection?.isPending == true && state.positionMs > 0) {
-            Text(playbackTime(state.positionMs), style = MaterialTheme.typography.body2)
+            Text(
+                playbackTime(state.positionMs),
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.clearAndSetSemantics {
+                    contentDescription = "Posisi jeda ${accessibleDuration(state.positionMs)}"
+                },
+            )
         }
         return
     }
     var scrubFraction by remember(state.selection, state.canSeek) { mutableStateOf<Float?>(null) }
     val progress = scrubFraction ?: (state.positionMs.toDouble() / duration).toFloat()
     val shownPosition = scrubFraction?.let { (it * duration.toDouble()).roundToLong() } ?: state.positionMs
+    val spokenProgress = "${accessibleDuration(shownPosition)} dari ${accessibleDuration(duration)}"
 
     Slider(
         value = progress,
@@ -199,9 +239,16 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
             scrubFraction = null
         },
         enabled = state.canSeek,
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Posisi pemutaran" },
+        modifier = Modifier.fillMaxWidth().semantics {
+            contentDescription = "Posisi pemutaran"
+            stateDescription = spokenProgress
+        },
     )
-    Text("${playbackTime(shownPosition)} / ${playbackTime(duration)}", style = MaterialTheme.typography.body2)
+    Text(
+        "${playbackTime(shownPosition)} / ${playbackTime(duration)}",
+        style = MaterialTheme.typography.body2,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = spokenProgress },
+    )
 }
 
 internal fun playbackTime(positionMs: Long): String {

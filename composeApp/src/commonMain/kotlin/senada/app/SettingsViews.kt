@@ -2,7 +2,8 @@ package senada.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
@@ -15,6 +16,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -60,13 +66,17 @@ internal fun BackupSection(library: LibraryRepository) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Backup library", style = MaterialTheme.typography.h6)
+        Text("Backup library", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
         Text(
             "Simpan favorit, playlist, riwayat dan item tersimpan ke satu file JSON yang juga bisa dibuka " +
                 "Senada desktop. Pengaturan tidak ikut. Impor menambahkan yang belum ada tanpa menghapus apa pun.",
             style = MaterialTheme.typography.body2,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Button(onClick = {
                 launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
             }, enabled = !busy) { Text("Ekspor backup") }
@@ -78,22 +88,28 @@ internal fun BackupSection(library: LibraryRepository) {
                 }
             }, enabled = !busy) { Text("Impor backup") }
         }
-        if (busy) Text("Memproses…", style = MaterialTheme.typography.body2)
-        message?.let { Text(it, style = MaterialTheme.typography.body2) }
+        val status = if (busy) "Memproses…" else message
+        if (status != null) {
+            Text(
+                status,
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 
     val request = pending ?: return
     if (request.summary.changesNothing) {
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Tidak ada yang baru") },
+            title = { Text("Tidak ada yang baru", modifier = Modifier.semantics { heading() }) },
             text = { Text(describe(request.summary)) },
             confirmButton = { TextButton(onClick = { pending = null }) { Text("Tutup") } },
         )
     } else {
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Terapkan backup?") },
+            title = { Text("Terapkan backup?", modifier = Modifier.semantics { heading() }) },
             text = { Text(describe(request.summary)) },
             confirmButton = {
                 TextButton(onClick = {
