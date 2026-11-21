@@ -42,6 +42,23 @@ class LyricsRepositoryTest {
     }
 
     @Test
+    fun clearingCacheFetchesLyricsAgainForTheSameTrack() = runTest {
+        val repo = repository {
+            if (requests.size == 1) respond("""{"plainLyrics":"Jendela biru"}""")
+            else respond("""{"plainLyrics":"Jendela jingga"}""")
+        }
+        val original = LyricsDocument.Plain(listOf("Jendela biru"))
+        assertEquals(original, repo.get(track))
+        assertEquals(original, repo.get(track))
+        assertEquals(1, requests.size)
+
+        repo.clearCache()
+
+        assertEquals(LyricsDocument.Plain(listOf("Jendela jingga")), repo.get(track))
+        assertEquals(listOf("/api/get", "/api/get"), requests.map { it.url.encodedPath })
+    }
+
+    @Test
     fun emptyExactMatchSearchesAndPrefersSyncedOverPlainAndInstrumental() = runTest {
         val decoratedTrack = track.copy(title = "${track.title} [feat. Cahaya]", durationMs = null)
         val repo = repository { request ->
