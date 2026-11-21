@@ -17,7 +17,6 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.compose.LocalPlatformContext
-import kotlin.math.roundToLong
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -53,7 +52,7 @@ internal fun StorageSection() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Penyimpanan", style = MaterialTheme.typography.h6)
         Text(
-            cacheSize?.let { "Cache sampul: ${formatCacheSize(it)}" }
+            cacheSize?.let { "Cache sampul: ${formatSize(it)}" }
                 ?: if (readingSize) "Menghitung ukuran cache sampul…" else "Ukuran cache sampul tidak tersedia.",
             style = MaterialTheme.typography.body2,
         )
@@ -95,20 +94,4 @@ private suspend fun ImageLoader.readArtworkCacheSize(): Long? = storageCacheLock
             null
         }
     }
-}
-
-internal fun formatCacheSize(bytes: Long): String {
-    if (bytes < 1_000) return "$bytes B"
-    val tenthsOfKilobyte = (bytes / 100.0).roundToLong()
-    return if (tenthsOfKilobyte < 10_000) {
-        formatTenths(tenthsOfKilobyte, "KB")
-    } else {
-        formatTenths((bytes / 100_000.0).roundToLong(), "MB")
-    }
-}
-
-private fun formatTenths(tenths: Long, unit: String): String {
-    val whole = tenths / 10
-    val fraction = tenths % 10
-    return if (fraction == 0L) "$whole $unit" else "$whole,$fraction $unit"
 }

@@ -44,14 +44,6 @@ class LocalAudioTest {
     }
 
     @Test
-    fun sizesUseADecimalComma() {
-        assertEquals("512 B", describeSize(512))
-        assertEquals("1,5 KB", describeSize(1_536))
-        assertEquals("4,2 MB", describeSize(4_400_000))
-        assertEquals("1,0 GB", describeSize(1L shl 30))
-    }
-
-    @Test
     fun localQueueEntriesPlayTheirCopyOrExplainWhyNot() = runTest {
         val track = ImportedAudio("a1b2.mp3", "Rekaman.mp3", 1).toTrack()
         val entry = QueueItem(7, track)

@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import senada.local.LocalAudioException
-import senada.local.describeSize
 import senada.local.toTrack
 import senada.model.Track
 
@@ -36,7 +35,7 @@ internal fun ImportAudioButton(onImported: (Track) -> Unit) {
                     importer.import()?.let { audio ->
                         val track = audio.toTrack()
                         onImported(track)
-                        "\"${track.title}\" (${describeSize(audio.sizeBytes)}) ditambahkan ke antrean."
+                        "\"${track.title}\" (${formatSize(audio.sizeBytes)}) ditambahkan ke antrean."
                     }
                 } catch (e: CancellationException) {
                     throw e
