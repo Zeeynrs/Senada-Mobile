@@ -201,6 +201,16 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun localTracksListsOnlyImportedSongs() = runTest {
+        val library = library()
+        val imported = duet.copy(id = "local:rekaman.m4a", title = "Rekaman", artworkUrl = null, source = "local")
+        library.setFavorite(track(1), true)
+        library.setFavorite(imported, true)
+
+        assertEquals(listOf(imported), library.localTracks().first())
+    }
+
+    @Test
     fun savedItemsKeepTheirMetadata() = runTest {
         val library = library()
         val metadata = """{"kind":"album","id":"MPREb_x","name":"Manusia"}"""
