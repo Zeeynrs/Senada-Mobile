@@ -18,8 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import coil3.PlatformContext
 import kotlin.math.roundToLong
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import senada.catalog.DemoCatalog
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
@@ -57,9 +60,13 @@ internal fun sampleAudioSelection(source: SampleAudioSource): SampleAudioSelecti
  * Alamat audio entri antrean: stream YouTube Music yang dicari saat diputar, file audio yang diimpor
  * pengguna, atau file contoh di aplikasi.
  */
-internal suspend fun queueAudioSelection(entry: QueueItem, localFiles: LocalAudioFiles): SampleAudioSelection = when (entry.track.source) {
+internal suspend fun queueAudioSelection(
+    entry: QueueItem,
+    saveData: suspend () -> Boolean = { false },
+    localFiles: LocalAudioFiles,
+): SampleAudioSelection = when (entry.track.source) {
     YOUTUBE_MUSIC_SOURCE -> {
-        val audio = SenadaSources.streams.resolve(entry.track)
+        val audio = SenadaSources.streams.resolve(entry.track, saveData())
         SampleAudioSelection(
             entry.track.title,
             SampleAudioSource.YouTubeMusic,
@@ -87,9 +94,16 @@ internal fun createPlaybackController(
     output: SampleAudioOutput,
     queueStore: QueueStore,
     localFiles: LocalAudioFiles,
-): PlaybackController =
-    PlaybackController(output, MainScope()) { entry -> queueAudioSelection(entry, localFiles) }
+    context: PlatformContext,
+): PlaybackController {
+    val store = appearanceStore(context)
+    val metered = meteredNetwork(context)
+    val saveData: suspend () -> Boolean = {
+        withContext(Dispatchers.Default) { dataSaverActive(store.load().saveMobileData, metered.value) }
+    }
+    return PlaybackController(output, MainScope()) { entry -> queueAudioSelection(entry, saveData, localFiles) }
         .apply { persistQueue(queueStore) }
+}
 
 @Composable
 internal fun SampleAudioControls(

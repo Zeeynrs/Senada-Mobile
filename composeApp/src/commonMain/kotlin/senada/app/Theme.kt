@@ -27,6 +27,7 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
 
     fun selectMode(mode: ThemeMode) = update { it.copy(mode = mode) }
     fun followCover(enabled: Boolean) = update { it.copy(followCover = enabled) }
+    fun saveMobileData(enabled: Boolean) = update { it.copy(saveMobileData = enabled) }
 
     private fun update(change: (Appearance) -> Appearance) {
         val previous = settings ?: return

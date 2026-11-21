@@ -4,6 +4,7 @@ import coil3.PlatformContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -13,7 +14,11 @@ internal enum class ThemeMode(val label: String) {
     System("Ikuti sistem"), Light("Terang"), Dark("Gelap"),
 }
 
-internal data class Appearance(val mode: ThemeMode = ThemeMode.System, val followCover: Boolean = true)
+internal data class Appearance(
+    val mode: ThemeMode = ThemeMode.System,
+    val followCover: Boolean = true,
+    val saveMobileData: Boolean = false,
+)
 
 /** Satu nilai berversi agar mode dan pilihan sampul selalu disimpan bersama. */
 internal class AppearanceStore(private val read: () -> String?, private val write: (String) -> Unit) {
@@ -24,7 +29,8 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
             val mode = ThemeMode.valueOf(value.getValue("mode").jsonPrimitive.content)
             val follow = value.getValue("followCover").jsonPrimitive
             require(!follow.isString)
-            Appearance(mode, follow.boolean)
+            val saveData = value["saveMobileData"] as? JsonPrimitive
+            Appearance(mode, follow.boolean, saveData?.takeUnless { it.isString }?.booleanOrNull ?: false)
         } catch (_: Exception) {
             Appearance()
         }
@@ -34,6 +40,7 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
         put("version", 1)
         put("mode", settings.mode.name)
         put("followCover", settings.followCover)
+        put("saveMobileData", settings.saveMobileData)
     }.toString())
 }
 

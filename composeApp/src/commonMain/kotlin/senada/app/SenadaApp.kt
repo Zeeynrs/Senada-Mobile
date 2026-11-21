@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
 import senada.catalog.DemoCatalog
+import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.lyrics.LyricsPanel
@@ -157,6 +158,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                     AppTab.History -> historyTab(libraryState, actions)
                     AppTab.Settings -> {
                         item(key = "appearance") { AppearanceSection(appearance) }
+                        item(key = "data") { DataSection(appearance) }
                         item(key = "backup") { BackupSection(library) }
                         item(key = "storage") { StorageSection() }
                     }
@@ -272,7 +274,7 @@ internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composab
         ) {
             track.artworkUrl?.let { url ->
                 AsyncImage(
-                    model = url,
+                    model = remember(url) { resizeGoogleArtwork(url, 120) },
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
                     contentScale = ContentScale.Crop,

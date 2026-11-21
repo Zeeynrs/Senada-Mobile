@@ -1,5 +1,14 @@
 package senada.catalog.youtube
 
+internal const val PLAYER_WITHOUT_LOW_BITRATE = """
+{
+ "playabilityStatus": {"status":"OK"},
+ "streamingData": {"adaptiveFormats":[
+   {"itag":140,"mimeType":"audio/mp4; codecs=\"mp4a.40.2\"","url":"https://example.invalid/standard"}
+ ]}
+}
+"""
+
 // Respons Innertube asli yang dipangkas; URL stream diganti alamat contoh.
 
 internal const val SEARCH_PAGE_1 = """

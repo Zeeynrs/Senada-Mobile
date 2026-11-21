@@ -10,5 +10,5 @@ data class ResolvedAudio(
 )
 
 interface StreamResolver {
-    suspend fun resolve(track: Track): ResolvedAudio
+    suspend fun resolve(track: Track, saveData: Boolean = false): ResolvedAudio
 }

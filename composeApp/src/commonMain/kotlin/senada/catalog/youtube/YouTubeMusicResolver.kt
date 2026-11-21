@@ -13,13 +13,13 @@ internal class YouTubeMusicResolver(
     private val innertube: InnertubeClient,
     private val now: () -> Long = ::epochMillis,
 ) : StreamResolver {
-    override suspend fun resolve(track: Track): ResolvedAudio {
+    override suspend fun resolve(track: Track, saveData: Boolean): ResolvedAudio {
         val videoId = videoIdOf(track) ?: throw CatalogException(Kind.Unavailable, "Not a YouTube track: ${track.id}")
-        return parsePlayer(innertube.player(videoId), now())
+        return parsePlayer(innertube.player(videoId), now(), saveData)
     }
 }
 
-internal fun parsePlayer(response: JsonObject, nowMs: Long): ResolvedAudio {
+internal fun parsePlayer(response: JsonObject, nowMs: Long, saveData: Boolean = false): ResolvedAudio {
     val status = response.string("playabilityStatus", "status")
     if (status != "OK") {
         val reason = response.string("playabilityStatus", "reason").orEmpty()
@@ -28,9 +28,13 @@ internal fun parsePlayer(response: JsonObject, nowMs: Long): ResolvedAudio {
         throw CatalogException(kind, "Playability $status: $reason")
     }
 
-    val formats = response.array("streamingData", "adaptiveFormats").filter { it.string("url") != null }
-    val format = formats.firstOrNull { it.at("itag")?.toString() == AAC_ITAG }
-        ?: formats.firstOrNull { it.string("mimeType")?.startsWith("audio/mp4") == true }
+    val formats = response.array("streamingData", "adaptiveFormats").filter {
+        !it.string("url").isNullOrBlank() && it.string("mimeType")?.substringBefore(';') == "audio/mp4"
+    }
+    val preferredItag = if (saveData) LOW_BITRATE_AAC_ITAG else AAC_ITAG
+    val format = formats.firstOrNull { it.at("itag")?.toString() == preferredItag }
+        ?: formats.firstOrNull { it.at("itag")?.toString() == AAC_ITAG }
+        ?: formats.firstOrNull()
         ?: throw CatalogException(Kind.Unavailable, "No AAC audio stream")
 
     val expiresInSeconds = response.string("streamingData", "expiresInSeconds")?.toLongOrNull()
@@ -43,4 +47,5 @@ internal fun parsePlayer(response: JsonObject, nowMs: Long): ResolvedAudio {
 
 /** AAC-LC ±128 kbps dalam MP4, didukung Media3 dan AVPlayer. */
 private const val AAC_ITAG = "140"
+private const val LOW_BITRATE_AAC_ITAG = "139"
 private val BOT_CHECK = Regex("not a bot", RegexOption.IGNORE_CASE)
