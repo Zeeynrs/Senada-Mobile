@@ -1,0 +1,6 @@
+-- Versi 1 → 2: riwayat pencarian.
+CREATE TABLE search_history (
+    query_key TEXT NOT NULL PRIMARY KEY,
+    query TEXT NOT NULL,
+    searched_at INTEGER NOT NULL
+);

@@ -73,6 +73,12 @@ Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu 
 4. Putar dua lagu dari antrean. Keduanya muncul di tab **Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
 5. Tutup aplikasi sepenuhnya lalu buka lagi. Favorit, playlist dan riwayat tetap ada, termasuk tanpa internet.
 
+## Uji riwayat pencarian
+
+1. Di tab **Cari**, ketik `tulus` lalu tekan tombol cari di keyboard. Kosongkan kolom cari: `tulus` muncul di **Pencarian terakhir**.
+2. Ketik `nadin`, tunggu hasilnya, lalu tekan **Tambah** pada satu lagu. Pencarian ini ikut tercatat di atas `tulus`. Ketikan yang hanya ditunggu hasilnya tanpa dipakai tidak dicatat.
+3. Ketuk satu baris riwayat untuk mencarinya lagi, **×** untuk menghapus satu baris, dan **Hapus riwayat** untuk mengosongkan semuanya. Riwayat menyimpan 12 pencarian terakhir dan tetap ada setelah aplikasi dibuka ulang; memperbarui dari versi sebelumnya tidak menghapus favorit, playlist, atau riwayat lagu.
+
 ## Uji impor file audio
 
 1. Di tab **Cari**, tekan **Impor file audio** dan pilih satu lagu dari ponsel (misalnya `.m4a` atau `.mp3` di Files/Unduhan). Senada menyalinnya ke penyimpanan aplikasi, menambahkannya ke antrean, dan menampilkan judul (dari nama file) beserta ukurannya.

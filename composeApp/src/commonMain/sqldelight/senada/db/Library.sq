@@ -48,6 +48,13 @@ CREATE TABLE saved_item (
     PRIMARY KEY (kind, id)
 );
 
+-- Pencarian terakhir di tab Cari, seperti searchHistory di desktop; query_key huruf kecil untuk deduplikasi.
+CREATE TABLE search_history (
+    query_key TEXT NOT NULL PRIMARY KEY,
+    query TEXT NOT NULL,
+    searched_at INTEGER NOT NULL
+);
+
 -- Lagu --
 
 upsertTrack:
@@ -180,3 +187,23 @@ SELECT count(*) FROM saved_item WHERE kind = ? AND id = ?;
 insertTrackIfMissing:
 INSERT OR IGNORE INTO track(id, title, artists, duration_ms, artwork_url, source)
 VALUES (?, ?, ?, ?, ?, ?);
+
+-- Riwayat pencarian --
+
+searchHistory:
+SELECT query FROM search_history ORDER BY searched_at DESC, rowid DESC LIMIT ?;
+
+recordSearch:
+INSERT OR REPLACE INTO search_history(query_key, query, searched_at) VALUES (?, ?, ?);
+
+trimSearchHistory:
+DELETE FROM search_history
+WHERE query_key NOT IN (
+    SELECT query_key FROM search_history ORDER BY searched_at DESC, rowid DESC LIMIT ?
+);
+
+removeSearch:
+DELETE FROM search_history WHERE query_key = ?;
+
+clearSearchHistory:
+DELETE FROM search_history;

@@ -172,6 +172,33 @@ class LibraryRepository internal constructor(
         }
     }
 
+    // -- Riwayat pencarian --
+
+    /** Pencarian terakhir, terbaru lebih dulu. */
+    fun searchHistory(limit: Int = SEARCH_HISTORY_LIMIT): Flow<List<String>> =
+        queries.searchHistory(limit.toLong()).asFlow().mapToList(dispatcher)
+
+    /**
+     * Mencatat pencarian seperti desktop: dirapikan, tanpa membedakan huruf besar/kecil, terbatas
+     * [SEARCH_HISTORY_LIMIT], dan tautan atau URI tidak dicatat.
+     */
+    suspend fun recordSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty() || IGNORED_SEARCH_PREFIXES.any { trimmed.startsWith(it) }) return
+        write {
+            queries.recordSearch(trimmed.lowercase(), trimmed, now())
+            queries.trimSearchHistory(SEARCH_HISTORY_LIMIT.toLong())
+        }
+    }
+
+    suspend fun removeSearch(query: String) {
+        write { queries.removeSearch(query.trim().lowercase()) }
+    }
+
+    suspend fun clearSearchHistory() {
+        write { queries.clearSearchHistory() }
+    }
+
     // -- Item tersimpan --
 
     val savedItems: Flow<List<SavedItem>> = queries.savedItems(::SavedItem).asFlow().mapToList(dispatcher)
@@ -227,6 +254,10 @@ class LibraryRepository internal constructor(
     companion object {
         /** Sama dengan batas riwayat desktop. */
         const val HISTORY_LIMIT = 200
+
+        /** Sama dengan batas riwayat pencarian desktop. */
+        const val SEARCH_HISTORY_LIMIT = 12
+        private val IGNORED_SEARCH_PREFIXES = listOf("http://", "https://", "spotify:", "yt:", "local:", "senada:")
         private const val DEFAULT_PLAYLIST_NAME = "Playlist baru"
     }
 }
