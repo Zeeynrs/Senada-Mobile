@@ -11,11 +11,18 @@ internal data class SampleAudioSelection(
     val source: SampleAudioSource,
     val uri: String,
     val queueEntryId: Long? = null,
+    /** Batas berlaku alamat stream; null untuk file lokal dan alamat tetap. */
+    val expiresAtEpochMs: Long? = null,
 ) {
     /** Entri antrean yang alamat audionya belum didapat. */
     val isPending get() = uri.isEmpty()
 
+    /** Alamat dianggap habis sedikit lebih awal, agar sisa lagu masih bisa dimuat dengannya. */
+    fun isExpired(nowMs: Long) = expiresAtEpochMs != null && nowMs >= expiresAtEpochMs - EXPIRY_MARGIN_MS
+
     companion object {
+        private const val EXPIRY_MARGIN_MS = 10 * 60_000L
+
         /** Sumber baru diketahui setelah alamat didapat; status Loading tidak menampilkannya. */
         fun pending(title: String, queueEntryId: Long) =
             SampleAudioSelection(title, SampleAudioSource.Https, uri = "", queueEntryId)
@@ -49,7 +56,8 @@ internal interface SampleAudioOutput {
     /** Dipanggil pemutar native saat status berubah, termasuk saat aplikasi di latar belakang. */
     var onEvent: (() -> Unit)?
 
-    fun play(uri: String, restart: Boolean)
+    /** Saat [restart], audio baru dimuat dan dimulai dari [startAtMs]; selain itu melanjutkan audio yang ada. */
+    fun play(uri: String, restart: Boolean, startAtMs: Long = 0)
     fun pause()
     fun seekTo(positionMs: Long)
     fun release()
@@ -62,11 +70,14 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     /** Selama alamat audio dicari, status pemutar native tidak mewakili lagu yang dipilih. */
     private var awaitingSource = false
 
-    /** Memilih lagu yang alamatnya sedang dicari: audio lama berhenti dan status menjadi Loading. */
-    fun prepare(selection: SampleAudioSelection) {
+    /**
+     * Memilih lagu yang alamatnya sedang dicari: audio lama berhenti dan status menjadi Loading.
+     * [positionMs] adalah titik mulai nanti, misalnya posisi terakhir sebelum alamat diganti.
+     */
+    fun prepare(selection: SampleAudioSelection, positionMs: Long = 0) {
         if (state.isActive && !awaitingSource) output.pause()
         awaitingSource = true
-        state = SampleAudioState(selection, SampleAudioStatus.Loading)
+        state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = positionMs)
     }
 
     /** Alamat audio tidak dapat disiapkan; pilihan tetap ada agar bisa dicoba lagi. */
@@ -75,18 +86,20 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         state = state.copy(status = SampleAudioStatus.Failed)
     }
 
-    fun play(selection: SampleAudioSelection) {
+    /** Lagu baru dimulai dari [startAtMs]; lagu yang sama dan sedang dijeda dilanjutkan dari posisinya. */
+    fun play(selection: SampleAudioSelection, startAtMs: Long = 0) {
         awaitingSource = false
         refresh()
         val sameSelection = state.selection == selection
         if (sameSelection && state.isActive) return
 
         val resume = sameSelection && state.status == SampleAudioStatus.Paused
-        output.play(selection.uri, restart = !resume)
-        state = if (resume) {
-            state.copy(status = SampleAudioStatus.Loading)
+        if (resume) {
+            output.play(selection.uri, restart = false)
+            state = state.copy(status = SampleAudioStatus.Loading)
         } else {
-            SampleAudioState(selection, SampleAudioStatus.Loading)
+            output.play(selection.uri, restart = true, startAtMs = startAtMs)
+            state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = startAtMs)
         }
         refresh()
     }

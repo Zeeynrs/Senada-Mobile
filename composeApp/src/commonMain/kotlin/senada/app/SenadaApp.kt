@@ -1,6 +1,8 @@
 package senada.app
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.OutlinedTextField
@@ -31,8 +35,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
+import coil3.ImageLoader
+import coil3.compose.AsyncImage
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.network.ktor3.KtorNetworkFetcherFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,6 +54,12 @@ import senada.playback.PlaybackController
 
 @Composable
 internal fun SenadaApp(playback: PlaybackController) {
+    // Sampul diunduh dengan klien HTTP yang sama dengan katalog.
+    setSingletonImageLoaderFactory { context ->
+        ImageLoader.Builder(context)
+            .components { add(KtorNetworkFetcherFactory(SenadaSources.http)) }
+            .build()
+    }
     val state by playback.state.collectAsState()
     val queue = state.queue
     val audioState = state.audio
@@ -170,6 +186,21 @@ private fun TrackRow(track: Track, action: @Composable () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Kotak tetap ada tanpa sampul agar judul di daftar sejajar.
+        Box(
+            Modifier.size(48.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colors.onSurface.copy(alpha = 0.08f)),
+        ) {
+            track.artworkUrl?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
         Column(Modifier.weight(1f)) {
             Text(track.title, style = MaterialTheme.typography.subtitle1)
             val details = listOfNotNull(

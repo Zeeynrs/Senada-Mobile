@@ -1,16 +1,12 @@
 package senada.catalog.youtube
 
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
 import kotlinx.serialization.json.JsonObject
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
 import senada.catalog.ResolvedAudio
 import senada.catalog.StreamResolver
+import senada.epochMillis
 import senada.model.Track
-
-@OptIn(ExperimentalTime::class)
-private fun epochMillis() = Clock.System.now().toEpochMilliseconds()
 
 /** Alamat audio AAC/MP4 langsung; URL terikat ke IP ponsel dan berlaku beberapa jam. */
 internal class YouTubeMusicResolver(

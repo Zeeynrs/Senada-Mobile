@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
+import senada.epochMillis
 import senada.model.Track
 
 internal data class PlaybackState(
@@ -35,11 +36,15 @@ internal data class PlaybackState(
  * Alamat audio entri antrean dicari lewat [selectionFor], yang boleh menunggu jaringan. Pilihan terbaru
  * selalu menang, dan alamat entri berikutnya disiapkan lebih awal agar lanjut otomatis tetap berjalan
  * saat aplikasi di latar belakang.
+ *
+ * Alamat stream berlaku terbatas dan terikat ke jaringan. Setelah jeda lama alamat baru diminta, dan
+ * kegagalan stream yang sedang diputar dicoba ulang sekali; keduanya melanjutkan dari posisi terakhir.
  */
 internal class PlaybackController(
     private val output: SampleAudioOutput,
     private val scope: CoroutineScope,
     private val tickMs: Long = 250,
+    private val now: () -> Long = ::epochMillis,
     private val selectionFor: suspend (QueueItem) -> SampleAudioSelection,
 ) {
     private val player = SampleAudioPlayer(output)
@@ -57,6 +62,9 @@ internal class PlaybackController(
     private var preparing: Job? = null
     private var prefetched: Prefetch? = null
     private var problem: String? = null
+
+    /** Entri stream yang boleh dicoba ulang sekali bila pemutar gagal, misalnya karena jaringan berganti. */
+    private var retryEntryId: Long? = null
 
     init {
         // Event bisa datang di tengah panggilan ke pemutar native; tangani setelah panggilan selesai.
@@ -79,6 +87,7 @@ internal class PlaybackController(
         if (player.state.selection?.queueEntryId == entryId) {
             preparing?.cancel()
             problem = null
+            retryEntryId = null
         }
         if (prefetched?.entryId == entryId) dropPrefetch()
         queue = queue.remove(entryId)
@@ -91,12 +100,13 @@ internal class PlaybackController(
     fun play(selection: SampleAudioSelection) {
         preparing?.cancel()
         problem = null
+        retryEntryId = null
         player.play(selection)
         publish()
     }
 
     fun playEntry(entryId: Long) {
-        entry(entryId)?.let(::start)
+        entry(entryId)?.let { start(it) }
     }
 
     /** Melanjutkan lagu terpilih, atau memulai entri pertama bila belum ada yang dipilih. */
@@ -105,16 +115,22 @@ internal class PlaybackController(
         val selection = audio.selection
         val entry = selection?.queueEntryId?.let(::entry)
         when {
-            selection == null -> queue.entries.firstOrNull()?.let(::start)
+            selection == null -> queue.entries.firstOrNull()?.let { start(it) }
             preparing?.isActive == true -> Unit
-            // Alamat belum ada atau gagal (misalnya kedaluwarsa): minta alamat baru.
-            entry != null && (selection.isPending || audio.status == SampleAudioStatus.Failed) -> start(entry)
-            else -> play(selection)
+            // Alamat belum ada, gagal, atau kedaluwarsa setelah jeda lama: minta alamat baru, lanjut dari posisi terakhir.
+            entry != null && (selection.isPending || audio.status == SampleAudioStatus.Failed || selection.isExpired(now())) ->
+                start(entry, resumeAtMs = if (audio.status == SampleAudioStatus.Ended) 0 else audio.positionMs)
+            else -> {
+                play(selection)
+                // Alamat masih berlaku tapi jaringan bisa sudah berganti selama jeda.
+                if (entry != null && selection.source == SampleAudioSource.YouTubeMusic) retryEntryId = entry.id
+            }
         }
     }
 
     fun pause() {
         resumeAfterInterruption = false
+        retryEntryId = null
         preparing?.cancel()
         player.pause()
         publish()
@@ -127,7 +143,7 @@ internal class PlaybackController(
     }
 
     fun next() {
-        queue.adjacentTo(player.state.selection?.queueEntryId, 1)?.let(::start)
+        queue.adjacentTo(player.state.selection?.queueEntryId, 1)?.let { start(it) }
     }
 
     /** Seperti pemutar musik umumnya: setelah 3 detik, kembali ke awal lagu yang sama. */
@@ -161,19 +177,22 @@ internal class PlaybackController(
 
     private fun entry(entryId: Long) = queue.entries.firstOrNull { it.id == entryId }
 
-    private fun start(entry: QueueItem) {
+    /** Memutar [entry] dari [resumeAtMs]; percobaan ulang ([isRetry]) tidak dicoba ulang lagi. */
+    private fun start(entry: QueueItem, resumeAtMs: Long = 0, isRetry: Boolean = false) {
         preparing?.cancel()
         problem = null
+        retryEntryId = null
         val early = prefetched?.takeIf { it.entryId == entry.id }?.selection
         if (early != null) prefetched = null
 
         // Tanpa jeda bila alamat sudah ada, sehingga lanjut otomatis tidak menunggu dispatcher.
         preparing = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            player.prepare(SampleAudioSelection.pending(entry.track.title, entry.id))
+            player.prepare(SampleAudioSelection.pending(entry.track.title, entry.id), resumeAtMs)
             publish()
 
             val selection = try {
-                early?.await() ?: selectionFor(entry)
+                // Alamat yang disiapkan lebih awal bisa sudah kedaluwarsa bila lagu sebelumnya lama dijeda.
+                early?.await()?.takeUnless { it.isExpired(now()) } ?: selectionFor(entry)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -183,7 +202,8 @@ internal class PlaybackController(
                 return@launch
             }
             if (player.state.selection?.queueEntryId != entry.id) return@launch
-            player.play(selection)
+            player.play(selection, startAtMs = resumeAtMs)
+            if (!isRetry && selection.source == SampleAudioSource.YouTubeMusic) retryEntryId = entry.id
             prefetchNext()
             publish()
         }
@@ -223,16 +243,25 @@ internal class PlaybackController(
         if (audio.canSeek) {
             seekTo(0)
         } else {
-            audio.selection?.queueEntryId?.let(::entry)?.let(::start) ?: audio.selection?.let(this::play)
+            audio.selection?.queueEntryId?.let(::entry)?.let { start(it) } ?: audio.selection?.let(this::play)
         }
     }
 
     private fun sync() {
         player.refresh()
-        if (player.state.status == SampleAudioStatus.Ended && preparing?.isActive != true) {
-            val nextEntry = queue.adjacentTo(player.state.selection?.queueEntryId, 1)
-            if (nextEntry != null) {
-                start(nextEntry)
+        val audio = player.state
+        val entryId = audio.selection?.queueEntryId
+        if (preparing?.isActive != true) {
+            if (audio.status == SampleAudioStatus.Ended) {
+                val nextEntry = queue.adjacentTo(entryId, 1)
+                if (nextEntry != null) {
+                    start(nextEntry)
+                    return
+                }
+            }
+            val retry = retryEntryId?.takeIf { it == entryId }?.let(::entry)
+            if (audio.status == SampleAudioStatus.Failed && retry != null) {
+                start(retry, resumeAtMs = audio.positionMs, isRetry = true)
                 return
             }
         }
