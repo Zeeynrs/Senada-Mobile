@@ -12,6 +12,9 @@ import platform.AVFoundation.AVMetadataCommonKeyArtist
 import platform.AVFoundation.AVMetadataCommonKeyTitle
 import platform.AVFoundation.AVMetadataItem
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.commonKey
+import platform.AVFoundation.commonMetadata
+import platform.AVFoundation.stringValue
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
@@ -65,8 +68,8 @@ private class IosAudioImporter : AudioImporter {
 private fun ImportedAudio.withMetadataFrom(path: String): ImportedAudio = try {
     val asset = AVURLAsset.URLAssetWithURL(NSURL.fileURLWithPath(path), options = null)
     val metadata = asset.commonMetadata.filterIsInstance<AVMetadataItem>()
-    fun textFor(key: String): String? = metadata.firstNotNullOfOrNull { item ->
-        if (item.commonKey == key) item.stringValue?.takeIf { it.isNotBlank() } else null
+    fun textFor(key: String?): String? = metadata.firstNotNullOfOrNull { item ->
+        if (key != null && item.commonKey == key) item.stringValue?.takeIf { it.isNotBlank() } else null
     }
 
     val seconds = CMTimeGetSeconds(asset.duration)
