@@ -113,9 +113,7 @@ internal fun createPlaybackController(
 
 @Composable
 internal fun SampleAudioControls(
-    title: String,
     state: SampleAudioState,
-    onPlay: (SampleAudioSource) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     canResume: Boolean,
@@ -131,20 +129,6 @@ internal fun SampleAudioControls(
     problem: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Uji audio", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(onClick = { onPlay(SampleAudioSource.Local) }, modifier = Modifier.minTouchTarget()) {
-                Text("Putar lokal")
-            }
-            Button(onClick = { onPlay(SampleAudioSource.Https) }, modifier = Modifier.minTouchTarget()) {
-                Text("Putar HTTPS")
-            }
-        }
         PlaybackProgress(state, onSeek)
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
