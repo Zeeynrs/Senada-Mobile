@@ -78,6 +78,8 @@ internal fun SampleAudioControls(
     state: SampleAudioState,
     onPlay: (SampleAudioSource) -> Unit,
     onPause: () -> Unit,
+    onResume: () -> Unit,
+    canResume: Boolean,
     onSeek: (Long) -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -99,7 +101,12 @@ internal fun SampleAudioControls(
         PlaybackProgress(state, onSeek)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = onPrevious, enabled = canGoPrevious) { Text("Sebelumnya") }
-            TextButton(onClick = onPause, enabled = state.isActive) { Text("Jeda") }
+            // Satu tombol putar/jeda: melanjutkan lagu terpilih dari posisinya, atau memulai antrean.
+            if (state.isActive) {
+                TextButton(onClick = onPause) { Text("Jeda") }
+            } else {
+                TextButton(onClick = onResume, enabled = canResume) { Text("Putar") }
+            }
             TextButton(onClick = onNext, enabled = canGoNext) { Text("Berikutnya") }
         }
 

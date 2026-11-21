@@ -105,8 +105,14 @@ internal class PlaybackController(
         publish()
     }
 
+    /** Entri yang sedang dipilih dilanjutkan dari posisinya; entri lain, atau yang sudah selesai, diputar dari awal. */
     fun playEntry(entryId: Long) {
-        entry(entryId)?.let { start(it) }
+        val audio = player.state
+        if (audio.selection?.queueEntryId == entryId && audio.status != SampleAudioStatus.Ended) {
+            resume()
+        } else {
+            entry(entryId)?.let { start(it) }
+        }
     }
 
     /** Melanjutkan lagu terpilih, atau memulai entri pertama bila belum ada yang dipilih. */

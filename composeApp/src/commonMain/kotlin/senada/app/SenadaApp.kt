@@ -149,6 +149,8 @@ internal fun SenadaApp(playback: PlaybackController) {
                         state = audioState,
                         onPlay = { source -> playback.play(sampleAudioSelection(source)) },
                         onPause = playback::pause,
+                        onResume = playback::resume,
+                        canResume = audioState.selection != null || queue.entries.isNotEmpty(),
                         onSeek = playback::seekTo,
                         onPrevious = playback::previous,
                         onNext = playback::next,

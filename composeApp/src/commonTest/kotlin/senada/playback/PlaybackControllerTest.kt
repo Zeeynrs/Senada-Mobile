@@ -490,6 +490,38 @@ class PlaybackControllerTest {
         assertEquals(SampleAudioStatus.Failed, playback.state.value.audio.status)
     }
 
+    @Test
+    fun playingThePausedEntryAgainContinuesFromItsPosition() = runTest {
+        val playback = controller()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+        output.positionMs = 7_000
+        playback.pause()
+
+        playback.playEntry(entry.id)
+
+        assertEquals(listOf(true, false), output.restarts)
+        assertEquals(7_000L, playback.state.value.audio.positionMs)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+    }
+
+    @Test
+    fun playingAFinishedEntryAgainStartsOver() = runTest {
+        val playback = controller()
+        playback.add(first)
+        val entry = playback.state.value.queue.entries.single()
+        playback.playEntry(entry.id)
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+
+        playback.playEntry(entry.id)
+
+        assertEquals(listOf(true, true), output.restarts)
+        assertEquals(listOf(0L, 0L), output.startPositions)
+    }
+
     private companion object {
         const val HOUR_MS = 3_600_000L
     }
