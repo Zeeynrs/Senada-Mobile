@@ -1,6 +1,7 @@
 package senada.platform
 
 import android.app.PendingIntent
+import android.content.Intent
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -23,6 +24,11 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        AndroidPlayback.get(this).controller.saveQueueNow()
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         // Pemutar milik proses aplikasi; hanya sesi yang dilepas di sini.

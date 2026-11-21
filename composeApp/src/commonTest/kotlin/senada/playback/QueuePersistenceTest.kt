@@ -261,6 +261,41 @@ class QueuePersistenceTest {
         output.positionMs = 44_000
         advanceTimeBy(15_001)
         assertEquals(44_000L, QueueJson.decode(store.text)?.positionMs)
+
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        val endedWrites = store.writes
+        output.positionMs = 0
+        advanceTimeBy(60_000)
+        assertEquals(endedWrites, store.writes)
+    }
+
+    @Test
+    fun saveNowReadsTheLoadedPlayerAndPreservesThePositionBeforeReloadingIt() = runTest {
+        val store = MemoryQueueStore()
+        val output = FakeAudioOutput()
+        val playback = controller(output, store)
+        playback.add(stream)
+        playback.resume()
+        output.positionMs = 4_250
+        assertEquals(0L, playback.state.value.audio.positionMs)
+
+        playback.saveQueueNow()
+        assertEquals(4_250L, QueueJson.decode(store.text)?.positionMs)
+        val writes = store.writes
+        playback.saveQueueNow()
+        assertEquals(writes, store.writes)
+
+        val reopened = controller(FakeAudioOutput(), store)
+        reopened.saveQueueNow()
+        assertEquals(writes, store.writes)
+        assertEquals(4_250L, reopened.state.value.audio.positionMs)
+
+        playback.pause()
+        output.positionMs = 4_275
+        playback.saveQueueNow()
+        assertEquals(4_275L, QueueJson.decode(store.text)?.positionMs)
     }
 
     private fun TestScope.controller(

@@ -57,6 +57,7 @@ internal class PlaybackController(
     private var announceNextPublish = false
     private var uiVisible = false
     private var ticker: Job? = null
+    private var persistence: QueuePersistence? = null
     private var resumeAfterInterruption = false
 
     private var preparing: Job? = null
@@ -82,6 +83,29 @@ internal class PlaybackController(
         queue = snapshot.queue
         snapshot.selectedEntryId?.let(::entry)?.let { player.restorePaused(it, snapshot.positionMs) }
         publish()
+    }
+
+    fun persistQueue(store: QueueStore) {
+        store.loadSnapshot()?.let(::restore)
+        val writer = QueuePersistence(store, scope, ::queueSnapshot)
+        persistence = writer
+        addListener(writer::onPlaybackChanged)
+    }
+
+    fun saveQueueNow() {
+        persistence?.saveNow()
+    }
+
+    private fun queueSnapshot(): QueueSnapshot {
+        val state = mutableState.value
+        val entryId = state.currentEntry?.id
+        val position = when {
+            entryId == null -> 0L
+            // Saat memulihkan antrean atau menunggu alamat, pemutar belum memuat entri ini.
+            state.audio.selection?.isPending == true -> state.audio.positionMs
+            else -> output.positionMs.coerceIn(0L, state.audio.durationMs ?: Long.MAX_VALUE)
+        }
+        return QueueSnapshot(state.queue, entryId, position)
     }
 
     fun add(track: Track) {
@@ -206,7 +230,12 @@ internal class PlaybackController(
     private fun entry(entryId: Long) = queue.entries.firstOrNull { it.id == entryId }
 
     /** Memutar [entry] dari [resumeAtMs]; percobaan ulang ([isRetry]) tidak dicoba ulang lagi. */
-    private fun start(entry: QueueItem, resumeAtMs: Long = 0, isRetry: Boolean = false) {
+    private fun start(
+        entry: QueueItem,
+        resumeAtMs: Long = 0,
+        isRetry: Boolean = false,
+        replay: SampleAudioSelection? = null,
+    ) {
         preparing?.cancel()
         problem = null
         retryEntryId = null
@@ -219,8 +248,9 @@ internal class PlaybackController(
             publish()
 
             val selection = try {
-                // Alamat yang disiapkan lebih awal bisa sudah kedaluwarsa bila lagu sebelumnya lama dijeda.
-                early?.await()?.takeUnless { it.isExpired(now()) } ?: selectionFor(entry)
+                // Riwayat mengenali tiap putaran dari objek pilihan baru, meski alamatnya sama.
+                val available = replay?.copy() ?: early?.await()
+                available?.takeUnless { it.isExpired(now()) } ?: selectionFor(entry)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -239,8 +269,9 @@ internal class PlaybackController(
 
     /** Menyiapkan alamat entri setelah lagu yang dipilih, sekali per entri. */
     private fun prefetchNext() {
-        val next = queue.afterEnd(player.state.selection?.queueEntryId)
-        if (next == null) {
+        val currentId = player.state.selection?.queueEntryId
+        val next = queue.afterEnd(currentId)
+        if (next == null || next.id == currentId) {
             dropPrefetch()
             return
         }
@@ -283,7 +314,7 @@ internal class PlaybackController(
             if (audio.status == SampleAudioStatus.Ended) {
                 val nextEntry = queue.afterEnd(entryId)
                 if (nextEntry != null) {
-                    start(nextEntry)
+                    start(nextEntry, replay = audio.selection.takeIf { queue.repeatMode == RepeatMode.One })
                     return
                 }
             }
