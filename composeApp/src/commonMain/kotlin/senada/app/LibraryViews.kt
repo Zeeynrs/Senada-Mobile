@@ -41,18 +41,15 @@ import senada.library.PlaylistSummary
 import senada.model.Track
 import senada.playback.PlaybackController
 
-/** Tab di bagian atas layar; Cari tetap tab bawaan. */
+/** Bagian di dalam tab Library (sementara, sebelum diganti chip di Fase 5). */
 internal enum class AppTab(val label: String) {
-    Search("Cari"),
     Favorites("Favorit"),
     Playlists("Playlist"),
     History("Riwayat"),
-    Settings("Pengaturan"),
 }
 
 @Composable
 internal fun AppTabs(selected: AppTab, onSelect: (AppTab) -> Unit) {
-    // Lima tab tidak muat sama lebar di layar ponsel; tab bisa digeser.
     ScrollableTabRow(
         selectedTabIndex = selected.ordinal,
         containerColor = MaterialTheme.colorScheme.surface,

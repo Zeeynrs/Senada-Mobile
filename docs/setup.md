@@ -53,10 +53,14 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. Cara lain dari PC: sambungkan iPhone, tahan **Shift** sambil mengklik ikon AltServer di tray, pilih **Sideload .ipa…**, lalu pilih file `.ipa`. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
 3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali dan antreannya tetap ada.
 
+## Navigasi
+
+Navigasi bawah yang mengambang punya empat tujuan: **Beranda**, **Cari**, **Library**, dan **Pengaturan**. Saat antrean berisi lagu, mini player muncul di atasnya; ketuk mini player untuk membuka **Sedang diputar** (kontrol, lirik, dan antrean). Tombol kembali Android menutup Sedang diputar, lalu detail playlist, lalu kembali ke Beranda sebelum keluar dari aplikasi. Di iPhone, Sedang diputar ditutup lewat tombol panah turun.
+
 ## Uji audio contoh
 
-1. Buka **Uji audio** dan tekan **Putar lokal**. Sampel *Selepas Hujan* selama 12 detik ikut di dalam aplikasi.
-2. Saat audio terdengar, tekan **Jeda**, lalu **Putar lokal** lagi. Audio melanjutkan dari posisi terakhir.
+1. Di tab **Pengaturan**, gulir ke bagian **Pengembang** dan tekan **Putar lokal**. Sampel *Selepas Hujan* selama 12 detik ikut di dalam aplikasi.
+2. Saat audio terdengar, tekan **Jeda** di mini player, lalu **Putar lokal** lagi. Audio melanjutkan dari posisi terakhir.
 3. Dengan koneksi internet aktif, tekan **Putar HTTPS**. Aplikasi memulai sampel yang sama dari awal. Setelah selesai, tekan **Putar HTTPS** lagi untuk mengulang dari awal.
 
 Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Audio tetap berjalan saat aplikasi masuk latar belakang atau layar dikunci.
@@ -67,10 +71,10 @@ Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu 
 
 ## Uji library
 
-1. Di tab **Cari**, buka menu **⋯** pada sebuah lagu, lalu pilih **Tambah ke favorit**. Lagu itu mendapat tanda ♥ di semua daftar dan muncul di tab **Favorit**.
+1. Di tab **Cari**, buka menu **⋯** pada sebuah lagu, lalu pilih **Tambah ke favorit**. Lagu itu mendapat tanda ♥ di semua daftar dan muncul di **Library › Favorit** serta di **Beranda**.
 2. Dari menu **⋯**, pilih **Playlist baru…**, beri nama, lalu tambahkan lagu lain ke playlist yang sama lewat **Tambah ke <nama>**. Lagu yang sama boleh ditambahkan dua kali.
-3. Di tab **Playlist**, buka playlist itu. Ubah urutan lewat **Pindah ke atas**/**Pindah ke bawah**, hapus satu entri, lalu **Ganti nama**. **Putar semua** menambahkan seluruh lagu ke akhir antrean dan memutar yang pertama.
-4. Putar dua lagu dari antrean. Keduanya muncul di tab **Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
+3. Di **Library › Playlist**, buka playlist itu. Ubah urutan lewat **Pindah ke atas**/**Pindah ke bawah**, hapus satu entri, lalu **Ganti nama**. **Putar semua** menambahkan seluruh lagu ke akhir antrean dan memutar yang pertama.
+4. Putar dua lagu dari antrean. Keduanya muncul di **Library › Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
 5. Tutup aplikasi sepenuhnya lalu buka lagi. Favorit, playlist dan riwayat tetap ada, termasuk tanpa internet.
 
 ## Uji riwayat pencarian
