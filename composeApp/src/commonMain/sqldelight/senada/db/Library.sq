@@ -89,6 +89,9 @@ WHERE id NOT IN (SELECT track_id FROM favorite)
 localTrackIds:
 SELECT id FROM track WHERE source = 'local' AND id GLOB 'local:*';
 
+localTracks:
+SELECT * FROM track WHERE source = 'local' ORDER BY title COLLATE NOCASE, id;
+
 -- Favorit --
 
 favorites:

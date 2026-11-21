@@ -69,6 +69,10 @@ class LibraryRepository internal constructor(
         block(ids)
     }
 
+    /** Lagu dari file audio yang diimpor pengguna dan masih tersimpan di library. */
+    fun localTracks(): Flow<List<Track>> =
+        queries.localTracks(::trackOf).asFlow().mapToList(dispatcher)
+
     // -- Favorit --
 
     /** Favorit terbaru lebih dulu, seperti desktop. */
