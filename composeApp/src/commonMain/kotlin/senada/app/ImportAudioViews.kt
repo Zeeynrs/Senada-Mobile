@@ -55,7 +55,7 @@ internal fun ImportAudioButton(onImported: (Track) -> Unit) {
                     busy = false
                 }
             }
-        }, enabled = !busy) { Text(if (busy) "Menyalin file…" else "Impor file audio") }
+        }, enabled = !busy, modifier = Modifier.minTouchTarget()) { Text(if (busy) "Menyalin file…" else "Impor file audio") }
         message?.let {
             Text(
                 it,

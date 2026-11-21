@@ -72,6 +72,7 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
         )
         OutlinedButton(
             enabled = !readingSize && !clearing,
+            modifier = Modifier.minTouchTarget(),
             onClick = {
                 clearing = true
                 clearMessage = null
@@ -138,6 +139,7 @@ private fun ImportedAudioStorageControls(
     )
     OutlinedButton(
         enabled = !reading && !deleting,
+        modifier = Modifier.minTouchTarget(),
         onClick = {
             deleting = true
             deleteMessage = null

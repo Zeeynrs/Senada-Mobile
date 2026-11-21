@@ -142,14 +142,48 @@ def parse_bounds(node: ET.Element) -> tuple[int, int, int, int] | None:
     return (int(nums[0]), int(nums[1]), int(nums[2]), int(nums[3])) if len(nums) == 4 else None
 
 
-def ui_tree() -> ET.Element | None:
+def ui_tree(save_as: str | None = None) -> ET.Element | None:
     for _ in range(3):
         shell("uiautomator dump /sdcard/senada-ui.xml")
         xml = shell("cat /sdcard/senada-ui.xml")
         if "<?xml" in xml:
-            return ET.fromstring(xml[xml.index("<?xml") :])
+            cleaned = xml[xml.index("<?xml") :]
+            if save_as:
+                save(save_as, cleaned)
+            return ET.fromstring(cleaned)
         time.sleep(1)
     return None
+
+
+def parent_map(root: ET.Element) -> dict[ET.Element, ET.Element]:
+    return {child: parent for parent in root.iter("node") for child in parent}
+
+
+def interactive_node(node: ET.Element, parents: dict[ET.Element, ET.Element]) -> ET.Element:
+    """Naik ke node tombol/sakelar/radio pembungkus karena uiautomator memisahkan anak TextView."""
+    current: ET.Element | None = node
+    while current is not None:
+        if current.get("clickable") == "true" or current.get("checkable") == "true":
+            return current
+        current = parents.get(current)
+    return node
+
+
+def find_interactive(
+    label: str, *, attribute: str = "text", root: ET.Element | None = None,
+) -> list[tuple[tuple[int, int, int, int], ET.Element]]:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return []
+    parents = parent_map(tree)
+    matches = []
+    for node in tree.iter("node"):
+        if node.get(attribute) == label:
+            target = interactive_node(node, parents)
+            box = parse_bounds(target)
+            if box:
+                matches.append((box, target))
+    return sorted(matches, key=lambda item: item[0][1] + item[0][3])
 
 
 def ui_bounds(label: str, *, attribute: str = "text", root: ET.Element | None = None) -> list[tuple[int, int, int, int]]:
@@ -277,10 +311,10 @@ def min_touch_px() -> int:
 
 
 def check_initial_accessibility() -> None:
-    root = ui_tree()
+    root = ui_tree(save_as="01-ui.xml")
     menu_label = f"Buka menu {FIRST}"
-    menu_boxes = ui_bounds(menu_label, attribute="content-desc", root=root)
-    check(menu_boxes, f"Tombol menu ⋯ punya content-desc '{menu_label}'", menu_boxes)
+    menu_matches = find_interactive(menu_label, attribute="content-desc", root=root)
+    check(menu_matches, f"Tombol menu ⋯ punya content-desc '{menu_label}'", [box for box, _ in menu_matches])
 
     min_px = min_touch_px()
     targets = [
@@ -296,13 +330,13 @@ def check_initial_accessibility() -> None:
     undersized = []
     checked = 0
     for label, attr, required in targets:
-        boxes = ui_bounds(label, attribute=attr, root=root)
-        if not boxes:
+        matches = find_interactive(label, attribute=attr, root=root)
+        if not matches:
             if required:
                 missing.append(label)
             continue
         checked += 1
-        x1, y1, x2, y2 = boxes[0]
+        x1, y1, x2, y2 = matches[0][0]
         if (x2 - x1) < min_px or (y2 - y1) < min_px:
             undersized.append(f"{label}={x2 - x1}x{y2 - y1}px")
     check(
@@ -313,26 +347,33 @@ def check_initial_accessibility() -> None:
 
 
 def collect_while_scrolling(
-    targets: list[tuple[str, str]], scrolls: int = 6,
+    targets: list[tuple[str, str]], scrolls: int = 6, *, save_first: str | None = None,
 ) -> dict[str, tuple[tuple[int, int, int, int], ET.Element]]:
     width, height = screen_size()
+    min_px = min_touch_px()
     found: dict[str, tuple[tuple[int, int, int, int], ET.Element]] = {}
+    partial: dict[str, tuple[tuple[int, int, int, int], ET.Element]] = {}
     for step in range(scrolls + 1):
-        root = ui_tree()
+        root = ui_tree(save_as=save_first if step == 0 else None)
         if root is not None:
             for label, attr in targets:
                 if label in found:
                     continue
-                for node in root.iter("node"):
-                    if node.get(attr) == label:
-                        box = parse_bounds(node)
-                        if box:
-                            found[label] = (box, node)
-                            break
+                matches = find_interactive(label, attribute=attr, root=root)
+                if not matches:
+                    continue
+                box, node = matches[0]
+                partial[label] = (box, node)
+                # Tunggu sampai elemen tidak terpotong di tepi atas/bawah layar sebelum mengunci ukurannya.
+                near_vertical_edge = box[1] <= 80 or box[3] >= height - 80
+                if not near_vertical_edge or (box[3] - box[1]) >= min_px:
+                    found[label] = (box, node)
         if len(found) == len(targets) or step == scrolls:
             break
         shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 300")
         time.sleep(0.6)
+    for label, entry in partial.items():
+        found.setdefault(label, entry)
     return found
 
 
@@ -361,7 +402,7 @@ def check_large_font_accessibility() -> None:
         ("Sebelumnya", "text"),
         ("Berikutnya", "text"),
     ]
-    cari_found = collect_while_scrolling(cari_targets, scrolls=7)
+    cari_found = collect_while_scrolling(cari_targets, scrolls=7, save_first="06-large-font-ui.xml")
     cari_missing = [label for label, _ in cari_targets if label not in cari_found]
     cari_clipped = [
         f"{label}={box}"
@@ -399,7 +440,7 @@ def check_large_font_accessibility() -> None:
         ("Ekspor backup", "text"),
         ("Impor backup", "text"),
     ]
-    settings_found = collect_while_scrolling(settings_targets, scrolls=7)
+    settings_found = collect_while_scrolling(settings_targets, scrolls=7, save_first="07-settings-ui.xml")
     settings_missing = [label for label, _ in settings_targets if label not in settings_found]
     radio_node = settings_found["Ikuti sistem"][1] if "Ikuti sistem" in settings_found else None
     switch_node = settings_found["Warna mengikuti sampul"][1] if "Warna mengikuti sampul" in settings_found else None

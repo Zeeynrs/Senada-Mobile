@@ -39,7 +39,7 @@ internal fun LazyListScope.searchHistoryItems(
                     modifier = Modifier.semantics { heading() },
                 )
             },
-            trailing = { TextButton(onClick = onClear) { Text("Hapus riwayat") } },
+            trailing = { TextButton(onClick = onClear, modifier = Modifier.minTouchTarget()) { Text("Hapus riwayat") } },
         )
     }
     items(history, key = { "search-history-$it" }) { query ->
@@ -58,7 +58,9 @@ internal fun LazyListScope.searchHistoryItems(
             )
             IconButton(
                 onClick = { onRemove(query) },
-                modifier = Modifier.semantics { contentDescription = "Hapus \"$query\" dari riwayat" },
+                modifier = Modifier.minTouchTarget().semantics {
+                    contentDescription = "Hapus \"$query\" dari riwayat"
+                },
             ) {
                 // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
                 Text("×", style = MaterialTheme.typography.h6, modifier = Modifier.clearAndSetSemantics {})

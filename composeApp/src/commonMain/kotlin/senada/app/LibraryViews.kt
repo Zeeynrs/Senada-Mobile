@@ -135,7 +135,7 @@ internal fun TrackMenu(
     Box {
         IconButton(
             onClick = { open = true },
-            modifier = Modifier.semantics { contentDescription = "Buka menu ${track.title}" },
+            modifier = Modifier.minTouchTarget().semantics { contentDescription = "Buka menu ${track.title}" },
         ) {
             // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
             Text("⋯", style = MaterialTheme.typography.h6, modifier = Modifier.clearAndSetSemantics {})
@@ -188,9 +188,15 @@ internal fun NameDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank()) { Text(confirmLabel) }
+            TextButton(
+                onClick = { onConfirm(name.trim()) },
+                enabled = name.isNotBlank(),
+                modifier = Modifier.minTouchTarget(),
+            ) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+        },
     )
 }
 
@@ -203,7 +209,9 @@ private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
             Text(title, style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
         },
         trailing = {
-            if (onPlayAll != null) TextButton(onClick = onPlayAll) { Text("Putar semua") }
+            if (onPlayAll != null) {
+                TextButton(onClick = onPlayAll, modifier = Modifier.minTouchTarget()) { Text("Putar semua") }
+            }
         },
     )
 }
@@ -219,7 +227,9 @@ private fun LazyListScope.trackList(
         TrackRow(track, favorite = track.id in library.favoriteIds) {
             TextButton(
                 onClick = { actions.enqueue(track) },
-                modifier = Modifier.semantics { contentDescription = "Tambah ${track.title} ke antrean" },
+                modifier = Modifier.minTouchTarget().semantics {
+                    contentDescription = "Tambah ${track.title} ke antrean"
+                },
             ) { Text("Tambah") }
             TrackMenu(track, library, actions)
         }
@@ -285,7 +295,9 @@ internal fun LazyListScope.playlistsTab(
                 trailing = {
                     TextButton(
                         onClick = { onOpen(playlist.id) },
-                        modifier = Modifier.semantics { contentDescription = "Buka playlist ${playlist.name}" },
+                        modifier = Modifier.minTouchTarget().semantics {
+                            contentDescription = "Buka playlist ${playlist.name}"
+                        },
                     ) { Text("Buka") }
                 },
             )
@@ -301,7 +313,9 @@ internal fun LazyListScope.playlistsTab(
         TrackRow(entry.track, favorite = entry.track.id in library.favoriteIds) {
             TextButton(
                 onClick = { actions.enqueue(entry.track) },
-                modifier = Modifier.semantics { contentDescription = "Tambah ${entry.track.title} ke antrean" },
+                modifier = Modifier.minTouchTarget().semantics {
+                    contentDescription = "Tambah ${entry.track.title} ke antrean"
+                },
             ) { Text("Tambah") }
             TrackMenu(entry.track, library, actions) { close ->
                 if (index > 0) {
@@ -337,7 +351,7 @@ private fun PlaylistListHeader(actions: LibraryActions) {
             Text("Playlist", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
         },
         trailing = {
-            TextButton(onClick = { naming = true }) { Text("Playlist baru") }
+            TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) { Text("Playlist baru") }
         },
     )
     if (naming) {
@@ -355,7 +369,7 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         TextButton(
             onClick = onClose,
-            modifier = Modifier.semantics { contentDescription = "Kembali ke semua playlist" },
+            modifier = Modifier.minTouchTarget().semantics { contentDescription = "Kembali ke semua playlist" },
         ) { Text("‹ Semua playlist", modifier = Modifier.clearAndSetSemantics {}) }
         Text(
             playlist.name,
@@ -370,11 +384,13 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            TextButton(onClick = { actions.playAllOf(playlist.id) }, enabled = playlist.entryCount > 0) {
-                Text("Putar semua")
-            }
-            TextButton(onClick = { renaming = true }) { Text("Ganti nama") }
-            TextButton(onClick = { deleting = true }) { Text("Hapus playlist") }
+            TextButton(
+                onClick = { actions.playAllOf(playlist.id) },
+                enabled = playlist.entryCount > 0,
+                modifier = Modifier.minTouchTarget(),
+            ) { Text("Putar semua") }
+            TextButton(onClick = { renaming = true }, modifier = Modifier.minTouchTarget()) { Text("Ganti nama") }
+            TextButton(onClick = { deleting = true }, modifier = Modifier.minTouchTarget()) { Text("Hapus playlist") }
         }
     }
     if (renaming) {
@@ -389,13 +405,18 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
             title = { Text("Hapus playlist?", modifier = Modifier.semantics { heading() }) },
             text = { Text("\"${playlist.name}\" dan urutan lagunya akan dihapus. Lagu di favorit dan riwayat tetap ada.") },
             confirmButton = {
-                TextButton(onClick = {
-                    deleting = false
-                    onClose()
-                    actions.deletePlaylist(playlist.id)
-                }) { Text("Hapus playlist") }
+                TextButton(
+                    onClick = {
+                        deleting = false
+                        onClose()
+                        actions.deletePlaylist(playlist.id)
+                    },
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text("Hapus playlist") }
             },
-            dismissButton = { TextButton(onClick = { deleting = false }) { Text("Batal") } },
+            dismissButton = {
+                TextButton(onClick = { deleting = false }, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+            },
         )
     }
 }

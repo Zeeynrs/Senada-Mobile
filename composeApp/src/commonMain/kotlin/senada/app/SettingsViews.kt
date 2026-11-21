@@ -77,16 +77,24 @@ internal fun BackupSection(library: LibraryRepository) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = {
-                launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
-            }, enabled = !busy) { Text("Ekspor backup") }
-            OutlinedButton(onClick = {
-                launchTask {
-                    val text = files.open() ?: return@launchTask null
-                    pending = PendingImport(text, library.importBackup(text, apply = false))
-                    null
-                }
-            }, enabled = !busy) { Text("Impor backup") }
+            Button(
+                onClick = {
+                    launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
+                },
+                enabled = !busy,
+                modifier = Modifier.minTouchTarget(),
+            ) { Text("Ekspor backup") }
+            OutlinedButton(
+                onClick = {
+                    launchTask {
+                        val text = files.open() ?: return@launchTask null
+                        pending = PendingImport(text, library.importBackup(text, apply = false))
+                        null
+                    }
+                },
+                enabled = !busy,
+                modifier = Modifier.minTouchTarget(),
+            ) { Text("Impor backup") }
         }
         val status = if (busy) "Memproses…" else message
         if (status != null) {
@@ -104,7 +112,9 @@ internal fun BackupSection(library: LibraryRepository) {
             onDismissRequest = { pending = null },
             title = { Text("Tidak ada yang baru", modifier = Modifier.semantics { heading() }) },
             text = { Text(describe(request.summary)) },
-            confirmButton = { TextButton(onClick = { pending = null }) { Text("Tutup") } },
+            confirmButton = {
+                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) { Text("Tutup") }
+            },
         )
     } else {
         AlertDialog(
@@ -112,15 +122,20 @@ internal fun BackupSection(library: LibraryRepository) {
             title = { Text("Terapkan backup?", modifier = Modifier.semantics { heading() }) },
             text = { Text(describe(request.summary)) },
             confirmButton = {
-                TextButton(onClick = {
-                    pending = null
-                    launchTask {
-                        val applied = library.importBackup(request.text)
-                        "Backup diterapkan. ${describe(applied).lines().first()}"
-                    }
-                }) { Text("Terapkan") }
+                TextButton(
+                    onClick = {
+                        pending = null
+                        launchTask {
+                            val applied = library.importBackup(request.text)
+                            "Backup diterapkan. ${describe(applied).lines().first()}"
+                        }
+                    },
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text("Terapkan") }
             },
-            dismissButton = { TextButton(onClick = { pending = null }) { Text("Batal") } },
+            dismissButton = {
+                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+            },
         )
     }
 }
