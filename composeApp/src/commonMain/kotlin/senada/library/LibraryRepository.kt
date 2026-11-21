@@ -12,6 +12,8 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -59,6 +61,13 @@ class LibraryRepository internal constructor(
     private val newPlaylistId: () -> String = ::localPlaylistId,
 ) {
     internal val queries = database.libraryQueries
+    private val writeLock = Mutex()
+
+    /** ID lagu lokal tetap berlaku selama blok penghapusan file berjalan. */
+    internal suspend fun <T> withLocalTrackIds(block: (List<String>) -> T): T = writeLock.withLock {
+        val ids = withContext(dispatcher) { queries.localTrackIds().executeAsList() }
+        block(ids)
+    }
 
     // -- Favorit --
 
@@ -241,8 +250,9 @@ class LibraryRepository internal constructor(
 
     // -- Bantuan --
 
-    private suspend fun <T> write(block: () -> T): T =
+    private suspend fun <T> write(block: () -> T): T = writeLock.withLock {
         withContext(dispatcher) { database.transactionWithResult { block() } }
+    }
 
     private fun setFavoriteNow(track: Track, favorite: Boolean) {
         if (favorite) {

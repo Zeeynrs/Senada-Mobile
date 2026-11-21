@@ -42,9 +42,15 @@ internal fun ImportedAudio.toTrack(): Track = Track(
 
 /** Nama file di penyimpanan aplikasi untuk lagu impor, atau null untuk sumber lain. */
 internal fun localFileNameOf(track: Track): String? =
-    track.id.takeIf { track.source == LOCAL_FILE_SOURCE && it.startsWith(LOCAL_TRACK_PREFIX) }
-        ?.removePrefix(LOCAL_TRACK_PREFIX)
-        ?.takeIf { it.isNotBlank() && '/' !in it && '\\' !in it && it != "." && it != ".." }
+    if (track.source == LOCAL_FILE_SOURCE) localFileNameFromId(track.id) else null
+
+internal fun localFileNameFromId(id: String): String? =
+    id.takeIf { it.startsWith(LOCAL_TRACK_PREFIX) }?.removePrefix(LOCAL_TRACK_PREFIX)
+        ?.takeIf(::isLocalAudioFileName)
+
+internal fun isLocalAudioFileName(name: String): Boolean =
+    name.isNotBlank() && name != "." && name != ".." &&
+        '/' !in name && '\\' !in name && '\u0000' !in name
 
 /** Nama acak untuk salinan, dengan ekstensi asli bila wajar, supaya pemutar mengenali formatnya. */
 internal fun newLocalFileName(displayName: String, random: Random = Random.Default): String {
