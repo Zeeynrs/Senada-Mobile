@@ -20,12 +20,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.Surface
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -168,7 +168,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                 item {
                     Text(
                         "Senada",
-                        style = MaterialTheme.typography.h4,
+                        style = MaterialTheme.typography.headlineMedium,
                         modifier = Modifier.semantics { heading() },
                     )
                 }
@@ -261,7 +261,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                         }
                     }
                 }
-                item { Text("Antrean", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() }) }
+                item { Text("Antrean", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() }) }
                 if (queue.entries.isEmpty()) {
                     item { Text("Antrean kosong.") }
                 }
@@ -309,7 +309,7 @@ private fun LazyListScope.searchResults(
 ) {
     item {
         val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
-        Text(heading, style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        Text(heading, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
     }
     if (search.loading && search.tracks.isEmpty()) {
         item {
@@ -324,7 +324,7 @@ private fun LazyListScope.searchResults(
                 primary = {
                     Text(
                         message,
-                        style = MaterialTheme.typography.body2,
+                        style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 },
@@ -386,7 +386,7 @@ internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composab
                 Box(
                     Modifier.size(48.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colors.onSurface.copy(alpha = 0.08f)),
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                 ) {
                     track.artworkUrl?.let { url ->
                         AsyncImage(
@@ -404,14 +404,14 @@ internal fun TrackRow(track: Track, favorite: Boolean = false, action: @Composab
                 ) {
                     Text(
                         track.title,
-                        style = MaterialTheme.typography.subtitle1,
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (details.isNotEmpty()) {
                         Text(
                             details.joinToString(" · "),
-                            style = MaterialTheme.typography.body2,
+                            style = MaterialTheme.typography.bodyMedium,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )

@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -35,7 +35,7 @@ internal fun LazyListScope.searchHistoryItems(
             primary = {
                 Text(
                     "Pencarian terakhir",
-                    style = MaterialTheme.typography.h6,
+                    style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.semantics { heading() },
                 )
             },
@@ -63,7 +63,7 @@ internal fun LazyListScope.searchHistoryItems(
                 },
             ) {
                 // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
-                Text("×", style = MaterialTheme.typography.h6, modifier = Modifier.clearAndSetSemantics {})
+                Text("×", style = MaterialTheme.typography.titleLarge, modifier = Modifier.clearAndSetSemantics {})
             }
         }
     }

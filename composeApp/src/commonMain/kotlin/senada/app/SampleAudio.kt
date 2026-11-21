@@ -4,11 +4,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Slider
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -131,7 +131,7 @@ internal fun SampleAudioControls(
     problem: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Uji audio", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        Text("Uji audio", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -208,12 +208,12 @@ internal fun SampleAudioControls(
                 selectedTitle?.let {
                     Text(
                         it,
-                        style = MaterialTheme.typography.body2,
+                        style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(status, style = MaterialTheme.typography.body2)
+                Text(status, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -226,7 +226,7 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
         if (state.status == SampleAudioStatus.Paused && state.selection?.isPending == true && state.positionMs > 0) {
             Text(
                 playbackTime(state.positionMs),
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.clearAndSetSemantics {
                     contentDescription = "Posisi jeda ${accessibleDuration(state.positionMs)}"
                 },
@@ -254,7 +254,7 @@ private fun PlaybackProgress(state: SampleAudioState, onSeek: (Long) -> Unit) {
     )
     Text(
         "${playbackTime(shownPosition)} / ${playbackTime(duration)}",
-        style = MaterialTheme.typography.body2,
+        style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.clearAndSetSemantics { contentDescription = spokenProgress },
     )
 }

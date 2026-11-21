@@ -4,12 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedButton
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,11 +66,11 @@ internal fun BackupSection(library: LibraryRepository) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Backup library", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+        Text("Backup library", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         Text(
             "Simpan favorit, playlist, riwayat dan item tersimpan ke satu file JSON yang juga bisa dibuka " +
                 "Senada desktop. Pengaturan tidak ikut. Impor menambahkan yang belum ada tanpa menghapus apa pun.",
-            style = MaterialTheme.typography.body2,
+            style = MaterialTheme.typography.bodyMedium,
         )
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -100,7 +100,7 @@ internal fun BackupSection(library: LibraryRepository) {
         if (status != null) {
             Text(
                 status,
-                style = MaterialTheme.typography.body2,
+                style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }

@@ -10,16 +10,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.DropdownMenu
-import androidx.compose.material.DropdownMenuItem
-import androidx.compose.material.IconButton
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.OutlinedTextField
-import androidx.compose.material.Tab
-import androidx.compose.material.ScrollableTabRow
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,7 +55,7 @@ internal fun AppTabs(selected: AppTab, onSelect: (AppTab) -> Unit) {
     // Lima tab tidak muat sama lebar di layar ponsel; tab bisa digeser.
     ScrollableTabRow(
         selectedTabIndex = selected.ordinal,
-        backgroundColor = MaterialTheme.colors.surface,
+        containerColor = MaterialTheme.colorScheme.surface,
         edgePadding = 0.dp,
     ) {
         AppTab.entries.forEach { tab ->
@@ -138,23 +138,23 @@ internal fun TrackMenu(
             modifier = Modifier.minTouchTarget().semantics { contentDescription = "Buka menu ${track.title}" },
         ) {
             // Simbol dekoratif disembunyikan agar pembaca layar hanya membacakan label aksi.
-            Text("⋯", style = MaterialTheme.typography.h6, modifier = Modifier.clearAndSetSemantics {})
+            Text("⋯", style = MaterialTheme.typography.titleLarge, modifier = Modifier.clearAndSetSemantics {})
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(onClick = {
+            DropdownMenuItem(text = { Text(if (favorite) "Hapus dari favorit" else "Tambah ke favorit") }, onClick = {
                 open = false
                 actions.toggleFavorite(track)
-            }) { Text(if (favorite) "Hapus dari favorit" else "Tambah ke favorit") }
+            })
             library.playlists.forEach { playlist ->
-                DropdownMenuItem(onClick = {
+                DropdownMenuItem(text = { Text("Tambah ke ${playlist.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = {
                     open = false
                     actions.addToPlaylist(playlist.id, track)
-                }) { Text("Tambah ke ${playlist.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                })
             }
-            DropdownMenuItem(onClick = {
+            DropdownMenuItem(text = { Text("Playlist baru…") }, onClick = {
                 open = false
                 naming = true
-            }) { Text("Playlist baru…") }
+            })
             extra { open = false }
         }
     }
@@ -206,7 +206,7 @@ private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
         modifier = Modifier.fillMaxWidth(),
         minPrimaryWidth = 140.dp,
         primary = {
-            Text(title, style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+            Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         },
         trailing = {
             if (onPlayAll != null) {
@@ -252,7 +252,7 @@ private fun LazyListScope.loadMoreItem(key: String, loaded: Int, total: Int, onL
     if (loaded >= total) return
     item(key = key) {
         LaunchedEffect(loaded) { onLoadMore() }
-        Text("Memuat…", style = MaterialTheme.typography.body2)
+        Text("Memuat…", style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -285,11 +285,11 @@ internal fun LazyListScope.playlistsTab(
                     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
                         Text(
                             playlist.name,
-                            style = MaterialTheme.typography.subtitle1,
+                            style = MaterialTheme.typography.titleMedium,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        Text("${playlist.trackCount} lagu", style = MaterialTheme.typography.body2)
+                        Text("${playlist.trackCount} lagu", style = MaterialTheme.typography.bodyMedium)
                     }
                 },
                 trailing = {
@@ -319,22 +319,22 @@ internal fun LazyListScope.playlistsTab(
             ) { Text("Tambah") }
             TrackMenu(entry.track, library, actions) { close ->
                 if (index > 0) {
-                    DropdownMenuItem(onClick = {
+                    DropdownMenuItem(text = { Text("Pindah ke atas") }, onClick = {
                         close()
                         actions.moveInPlaylist(opened.id, index, index - 1)
-                    }) { Text("Pindah ke atas") }
+                    })
                 }
                 // Urutan memakai indeks di seluruh playlist; halaman yang dimuat selalu awal playlist.
                 if (index < opened.entryCount - 1) {
-                    DropdownMenuItem(onClick = {
+                    DropdownMenuItem(text = { Text("Pindah ke bawah") }, onClick = {
                         close()
                         actions.moveInPlaylist(opened.id, index, index + 1)
-                    }) { Text("Pindah ke bawah") }
+                    })
                 }
-                DropdownMenuItem(onClick = {
+                DropdownMenuItem(text = { Text("Hapus dari playlist") }, onClick = {
                     close()
                     actions.removeFromPlaylist(opened.id, entry.itemId)
-                }) { Text("Hapus dari playlist") }
+                })
             }
         }
     }
@@ -348,7 +348,7 @@ private fun PlaylistListHeader(actions: LibraryActions) {
         modifier = Modifier.fillMaxWidth(),
         minPrimaryWidth = 140.dp,
         primary = {
-            Text("Playlist", style = MaterialTheme.typography.h6, modifier = Modifier.semantics { heading() })
+            Text("Playlist", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
         },
         trailing = {
             TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) { Text("Playlist baru") }
@@ -373,12 +373,12 @@ private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose:
         ) { Text("‹ Semua playlist", modifier = Modifier.clearAndSetSemantics {}) }
         Text(
             playlist.name,
-            style = MaterialTheme.typography.h6,
+            style = MaterialTheme.typography.titleLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.semantics { heading() },
         )
-        Text("${playlist.entryCount} lagu", style = MaterialTheme.typography.body2)
+        Text("${playlist.entryCount} lagu", style = MaterialTheme.typography.bodyMedium)
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
