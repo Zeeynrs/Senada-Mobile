@@ -221,12 +221,19 @@ def tap_text(text: str, index: int = 0, scrolls: int = 4) -> bool:
     return False
 
 
-def tap_desc(label: str, index: int = 0) -> bool:
+def desc_point(label: str, index: int = 0) -> tuple[int, int] | None:
     matches = find_interactive(label, attribute="content-desc")
     if len(matches) <= index:
-        return False
+        return None
     x1, y1, x2, y2 = matches[index][0]
-    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    return (x1 + x2) // 2, (y1 + y2) // 2
+
+
+def tap_desc(label: str, index: int = 0) -> bool:
+    point = desc_point(label, index)
+    if point is None:
+        return False
+    tap(point)
     time.sleep(0.8)
     return True
 
@@ -528,7 +535,9 @@ def scenario() -> None:
 
     if not check(ready and tap_desc("Putar"), "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
         return
-    if wait_session("PLAYING", FIRST, 5, min_ms=1_500) and tap_desc("Jeda"):
+    pause_point = desc_point("Jeda") if wait_session("PLAYING", FIRST, 5, min_ms=1_500) else None
+    if pause_point is not None:
+        tap(pause_point)
         paused = wait_session("PAUSED", FIRST, 5)
     else:
         paused = None
@@ -555,7 +564,10 @@ def scenario() -> None:
     ):
         return
 
-    before_seek = tap_desc("Jeda") and wait_session("PAUSED", FIRST, 5)
+    # Tata letak masih sama. Gunakan posisi tombol Jeda yang sudah ditemukan dari content-desc
+    # agar lagu tidak keburu berganti selama dump uiautomator kedua.
+    tap(pause_point)
+    before_seek = wait_session("PAUSED", FIRST, 5)
     if before_seek:
         # Entri pertama kembali ke awal tanpa memutar audio agar jarak geser selalu cukup.
         shell("cmd media_session dispatch previous")
