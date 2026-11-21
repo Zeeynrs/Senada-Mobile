@@ -26,7 +26,8 @@ results: list[tuple[str, str, str]] = []
 
 
 def run(*args: str) -> str:
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    # Logcat bisa memuat byte di luar UTF-8; tetap simpan bagian log yang bisa dibaca.
+    return subprocess.run(args, check=True, capture_output=True, encoding="utf-8", errors="replace").stdout
 
 
 def shell(command: str) -> str:
