@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Button
@@ -34,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -94,6 +98,13 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
         openPlaylistId?.let(library::playlist) ?: flowOf<Playlist?>(null)
     }.collectAsState(null)
     val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
+    val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
+    val focusManager = LocalFocusManager.current
+    // Dicatat saat pengguna menekan cari atau memakai hasilnya, bukan setiap ketikan yang sempat dicari.
+    val recordSearch: () -> Unit = {
+        val current = query
+        if (current.isNotBlank()) uiScope.launch { library.recordSearch(current) }
+    }
 
     // Hasil terbaru menang: mengetik lagi membatalkan pencarian dan "muat lebih banyak" sebelumnya.
     LaunchedEffect(query, searchAttempt) {
@@ -142,15 +153,29 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                                 modifier = Modifier.fillMaxWidth(),
                                 label = { Text("Cari judul atau artis") },
                                 singleLine = true,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = {
+                                    recordSearch()
+                                    focusManager.clearFocus()
+                                }),
                             )
                         }
                         item { ImportAudioButton(onImported = playback::add) }
+                        if (query.isBlank()) {
+                            searchHistoryItems(
+                                history = searchHistory,
+                                onPick = { query = it },
+                                onRemove = { uiScope.launch { library.removeSearch(it) } },
+                                onClear = { uiScope.launch { library.clearSearchHistory() } },
+                            )
+                        }
                         searchResults(
                             search = search,
                             library = libraryState,
                             actions = actions,
                             onRetry = { if (search.nextPageToken != null) loadMore() else searchAttempt++ },
                             onLoadMore = loadMore,
+                            onResultUsed = recordSearch,
                         )
                     }
                     AppTab.Favorites -> favoritesTab(libraryState, actions)
@@ -224,6 +249,7 @@ private fun LazyListScope.searchResults(
     actions: LibraryActions,
     onRetry: () -> Unit,
     onLoadMore: () -> Unit,
+    onResultUsed: () -> Unit,
 ) {
     item {
         val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
@@ -245,7 +271,10 @@ private fun LazyListScope.searchResults(
     }
     items(search.tracks, key = { "result-${it.id}" }) { track ->
         TrackRow(track, favorite = track.id in library.favoriteIds) {
-            Button(onClick = { actions.enqueue(track) }) { Text("Tambah") }
+            Button(onClick = {
+                onResultUsed()
+                actions.enqueue(track)
+            }) { Text("Tambah") }
             TrackMenu(track, library, actions)
         }
     }
