@@ -50,6 +50,9 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import senada.catalog.CatalogException
@@ -61,6 +64,7 @@ import senada.lyrics.LyricsPanel
 import senada.model.Track
 import senada.playback.PlaybackController
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @Composable
 internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository) {
     // Sampul diunduh dengan klien HTTP yang sama dengan katalog.
@@ -90,12 +94,21 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
     var tabIndex by rememberSaveable { mutableStateOf(AppTab.Search.ordinal) }
     val tab = AppTab.entries[tabIndex]
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
-    val favorites by library.favorites.collectAsState(emptyList())
+    // Daftar panjang dimuat per halaman; menaikkan batas menambah halaman tanpa mengosongkan daftar.
+    val favoritesLimit = remember { MutableStateFlow(LIBRARY_PAGE_SIZE) }
+    val playlistLimit = remember { MutableStateFlow(LIBRARY_PAGE_SIZE) }
+    val favorites by remember(library) { favoritesLimit.flatMapLatest(library::favoritesPage) }.collectAsState(emptyList())
+    val favoriteTotal by remember(library) { library.favoriteTotal }.collectAsState(0)
+    val favoriteIds by remember(library) { library.favoriteIds }.collectAsState(emptySet())
     val playlists by library.playlists.collectAsState(emptyList())
     val history by remember(library) { library.history() }.collectAsState(emptyList())
-    val libraryState = remember(favorites, playlists, history) { LibraryState(favorites, playlists, history) }
+    val libraryState = remember(favorites, favoriteTotal, favoriteIds, playlists, history) {
+        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history)
+    }
     val openedPlaylist by remember(openPlaylistId) {
-        openPlaylistId?.let(library::playlist) ?: flowOf<Playlist?>(null)
+        playlistLimit.value = LIBRARY_PAGE_SIZE
+        val id = openPlaylistId ?: return@remember flowOf<Playlist?>(null)
+        playlistLimit.flatMapLatest { limit -> library.playlist(id, limit) }
     }.collectAsState(null)
     val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
@@ -178,8 +191,16 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                             onResultUsed = recordSearch,
                         )
                     }
-                    AppTab.Favorites -> favoritesTab(libraryState, actions)
-                    AppTab.Playlists -> playlistsTab(libraryState, openedPlaylist, actions) { openPlaylistId = it }
+                    AppTab.Favorites -> favoritesTab(libraryState, actions) {
+                        favoritesLimit.value += LIBRARY_PAGE_SIZE
+                    }
+                    AppTab.Playlists -> playlistsTab(
+                        library = libraryState,
+                        opened = openedPlaylist,
+                        actions = actions,
+                        onOpen = { openPlaylistId = it },
+                        onLoadMore = { playlistLimit.value += LIBRARY_PAGE_SIZE },
+                    )
                     AppTab.History -> historyTab(libraryState, actions)
                     AppTab.Settings -> {
                         item(key = "appearance") { AppearanceSection(appearance) }

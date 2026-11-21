@@ -17,6 +17,9 @@ CREATE TABLE favorite (
     added_at INTEGER NOT NULL
 );
 
+-- Favorit dibaca per halaman, terbaru lebih dulu.
+CREATE INDEX favorite_added_at ON favorite(added_at);
+
 CREATE TABLE playlist (
     id TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -78,6 +81,20 @@ ORDER BY favorite.added_at DESC, favorite.rowid DESC;
 favoriteCount:
 SELECT count(*) FROM favorite WHERE track_id = ?;
 
+-- Halaman pertama sampai [limit] favorit; daftar bertambah dengan menaikkan limit.
+favoritesPage:
+SELECT track.*
+FROM favorite JOIN track ON track.id = favorite.track_id
+ORDER BY favorite.added_at DESC, favorite.rowid DESC
+LIMIT ?;
+
+favoriteTotal:
+SELECT count(*) FROM favorite;
+
+-- Penanda ♥ di semua daftar hanya butuh ID, bukan data lagu.
+favoriteIds:
+SELECT track_id FROM favorite;
+
 addFavorite:
 INSERT OR IGNORE INTO favorite(track_id, added_at) VALUES (?, ?);
 
@@ -100,6 +117,14 @@ SELECT playlist_item.id AS item_id, track.*
 FROM playlist_item JOIN track ON track.id = playlist_item.track_id
 WHERE playlist_item.playlist_id = ?
 ORDER BY playlist_item.position;
+
+-- Sampai [limit] entri pertama memakai indeks (playlist_id, position).
+playlistItemsPage:
+SELECT playlist_item.id AS item_id, track.*
+FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+WHERE playlist_item.playlist_id = ?
+ORDER BY playlist_item.position
+LIMIT ?;
 
 insertPlaylist:
 INSERT INTO playlist(id, name, description, created_at) VALUES (?, ?, ?, ?);

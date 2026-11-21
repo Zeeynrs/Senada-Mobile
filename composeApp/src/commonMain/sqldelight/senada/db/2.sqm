@@ -1,0 +1,2 @@
+-- Versi 2 → 3: favorit dibaca per halaman, terbaru lebih dulu.
+CREATE INDEX IF NOT EXISTS favorite_added_at ON favorite(added_at);

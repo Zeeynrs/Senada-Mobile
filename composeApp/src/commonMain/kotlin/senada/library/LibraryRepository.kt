@@ -38,7 +38,10 @@ data class Playlist(
     val name: String,
     val description: String,
     val createdAtMs: Long,
+    /** Entri yang dimuat; bisa hanya halaman awal, lihat [entryCount]. */
     val entries: List<PlaylistEntry>,
+    /** Jumlah seluruh entri di playlist, termasuk yang belum dimuat. */
+    val entryCount: Int = entries.size,
 )
 
 /** Album/playlist katalog yang disimpan; [metadata] JSON dipertahankan utuh untuk backup desktop. */
@@ -61,6 +64,18 @@ class LibraryRepository internal constructor(
 
     /** Favorit terbaru lebih dulu, seperti desktop. */
     val favorites: Flow<List<Track>> = queries.favorites(::trackOf).asFlow().mapToList(dispatcher)
+
+    /** Sampai [limit] favorit terbaru; daftar di layar bertambah dengan menaikkan limit. */
+    fun favoritesPage(limit: Int): Flow<List<Track>> =
+        queries.favoritesPage(limit.toLong(), ::trackOf).asFlow().mapToList(dispatcher)
+
+    val favoriteTotal: Flow<Int> = queries.favoriteTotal().asFlow().mapToOne(dispatcher).map { it.toInt() }
+
+    /** ID lagu favorit untuk penanda ♥, tanpa memuat data lagunya. */
+    val favoriteIds: Flow<Set<String>> = queries.favoriteIds().asFlow().mapToList(dispatcher).map { it.toSet() }
+
+    /** Semua favorit sekali baca, misalnya untuk Putar semua. */
+    suspend fun allFavorites(): List<Track> = withContext(dispatcher) { queries.favorites(::trackOf).executeAsList() }
 
     fun isFavorite(trackId: String): Flow<Boolean> =
         queries.favoriteCount(trackId).asFlow().mapToOne(dispatcher).map { it > 0 }
@@ -85,15 +100,30 @@ class LibraryRepository internal constructor(
         PlaylistSummary(id, name, description, createdAt, (trackCount as Long?)?.toInt() ?: 0)
     }.asFlow().mapToList(dispatcher)
 
-    /** Playlist beserta lagunya sesuai urutan, atau null bila sudah dihapus. */
-    fun playlist(id: String): Flow<Playlist?> = combine(
-        queries.playlistById(id) { playlistId, name, description, createdAt ->
-            Playlist(playlistId, name, description, createdAt, emptyList())
-        }.asFlow().mapToOneOrNull(dispatcher),
-        queries.playlistItems(id) { itemId, trackId, title, artists, durationMs, artworkUrl, source ->
+    /**
+     * Playlist beserta lagunya sesuai urutan, atau null bila sudah dihapus. Dengan [limit] ≥ 0 hanya
+     * entri pertama sebanyak itu yang dimuat; [Playlist.entryCount] tetap jumlah seluruhnya.
+     */
+    fun playlist(id: String, limit: Int = -1): Flow<Playlist?> {
+        val entry = { itemId: Long, trackId: String, title: String, artists: String, durationMs: Long?, artworkUrl: String?, source: String ->
             PlaylistEntry(itemId, trackOf(trackId, title, artists, durationMs, artworkUrl, source))
-        }.asFlow().mapToList(dispatcher),
-    ) { playlist, entries -> playlist?.copy(entries = entries) }
+        }
+        val entries = if (limit < 0) queries.playlistItems(id, entry) else queries.playlistItemsPage(id, limit.toLong(), entry)
+        return combine(
+            queries.playlistById(id) { playlistId, name, description, createdAt ->
+                Playlist(playlistId, name, description, createdAt, emptyList())
+            }.asFlow().mapToOneOrNull(dispatcher),
+            entries.asFlow().mapToList(dispatcher),
+            queries.playlistItemCount(id).asFlow().mapToOne(dispatcher),
+        ) { playlist, loaded, count -> playlist?.copy(entries = loaded, entryCount = count.toInt()) }
+    }
+
+    /** Semua lagu playlist sesuai urutan, misalnya untuk Putar semua. */
+    suspend fun playlistTracks(id: String): List<Track> = withContext(dispatcher) {
+        queries.playlistItems(id) { _, trackId, title, artists, durationMs, artworkUrl, source ->
+            trackOf(trackId, title, artists, durationMs, artworkUrl, source)
+        }.executeAsList()
+    }
 
     /** Membuat playlist baru dan mengembalikan ID-nya (`local-<hex>`, format desktop). */
     suspend fun createPlaylist(name: String, tracks: List<Track> = emptyList(), description: String = ""): String {
