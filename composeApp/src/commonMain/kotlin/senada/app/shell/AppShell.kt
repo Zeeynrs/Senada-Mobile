@@ -25,6 +25,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -48,9 +50,8 @@ import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.playback.PlaybackController
 
-/** Jarak bawah isi tab supaya baris terakhir tidak tertutup navigasi dan mini player yang mengambang. */
-private val WithMiniPlayer = 168.dp
-private val WithoutMiniPlayer = 96.dp
+/** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
+private val BelowContentGap = 16.dp
 
 /**
  * Kerangka aplikasi: isi tab yang aktif, mini player dan navigasi yang mengambang di bawah, serta
@@ -99,6 +100,10 @@ internal fun AppShell(
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
     val miniPlayerVisible = showsMiniPlayer(state)
+    // Tinggi bilah bawah diukur, bukan ditebak: dengan font besar mini player dan navigasi ikut membesar,
+    // dan baris terakhir tetap harus bisa digulir ke atasnya.
+    val density = LocalDensity.current
+    var overlayHeight by remember { mutableStateOf(0.dp) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
@@ -109,7 +114,7 @@ internal fun AppShell(
                     start = 20.dp,
                     end = 20.dp,
                     top = 16.dp,
-                    bottom = if (miniPlayerVisible) WithMiniPlayer else WithoutMiniPlayer,
+                    bottom = overlayHeight + BelowContentGap,
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -149,6 +154,7 @@ internal fun AppShell(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
