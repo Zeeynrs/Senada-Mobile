@@ -27,14 +27,15 @@ class LyricsRepositoryTest {
 
     @Test
     fun exactMatchUsesTrackMetadataAndCachesSyncedLyricsById() = runTest {
+        val decoratedTrack = track.copy(title = "${track.title} (Official Audio)")
         val repo = repository { respond("""{"syncedLyrics":"[00:01.25]Jendela biru"}""") }
         val expected = LyricsDocument.Synced(listOf(LyricLine(1250, "Jendela biru")))
-        assertEquals(expected, repo.get(track))
+        assertEquals(expected, repo.get(decoratedTrack))
         assertEquals(expected, repo.get(track.copy(title = "Judul baru")))
         val request = requests.single()
         assertEquals("lrclib.net", request.url.host)
         assertEquals("/api/get", request.url.encodedPath)
-        assertEquals(track.title, request.url.parameters["track_name"])
+        assertEquals(decoratedTrack.title, request.url.parameters["track_name"])
         assertEquals("Rintik", request.url.parameters["artist_name"])
         assertEquals("92", request.url.parameters["duration"])
         assertEquals("Senada Mobile/0.1.0 (https://github.com/Zeeynrs/Senada-Mobile)", request.headers[HttpHeaders.UserAgent])
@@ -42,17 +43,83 @@ class LyricsRepositoryTest {
 
     @Test
     fun emptyExactMatchSearchesAndPrefersSyncedOverPlainAndInstrumental() = runTest {
+        val decoratedTrack = track.copy(title = "${track.title} [feat. Cahaya]", durationMs = null)
         val repo = repository { request ->
             if (request.url.encodedPath == "/api/get") respond("""{"syncedLyrics":"[ar:Kosong]","plainLyrics":null}""")
             else respond("""[{"instrumental":true},{"plainLyrics":"Pagi"},{"syncedLyrics":"[00:02]Embun"}]""")
         }
-        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2000, "Embun"))), repo.get(track.copy(durationMs = null)))
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2000, "Embun"))), repo.get(decoratedTrack))
         assertEquals(listOf("/api/get", "/api/search"), requests.map { it.url.encodedPath })
         for (request in requests) {
             assertNull(request.url.parameters["duration"])
-            assertEquals(track.title, request.url.parameters["track_name"])
+            assertEquals(decoratedTrack.title, request.url.parameters["track_name"])
             assertEquals("Rintik", request.url.parameters["artist_name"])
         }
+    }
+
+    @Test
+    fun titleRetryRemovesOnlyRecognizedSuffixes() = runTest {
+        val examples = listOf(
+            "Jendela & Awan (feat. Fresly Nikijuluw)" to "Jendela & Awan",
+            "Jendela & Awan [FEAT. X]" to "Jendela & Awan",
+            "Jendela & Awan Ft. X" to "Jendela & Awan",
+            "Jendela & Awan (Official Audio)" to "Jendela & Awan",
+            "Jendela & Awan (Official Music Video)" to "Jendela & Awan",
+            "Jendela & Awan (Lyric Video)" to "Jendela & Awan",
+            "Jendela & Awan (Remastered 2011)" to "Jendela & Awan",
+            "Jendela & Awan (Live)" to "Jendela & Awan",
+            "Jendela & Awan - Remastered" to "Jendela & Awan",
+            "Jendela & Awan (Bagian Dua) ft. X [Official Audio]" to "Jendela & Awan (Bagian Dua)",
+            "Hati-Hati di Jalan" to "Hati-Hati di Jalan",
+            "Tulus Hati Luhur Budi" to "Tulus Hati Luhur Budi",
+            "Jendela - Awan (Bagian Dua)" to "Jendela - Awan (Bagian Dua)",
+            "Jendela (Live) di Atap" to "Jendela (Live) di Atap",
+            "(Live)" to "(Live)",
+        )
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("{}", HttpStatusCode.NotFound)
+            else respond("[]")
+        }
+
+        for ((index, example) in examples.withIndex()) {
+            val (originalTitle, cleanTitle) = example
+            requests.clear()
+            assertEquals(LyricsDocument.Unavailable, repo.get(track.copy(id = "title:$index", title = originalTitle)))
+            val expected = buildList {
+                add("/api/get" to originalTitle)
+                add("/api/search" to originalTitle)
+                if (cleanTitle != originalTitle) {
+                    add("/api/get" to cleanTitle)
+                    add("/api/search" to cleanTitle)
+                }
+            }
+            assertEquals(expected, requests.map { it.url.encodedPath to it.url.parameters["track_name"] }, originalTitle)
+        }
+    }
+
+    @Test
+    fun unavailableOriginalResultsUseTheCleanTitleAndCacheTheMatchById() = runTest {
+        val decoratedTrack = track.copy(title = "${track.title} (Lyric Video)")
+        val repo = repository { request ->
+            when (request.url.parameters["track_name"] to request.url.encodedPath) {
+                decoratedTrack.title to "/api/get" -> respond("""{"syncedLyrics":"[ar:Rintik]"}""")
+                decoratedTrack.title to "/api/search" -> respond("""[{"plainLyrics":" "}]""")
+                track.title to "/api/get" -> respond("{}", HttpStatusCode.NotFound)
+                track.title to "/api/search" -> respond("""[{"plainLyrics":"Bintang jatuh"}]""")
+                else -> error("Permintaan tak terduga: ${request.url}")
+            }
+        }
+
+        val expected = LyricsDocument.Plain(listOf("Bintang jatuh"))
+        assertEquals(expected, repo.get(decoratedTrack))
+        assertEquals(expected, repo.get(track.copy(title = "Judul baru")))
+        assertEquals(listOf("/api/get", "/api/search", "/api/get", "/api/search"), requests.map { it.url.encodedPath })
+        assertEquals(
+            listOf(decoratedTrack.title, decoratedTrack.title, track.title, track.title),
+            requests.map { it.url.parameters["track_name"] },
+        )
+        assertEquals(List(4) { "Rintik" }, requests.map { it.url.parameters["artist_name"] })
+        assertEquals(listOf("92", null, "92", null), requests.map { it.url.parameters["duration"] })
     }
 
     @Test
