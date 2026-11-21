@@ -1,0 +1,51 @@
+package senada.app
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.RadioButton
+import androidx.compose.material.Switch
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+
+@Composable
+internal fun AppearanceSection(preferences: AppearancePreferences) {
+    val settings = preferences.settings ?: Appearance()
+    val ready = preferences.settings != null
+    Column {
+        Text("Tampilan", style = MaterialTheme.typography.h6)
+        Column(Modifier.selectableGroup()) {
+            ThemeMode.entries.forEach { mode ->
+                val selected = mode == settings.mode
+                Row(
+                    Modifier.fillMaxWidth().selectable(selected, enabled = ready, role = Role.RadioButton) {
+                        preferences.selectMode(mode)
+                    }.heightIn(min = 48.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    RadioButton(selected, onClick = null, enabled = ready)
+                    Text(mode.label)
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().toggleable(settings.followCover, enabled = ready, role = Role.Switch,
+                onValueChange = preferences::followCover).heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Warna mengikuti sampul", Modifier.weight(1f))
+            Switch(settings.followCover, onCheckedChange = null, enabled = ready)
+        }
+    }
+}
