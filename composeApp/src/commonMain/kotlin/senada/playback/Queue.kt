@@ -1,30 +1,69 @@
 package senada.playback
 
+import kotlin.random.Random
 import senada.model.Track
 
 data class QueueItem(val id: Long, val track: Track)
 
-class Queue private constructor(val entries: List<QueueItem>, internal val nextId: Long) {
-    constructor() : this(emptyList(), 1)
+internal enum class RepeatMode { Off, All, One }
 
-    fun append(track: Track): Queue =
-        Queue(entries + QueueItem(nextId, track), nextId + 1)
+class Queue private constructor(
+    val entries: List<QueueItem>,
+    internal val nextId: Long,
+    internal val repeatMode: RepeatMode,
+    private val shuffledEntries: List<QueueItem>?,
+) {
+    constructor() : this(emptyList(), 1, RepeatMode.Off, null)
+
+    internal val shuffleEnabled get() = shuffledEntries != null
+    internal val playOrder get() = shuffledEntries ?: entries
+
+    fun append(track: Track, activeEntryId: Long? = null, random: Random = Random.Default): Queue {
+        val item = QueueItem(nextId, track)
+        val shuffled = shuffledEntries?.toMutableList()?.apply {
+            val firstFree = indexOfFirst { it.id == activeEntryId } + 1
+            add(random.nextInt(firstFree, size + 1), item)
+        }
+        return Queue(entries + item, nextId + 1, repeatMode, shuffled)
+    }
 
     fun remove(entryId: Long): Queue =
-        Queue(entries.filterNot { it.id == entryId }, nextId)
+        Queue(entries.filterNot { it.id == entryId }, nextId, repeatMode, shuffledEntries?.filterNot { it.id == entryId })
+
+    internal fun withRepeatMode(mode: RepeatMode) = Queue(entries, nextId, mode, shuffledEntries)
+
+    internal fun withShuffle(enabled: Boolean, activeEntryId: Long?, random: Random = Random.Default): Queue {
+        if (enabled == shuffleEnabled) return this
+        val shuffled = if (enabled) {
+            val active = entries.firstOrNull { it.id == activeEntryId }
+            listOfNotNull(active) + entries.filterNot { it.id == activeEntryId }.shuffled(random)
+        } else null
+        return Queue(entries, nextId, repeatMode, shuffled)
+    }
 
     internal fun adjacentTo(entryId: Long?, offset: Int): QueueItem? {
-        val index = entries.indexOfFirst { it.id == entryId }
+        val order = playOrder
+        val index = order.indexOfFirst { it.id == entryId }
         if (index < 0) return null
-        return entries.getOrNull(index + offset)
+        val next = index + offset
+        return if (repeatMode == RepeatMode.Off) order.getOrNull(next) else order[next.mod(order.size)]
+    }
+
+    internal fun afterEnd(entryId: Long?): QueueItem? = when (repeatMode) {
+        RepeatMode.One -> entries.firstOrNull { it.id == entryId }
+        else -> adjacentTo(entryId, 1)
     }
 
     internal companion object {
-        fun restore(entries: List<QueueItem>, nextId: Long): Queue {
+        fun restore(entries: List<QueueItem>, nextId: Long, repeatMode: RepeatMode, shuffleOrder: List<Long>?): Queue {
             require(nextId in 1L until Long.MAX_VALUE)
-            val ids = entries.map { it.id }
-            require(ids.all { it in 1L until nextId } && ids.toSet().size == ids.size)
-            return Queue(entries, nextId)
+            val byId = entries.associateBy { it.id }
+            require(byId.size == entries.size && byId.keys.all { it in 1L until nextId })
+            val shuffled = shuffleOrder?.let { ids ->
+                require(ids.size == entries.size && ids.toSet() == byId.keys)
+                ids.map(byId::getValue)
+            }
+            return Queue(entries, nextId, repeatMode, shuffled)
         }
     }
 }

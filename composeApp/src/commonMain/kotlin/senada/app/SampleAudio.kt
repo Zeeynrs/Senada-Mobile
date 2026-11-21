@@ -27,6 +27,7 @@ import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
 import senada.playback.QueueStore
+import senada.playback.RepeatMode
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioSelection
 import senada.playback.SampleAudioSource
@@ -88,6 +89,10 @@ internal fun SampleAudioControls(
     onNext: () -> Unit,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
+    repeatMode: RepeatMode,
+    onRepeatModeChange: (RepeatMode) -> Unit,
+    shuffleEnabled: Boolean,
+    onShuffleChange: (Boolean) -> Unit,
     problem: String? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -111,6 +116,17 @@ internal fun SampleAudioControls(
                 TextButton(onClick = onResume, enabled = canResume) { Text("Putar") }
             }
             TextButton(onClick = onNext, enabled = canGoNext) { Text("Berikutnya") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            val (repeatLabel, nextMode) = when (repeatMode) {
+                RepeatMode.Off -> "Mati" to RepeatMode.All
+                RepeatMode.All -> "Semua" to RepeatMode.One
+                RepeatMode.One -> "Satu" to RepeatMode.Off
+            }
+            TextButton(onClick = { onRepeatModeChange(nextMode) }) { Text("Ulangi: $repeatLabel") }
+            TextButton(onClick = { onShuffleChange(!shuffleEnabled) }) {
+                Text(if (shuffleEnabled) "Acak: Nyala" else "Acak: Mati")
+            }
         }
 
         val status = when (state.status) {

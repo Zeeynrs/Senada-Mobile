@@ -85,7 +85,21 @@ internal class PlaybackController(
     }
 
     fun add(track: Track) {
-        queue = queue.append(track)
+        queue = queue.append(track, player.state.selection?.queueEntryId)
+        prefetchNext()
+        publish()
+    }
+
+    fun setRepeatMode(mode: RepeatMode) {
+        if (queue.repeatMode == mode) return
+        queue = queue.withRepeatMode(mode)
+        prefetchNext()
+        publish()
+    }
+
+    fun setShuffleEnabled(enabled: Boolean) {
+        if (queue.shuffleEnabled == enabled) return
+        queue = queue.withShuffle(enabled, player.state.selection?.queueEntryId)
         prefetchNext()
         publish()
     }
@@ -109,6 +123,7 @@ internal class PlaybackController(
         problem = null
         retryEntryId = null
         player.play(selection)
+        prefetchNext()
         publish()
     }
 
@@ -128,7 +143,7 @@ internal class PlaybackController(
         val selection = audio.selection
         val entry = selection?.queueEntryId?.let(::entry)
         when {
-            selection == null -> queue.entries.firstOrNull()?.let { start(it) }
+            selection == null -> queue.playOrder.firstOrNull()?.let { start(it) }
             preparing?.isActive == true -> Unit
             // Alamat belum ada, gagal, atau kedaluwarsa setelah jeda lama: minta alamat baru, lanjut dari posisi terakhir.
             entry != null && (selection.isPending || audio.status == SampleAudioStatus.Failed || selection.isExpired(now())) ->
@@ -196,7 +211,7 @@ internal class PlaybackController(
         problem = null
         retryEntryId = null
         val early = prefetched?.takeIf { it.entryId == entry.id }?.selection
-        if (early != null) prefetched = null
+        if (early != null) prefetched = null else dropPrefetch()
 
         // Tanpa jeda bila alamat sudah ada, sehingga lanjut otomatis tidak menunggu dispatcher.
         preparing = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -224,7 +239,7 @@ internal class PlaybackController(
 
     /** Menyiapkan alamat entri setelah lagu yang dipilih, sekali per entri. */
     private fun prefetchNext() {
-        val next = queue.adjacentTo(player.state.selection?.queueEntryId, 1)
+        val next = queue.afterEnd(player.state.selection?.queueEntryId)
         if (next == null) {
             dropPrefetch()
             return
@@ -266,7 +281,7 @@ internal class PlaybackController(
         val entryId = audio.selection?.queueEntryId
         if (preparing?.isActive != true) {
             if (audio.status == SampleAudioStatus.Ended) {
-                val nextEntry = queue.adjacentTo(entryId, 1)
+                val nextEntry = queue.afterEnd(entryId)
                 if (nextEntry != null) {
                     start(nextEntry)
                     return

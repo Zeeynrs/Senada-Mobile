@@ -163,6 +163,8 @@ internal fun SenadaApp(playback: PlaybackController) {
                         onNext = playback::next,
                         canGoPrevious = audioState.selection != null,
                         canGoNext = state.canGoNext,
+                        repeatMode = state.queue.repeatMode, onRepeatModeChange = playback::setRepeatMode,
+                        shuffleEnabled = state.queue.shuffleEnabled, onShuffleChange = playback::setShuffleEnabled,
                         problem = state.problem,
                     )
                 }
