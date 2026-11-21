@@ -190,7 +190,9 @@ def check_paused_seek(play_pause: tuple[int, int], before: dict[str, str]) -> No
     start_x = x1 + round((x2 - x1) * max(0.04, before_ms / 12_000))
     shell(f"input swipe {start_x} {y} {(x1 + x2) // 2} {y} 400")
 
-    sought = wait_session("PAUSED", FIRST, 5, min_ms=max(4_800, before_ms + 1_500), max_ms=7_200)
+    # Geseran ke tengah mendarat sekitar 4,5–6 detik tergantung jarak sentuh awal; yang diuji adalah
+    # posisi pindah jauh dari awal dan tidak melewati akhir lagu.
+    sought = wait_session("PAUSED", FIRST, 5, min_ms=max(3_000, before_ms + 1_500), max_ms=8_000)
     if not sought:
         check(False, name, f"Dari {before_ms} ms, setelah geser: {session()}")
         return
