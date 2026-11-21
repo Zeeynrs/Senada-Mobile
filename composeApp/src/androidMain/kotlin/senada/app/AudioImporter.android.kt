@@ -1,6 +1,7 @@
 package senada.app
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -71,5 +72,21 @@ private fun copyIntoApp(context: Context, uri: Uri): ImportedAudio {
         partial.delete()
         throw if (dir.usableSpace < FREE_SPACE_MARGIN_BYTES) notEnoughSpace() else LocalAudioException("File audio gagal disalin.", e)
     }
-    return ImportedAudio(fileName, displayName, target.length())
+    return ImportedAudio(fileName, displayName, target.length()).withMetadataFrom(target)
+}
+
+private fun ImportedAudio.withMetadataFrom(file: File): ImportedAudio = try {
+    val retriever = MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(file.absolutePath)
+        copy(
+            title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
+            artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
+            durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull(),
+        )
+    } finally {
+        retriever.release()
+    }
+} catch (_: Exception) {
+    this
 }
