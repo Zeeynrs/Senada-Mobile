@@ -1,7 +1,6 @@
 package senada.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,8 +22,6 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
-import androidx.compose.material.darkColors
-import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -118,7 +115,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
         }
     }
 
-    MaterialTheme(colors = if (isSystemInDarkTheme()) darkColors() else lightColors()) {
+    SenadaTheme(state.currentEntry?.track?.artworkUrl, visible = screenVisible) { appearance ->
         Surface(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
@@ -148,7 +145,10 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                     AppTab.Favorites -> favoritesTab(libraryState, actions)
                     AppTab.Playlists -> playlistsTab(libraryState, openedPlaylist, actions) { openPlaylistId = it }
                     AppTab.History -> historyTab(libraryState, actions)
-                    AppTab.Settings -> item(key = "backup") { BackupSection(library) }
+                    AppTab.Settings -> {
+                        item(key = "appearance") { AppearanceSection(appearance) }
+                        item(key = "backup") { BackupSection(library) }
+                    }
                 }
                 // Kontrol, lirik dan antrean tampil di semua tab.
                 item {
