@@ -520,11 +520,12 @@ def scenario() -> None:
     if not check(playing, f"Sesi media memutar '{FIRST}'", playing or session()):
         return
 
+    # Bekukan lagu contoh yang hanya 12 detik sebelum uiautomator mencari mini player dan tombol tutup.
+    ready = pause_for_setup(FIRST)
     if not check(open_now_playing(), "Mini player membuka Sedang diputar"):
         screenshot("02-ui")
         return
 
-    ready = pause_for_setup(FIRST)
     if not check(ready and tap_desc("Putar"), "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
         return
     if wait_session("PLAYING", FIRST, 5, min_ms=1_500) and tap_desc("Jeda"):
