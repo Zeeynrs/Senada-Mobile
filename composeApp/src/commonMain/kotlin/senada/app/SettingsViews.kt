@@ -1,13 +1,18 @@
 package senada.app
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +36,33 @@ import senada.backup.ImportSummary
 import senada.backup.exportBackup
 import senada.backup.importBackup
 import senada.library.LibraryRepository
+
+/** Kartu permukaan radius 24 dp dengan judul untuk satu bagian di tab Pengaturan. */
+@Composable
+internal fun SettingsCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { heading() },
+            )
+            content()
+        }
+    }
+}
 
 /** Backup yang sudah dibaca dan diringkas, menunggu persetujuan pengguna. */
 private class PendingImport(val text: String, val summary: ImportSummary)
@@ -65,12 +97,12 @@ internal fun BackupSection(library: LibraryRepository) {
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Backup library", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
+    SettingsCard("Backup library") {
         Text(
             "Simpan favorit, playlist, riwayat dan item tersimpan ke satu file JSON yang juga bisa dibuka " +
                 "Senada desktop. Pengaturan tidak ikut. Impor menambahkan yang belum ada tanpa menghapus apa pun.",
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -82,6 +114,7 @@ internal fun BackupSection(library: LibraryRepository) {
                     launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
                 },
                 enabled = !busy,
+                shape = CircleShape,
                 modifier = Modifier.minTouchTarget(),
             ) { Text("Ekspor backup") }
             OutlinedButton(
@@ -93,6 +126,7 @@ internal fun BackupSection(library: LibraryRepository) {
                     }
                 },
                 enabled = !busy,
+                shape = CircleShape,
                 modifier = Modifier.minTouchTarget(),
             ) { Text("Impor backup") }
         }
@@ -101,6 +135,7 @@ internal fun BackupSection(library: LibraryRepository) {
             Text(
                 status,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
