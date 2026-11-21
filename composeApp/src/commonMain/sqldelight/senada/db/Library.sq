@@ -149,3 +149,34 @@ INSERT OR REPLACE INTO saved_item(kind, id, metadata, saved_at) VALUES (?, ?, ?,
 
 unsaveItem:
 DELETE FROM saved_item WHERE kind = ? AND id = ?;
+
+-- Backup --
+
+favoritesForBackup:
+SELECT favorite.added_at, track.*
+FROM favorite JOIN track ON track.id = favorite.track_id
+ORDER BY favorite.added_at DESC, favorite.rowid DESC;
+
+historyForBackup:
+SELECT history.played_at, track.*
+FROM history JOIN track ON track.id = history.track_id
+ORDER BY history.played_at DESC, history.rowid DESC;
+
+playlistItemsForBackup:
+SELECT playlist_item.playlist_id, track.*
+FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+ORDER BY playlist_item.playlist_id, playlist_item.position;
+
+playlistTrackIds:
+SELECT track_id FROM playlist_item WHERE playlist_id = ?;
+
+historyPlayedAt:
+SELECT played_at FROM history WHERE track_id = ?;
+
+savedItemCount:
+SELECT count(*) FROM saved_item WHERE kind = ? AND id = ?;
+
+-- Lagu yang sudah ada tidak ditimpa data backup yang mungkin lebih lama.
+insertTrackIfMissing:
+INSERT OR IGNORE INTO track(id, title, artists, duration_ms, artwork_url, source)
+VALUES (?, ?, ?, ?, ?, ?);

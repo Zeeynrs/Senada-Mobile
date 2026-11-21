@@ -50,12 +50,12 @@ data class SavedItem(val kind: String, val id: String, val metadata: String, val
  * tidak meninggalkan library setengah berubah.
  */
 class LibraryRepository internal constructor(
-    private val database: SenadaDatabase,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val now: () -> Long = ::epochMillis,
+    internal val database: SenadaDatabase,
+    internal val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    internal val now: () -> Long = ::epochMillis,
     private val newPlaylistId: () -> String = ::localPlaylistId,
 ) {
-    private val queries = database.libraryQueries
+    internal val queries = database.libraryQueries
 
     // -- Favorit --
 
@@ -234,7 +234,7 @@ class LibraryRepository internal constructor(
 /** Library di atas driver SQLite platform; driver membuat skema saat database pertama kali dibuka. */
 fun LibraryRepository(driver: SqlDriver): LibraryRepository = LibraryRepository(SenadaDatabase(driver))
 
-private fun trackOf(
+internal fun trackOf(
     id: String,
     title: String,
     artists: String,

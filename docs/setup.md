@@ -10,6 +10,7 @@ Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan 
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh, kontrak pencarian berhalaman dan resolusi alamat audio, serta `catalog/youtube` untuk pencarian dan alamat audio YouTube Music lewat Innertube. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
 | `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight): favorit, playlist, riwayat 200 lagu dan item tersimpan. Layarnya ada di tab Favorit, Playlist dan Riwayat (`app/LibraryViews.kt`). |
+| `composeApp/src/commonMain/kotlin/senada/backup` | Backup library dalam format Senada desktop (`format` 1): ekspor, impor gabung dengan pratinjau, tanpa pengaturan desktop. Belum punya layar. |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan `SenadaSources` (klien HTTP, katalog dan resolver bersama). Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
