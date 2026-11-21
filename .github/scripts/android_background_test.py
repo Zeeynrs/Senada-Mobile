@@ -172,6 +172,18 @@ def scenario() -> None:
     check(notification, "Notifikasi media tampil", notification)
     open_shade("03-notification")
 
+    # Tombol di layar aplikasi: jeda lalu putar harus melanjutkan dari posisi yang sama, bukan dari awal.
+    time.sleep(1)
+    paused = tap_text("Jeda", 0) and wait_session("PAUSED", FIRST, 5)
+    check(paused, "Tombol 'Jeda' di aplikasi menjeda audio", paused or session())
+    paused_at = int(paused["position"]) if paused else 0
+    resumed = tap_text("Putar", 0) and wait_session("PLAYING", FIRST, 5)
+    check(
+        resumed and paused_at >= 1_000 and int(resumed["position"]) >= paused_at - 300,
+        "Tombol 'Putar' di aplikasi melanjutkan dari posisi terakhir",
+        f"dijeda di {paused_at} ms, lanjut di {resumed['position'] if resumed else '?'} ms",
+    )
+
     shell("input keyevent KEYCODE_HOME")
     time.sleep(1)
     shell("input keyevent KEYCODE_SLEEP")
