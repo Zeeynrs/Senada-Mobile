@@ -1,15 +1,15 @@
 # Menjalankan Senada Mobile
 
-Kedua platform membuka `SenadaApp()`. Cari lagu berdasarkan judul atau artis di katalog contoh. Pilih **Tambah** dua kali pada lagu yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean disimpan di memori selama sesi aplikasi.
+Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan dua lagu katalog contoh yang ikut di dalam aplikasi. Ketik judul atau artis untuk mencari di YouTube Music (perlu internet). Pilih **Tambah** dua kali pada lagu yang sama, lalu **Hapus** salah satu entri. Satu entri tetap ada. Antrean disimpan di memori selama sesi aplikasi.
 
 ## Struktur kode
 
 | Lokasi | Tanggung jawab |
 |---|---|
 | `composeApp/src/commonMain/kotlin/senada/model` | Metadata dan ID lagu. Dua entri antrean boleh merujuk ke ID lagu yang sama. |
-| `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh yang bisa dicari, kontrak pencarian berhalaman, dan kontrak resolusi alamat audio sementara. |
+| `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh, kontrak pencarian berhalaman dan resolusi alamat audio, serta `catalog/youtube` untuk pencarian dan alamat audio YouTube Music lewat Innertube. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
-| `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose dan data contoh. Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
+| `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan `SenadaSources` (klien HTTP, katalog dan resolver bersama). Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
 | `iosApp` | Host SwiftUI dan spesifikasi proyek Xcode. |
 | `composeApp/src/commonTest` | Tes Kotlin yang sama dijalankan melalui Android unit test atau simulator iOS. |
@@ -48,7 +48,7 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 ### Uji di iPhone dari Windows
 
 1. Dari tab **Actions**, jalankan workflow [iPhone test build](../.github/workflows/ios-device.yml) lewat **Run workflow**. Buka hasil run, unduh artefak `Senada-iPhone-unsigned-<nomor>` dari **Artifacts**, dan ekstrak `Senada-unsigned.ipa`. Artefak disimpan selama 14 hari.
-2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
+2. Ikuti [panduan AltStore Classic untuk Windows](https://faq.altstore.io/altstore-classic/how-to-install-altstore-windows) untuk menyiapkan AltServer, AltStore, dan Developer Mode di iPhone. Di AltStore, buka **My Apps**, ketuk **+**, lalu pilih file `.ipa` yang sudah disalin ke iPhone. Cara lain dari PC: sambungkan iPhone, tahan **Shift** sambil mengklik ikon AltServer di tray, pilih **Sideload .ipa…**, lalu pilih file `.ipa`. AltStore menandatangani paket saat memasangnya. Dengan akun Apple gratis, refresh diperlukan setiap 7 hari. [Panduan refresh](https://faq.altstore.io/altstore-classic/your-altstore)
 3. Buka Senada dan uji tambah serta hapus entri antrean. Buat run baru atau jalankan ulang run yang sama untuk mendapatkan nomor build berikutnya. Pasang IPA baru dengan akun dan bundle ID yang sama tanpa menghapus Senada terlebih dahulu, lalu cek bahwa Senada dapat dibuka kembali. Antrean demo direset saat sesi aplikasi berakhir.
 
 ## Uji audio contoh
@@ -60,6 +60,16 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 Kedua lagu contoh berformat AAC-LC dalam `.m4a`. Versi HTTPS merujuk ke salinan *Selepas Hujan* yang dipatok ke commit di repo. Audio tetap berjalan saat aplikasi masuk latar belakang atau layar dikunci.
 
 Untuk memeriksa pemutaran antrean, tambahkan *Selepas Hujan* dan *Sebelum Pagi*. Tekan **Putar** pada entri pertama, lalu gunakan **Berikutnya** dan **Sebelumnya** untuk berpindah lagu. Setelah lebih dari 3 detik diputar, **Sebelumnya** kembali ke awal lagu yang sama; tekan sekali lagi dalam 3 detik pertama untuk pindah ke entri sebelumnya. Geser bilah progres saat memutar dan saat dijeda. Saat dijeda, audio harus tetap diam sampai ditekan **Putar**. Biarkan entri pertama selesai untuk memeriksa bahwa putar otomatis berlanjut ke entri kedua. Tekan **Hapus** pada entri yang sedang diputar untuk mengakhiri pemutarannya.
+
+## Uji YouTube Music
+
+Pencarian dan pemutaran YouTube Music berjalan langsung dari ponsel tanpa server Senada. Alamat audionya (AAC dalam MP4) terikat ke IP ponsel dan berlaku sekitar 6 jam. Cara ini tidak diizinkan Ketentuan Layanan YouTube, jadi Senada hanya dibagikan lewat sideload, bukan App Store atau Play Store. Latar belakang keputusannya ada di [evaluasi sumber audio](superpowers/research/2026-11-21-evaluasi-sumber-audio.md). Workflow GitHub tidak menguji YouTube Music karena IP pusat data bisa diblokir, jadi uji langkah berikut di perangkat.
+
+1. Ketik nama lagu atau artis, misalnya `tulus`. Hasil muncul di bawah judul **YouTube Music** dengan sampul, artis dan durasi. Tekan **Muat lebih banyak** untuk halaman berikutnya.
+2. Tambahkan dua atau tiga lagu, lalu putar entri pertama. Status **Memuat audio…** tampil sebentar sebelum audio terdengar. Kunci layar: audio lanjut otomatis ke entri berikutnya, dan layar kunci menampilkan judul, artis dan sampul lagu yang sedang diputar.
+3. Cari `nadin amizah bertaut` dan putar hasilnya. Lagu ini memang tidak tersedia, jadi muncul **Lagu ini tidak tersedia dari YouTube Music.** dan antrean tidak melompat ke lagu lain.
+4. Nyalakan mode pesawat, lalu cari atau putar lagu baru. Muncul pesan koneksi; setelah internet kembali, **Coba lagi** atau **Putar** berhasil.
+5. Jeda lagu di tengah jalan, misalnya di menit kedua. Bila jeda lebih dari sekitar 6 jam, atau jaringan berganti (Wi-Fi ke seluler), tekan **Putar**: Senada meminta alamat baru dan melanjutkan dari posisi terakhir, bukan dari awal. Kegagalan stream saat diputar juga dicoba ulang sekali secara otomatis dari posisi yang sama.
 
 ## Uji pemutaran latar belakang
 
