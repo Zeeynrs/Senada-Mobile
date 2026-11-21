@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -77,7 +78,10 @@ internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepos
             )
             is LyricsPanelResult.Error -> {
                 Text(shown.message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                TextButton(onClick = { attempt++ }) { Text("Coba lagi") }
+                TextButton(
+                    onClick = { attempt++ },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                ) { Text("Coba lagi") }
             }
             is LyricsPanelResult.Ready -> when (val document = shown.document) {
                 is LyricsDocument.Synced -> SyncedLyrics(

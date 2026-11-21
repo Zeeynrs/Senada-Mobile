@@ -1,12 +1,16 @@
 package senada.app
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import senada.model.Track
+
+/** Memastikan elemen interaktif memiliki ukuran sentuh dan batas aksesibilitas minimal 48 dp. */
+internal fun Modifier.minTouchTarget(): Modifier = sizeIn(minWidth = 48.dp, minHeight = 48.dp)
 
 /** Memformat durasi atau posisi pemutaran menjadi frasa bahasa Indonesia untuk pembaca layar. */
 internal fun accessibleDuration(positionMs: Long): String {

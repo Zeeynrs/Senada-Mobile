@@ -248,7 +248,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                     item(key = "lyrics-toggle") {
                         TextButton(
                             onClick = { lyricsOpen = !lyricsOpen },
-                            modifier = Modifier.semantics {
+                            modifier = Modifier.minTouchTarget().semantics {
                                 stateDescription = if (lyricsOpen) "Terbuka" else "Tertutup"
                             },
                         ) {
@@ -272,7 +272,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                             onClick = {
                                 if (isPlayingEntry) playback.pause() else playback.playEntry(entry.id)
                             },
-                            modifier = Modifier.semantics {
+                            modifier = Modifier.minTouchTarget().semantics {
                                 contentDescription = if (isPlayingEntry) {
                                     "Jeda ${entry.track.title}"
                                 } else {
@@ -284,7 +284,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                         }
                         TextButton(
                             onClick = { playback.remove(entry.id) },
-                            modifier = Modifier.semantics {
+                            modifier = Modifier.minTouchTarget().semantics {
                                 contentDescription = "Hapus ${entry.track.title} dari antrean"
                             },
                         ) {
@@ -329,7 +329,7 @@ private fun LazyListScope.searchResults(
                     )
                 },
                 trailing = {
-                    TextButton(onClick = onRetry) { Text("Coba lagi") }
+                    TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
                 },
             )
         }
@@ -349,14 +349,16 @@ private fun LazyListScope.searchResults(
                     onResultUsed()
                     actions.enqueue(track)
                 },
-                modifier = Modifier.semantics { contentDescription = "Tambah ${track.title} ke antrean" },
+                modifier = Modifier.minTouchTarget().semantics {
+                    contentDescription = "Tambah ${track.title} ke antrean"
+                },
             ) { Text("Tambah") }
             TrackMenu(track, library, actions)
         }
     }
     if (search.nextPageToken != null && search.error == null) {
         item {
-            TextButton(onClick = onLoadMore, enabled = !search.loading) {
+            TextButton(onClick = onLoadMore, enabled = !search.loading, modifier = Modifier.minTouchTarget()) {
                 Text(if (search.loading) "Memuat…" else "Muat lebih banyak")
             }
         }

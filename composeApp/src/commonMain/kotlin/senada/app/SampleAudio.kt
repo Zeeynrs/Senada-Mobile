@@ -138,10 +138,10 @@ internal fun SampleAudioControls(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = { onPlay(SampleAudioSource.Local) }) {
+            Button(onClick = { onPlay(SampleAudioSource.Local) }, modifier = Modifier.minTouchTarget()) {
                 Text("Putar lokal")
             }
-            Button(onClick = { onPlay(SampleAudioSource.Https) }) {
+            Button(onClick = { onPlay(SampleAudioSource.Https) }, modifier = Modifier.minTouchTarget()) {
                 Text("Putar HTTPS")
             }
         }
@@ -151,14 +151,20 @@ internal fun SampleAudioControls(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            TextButton(onClick = onPrevious, enabled = canGoPrevious) { Text("Sebelumnya") }
+            TextButton(onClick = onPrevious, enabled = canGoPrevious, modifier = Modifier.minTouchTarget()) {
+                Text("Sebelumnya")
+            }
             // Satu tombol putar/jeda: melanjutkan lagu terpilih dari posisinya, atau memulai antrean.
             if (state.isActive) {
-                TextButton(onClick = onPause) { Text("Jeda") }
+                TextButton(onClick = onPause, modifier = Modifier.minTouchTarget()) { Text("Jeda") }
             } else {
-                TextButton(onClick = onResume, enabled = canResume) { Text("Putar") }
+                TextButton(onClick = onResume, enabled = canResume, modifier = Modifier.minTouchTarget()) {
+                    Text("Putar")
+                }
             }
-            TextButton(onClick = onNext, enabled = canGoNext) { Text("Berikutnya") }
+            TextButton(onClick = onNext, enabled = canGoNext, modifier = Modifier.minTouchTarget()) {
+                Text("Berikutnya")
+            }
         }
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -170,8 +176,10 @@ internal fun SampleAudioControls(
                 RepeatMode.All -> "Semua" to RepeatMode.One
                 RepeatMode.One -> "Satu" to RepeatMode.Off
             }
-            TextButton(onClick = { onRepeatModeChange(nextMode) }) { Text("Ulangi: $repeatLabel") }
-            TextButton(onClick = { onShuffleChange(!shuffleEnabled) }) {
+            TextButton(onClick = { onRepeatModeChange(nextMode) }, modifier = Modifier.minTouchTarget()) {
+                Text("Ulangi: $repeatLabel")
+            }
+            TextButton(onClick = { onShuffleChange(!shuffleEnabled) }, modifier = Modifier.minTouchTarget()) {
                 Text(if (shuffleEnabled) "Acak: Nyala" else "Acak: Mati")
             }
         }
