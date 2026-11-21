@@ -1,0 +1,134 @@
+package senada.app
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
+import androidx.compose.material.Text
+import androidx.compose.material.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import senada.backup.BackupException
+import senada.backup.ImportSummary
+import senada.backup.exportBackup
+import senada.backup.importBackup
+import senada.library.LibraryRepository
+
+/** Backup yang sudah dibaca dan diringkas, menunggu persetujuan pengguna. */
+private class PendingImport(val text: String, val summary: ImportSummary)
+
+/**
+ * Ekspor dan impor library dalam format Senada desktop. Impor selalu menampilkan ringkasan lebih dulu,
+ * dan baru menulis setelah pengguna menekan Terapkan.
+ */
+@Composable
+internal fun BackupSection(library: LibraryRepository) {
+    val files = rememberBackupFiles()
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<PendingImport?>(null) }
+
+    fun launchTask(block: suspend () -> String?) {
+        busy = true
+        message = null
+        scope.launch {
+            message = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: BackupException) {
+                e.userMessage
+            } catch (e: Exception) {
+                "File backup tidak dapat dibaca atau disimpan."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Backup library", style = MaterialTheme.typography.h6)
+        Text(
+            "Simpan favorit, playlist, riwayat dan item tersimpan ke satu file JSON yang juga bisa dibuka " +
+                "Senada desktop. Pengaturan tidak ikut. Impor menambahkan yang belum ada tanpa menghapus apa pun.",
+            style = MaterialTheme.typography.body2,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
+            }, enabled = !busy) { Text("Ekspor backup") }
+            OutlinedButton(onClick = {
+                launchTask {
+                    val text = files.open() ?: return@launchTask null
+                    pending = PendingImport(text, library.importBackup(text, apply = false))
+                    null
+                }
+            }, enabled = !busy) { Text("Impor backup") }
+        }
+        if (busy) Text("Memproses…", style = MaterialTheme.typography.body2)
+        message?.let { Text(it, style = MaterialTheme.typography.body2) }
+    }
+
+    val request = pending ?: return
+    if (request.summary.changesNothing) {
+        AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Tidak ada yang baru") },
+            text = { Text(describe(request.summary)) },
+            confirmButton = { TextButton(onClick = { pending = null }) { Text("Tutup") } },
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Terapkan backup?") },
+            text = { Text(describe(request.summary)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pending = null
+                    launchTask {
+                        val applied = library.importBackup(request.text)
+                        "Backup diterapkan. ${describe(applied).lines().first()}"
+                    }
+                }) { Text("Terapkan") }
+            },
+            dismissButton = { TextButton(onClick = { pending = null }) { Text("Batal") } },
+        )
+    }
+}
+
+/** Ringkasan dalam kalimat; baris pertama dipakai juga sebagai pesan setelah diterapkan. */
+internal fun describe(summary: ImportSummary): String {
+    if (summary.changesNothing) {
+        return "Semua isi backup sudah ada di library." +
+            if (summary.skipped > 0) "\n${summary.skipped} entri dilewati (file lokal desktop atau sumber selain YouTube Music)." else ""
+    }
+    val added = listOfNotNull(
+        "${summary.favoritesAdded} favorit".takeIf { summary.favoritesAdded > 0 },
+        "${summary.playlistsAdded} playlist".takeIf { summary.playlistsAdded > 0 },
+        "${summary.playlistTracksAdded} lagu ke playlist yang ada".takeIf { summary.playlistTracksAdded > 0 },
+        "${summary.savedAdded} item tersimpan".takeIf { summary.savedAdded > 0 },
+        "${summary.historyAdded} lagu riwayat".takeIf { summary.historyAdded > 0 },
+    )
+    return buildString {
+        append("Ditambahkan: ").append(added.joinToString(", ")).append('.')
+        if (summary.skipped > 0) {
+            append("\n${summary.skipped} entri dilewati (file lokal desktop atau sumber selain YouTube Music).")
+        }
+    }
+}
+
+@OptIn(ExperimentalTime::class)
+private fun backupFileName(): String = "Senada backup ${Clock.System.now().toString().take(10)}.json"

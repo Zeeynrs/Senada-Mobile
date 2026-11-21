@@ -148,6 +148,7 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
                     AppTab.Favorites -> favoritesTab(libraryState, actions)
                     AppTab.Playlists -> playlistsTab(libraryState, openedPlaylist, actions) { openPlaylistId = it }
                     AppTab.History -> historyTab(libraryState, actions)
+                    AppTab.Settings -> item(key = "backup") { BackupSection(library) }
                 }
                 // Kontrol, lirik dan antrean tampil di semua tab.
                 item {
