@@ -221,6 +221,25 @@ def tap_text(text: str, index: int = 0, scrolls: int = 4) -> bool:
     return False
 
 
+def tap_desc(label: str, index: int = 0) -> bool:
+    matches = find_interactive(label, attribute="content-desc")
+    if len(matches) <= index:
+        return False
+    x1, y1, x2, y2 = matches[index][0]
+    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    time.sleep(0.8)
+    return True
+
+
+def open_tab(label: str) -> bool:
+    """Tab di navigasi bawah yang mengambang punya content-desc sesuai labelnya."""
+    return tap_desc(label)
+
+
+def open_now_playing() -> bool:
+    return tap_desc("Buka Sedang diputar") and bool(wait_for(lambda: find_interactive("Tutup", attribute="content-desc"), 5))
+
+
 def open_shade(name: str) -> None:
     shell("cmd statusbar expand-notifications")
     time.sleep(2)
@@ -283,7 +302,8 @@ def check_https() -> None:
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
     prior_errors = shell("logcat -d -s ExoPlayerImplInternal:E")
-    if not tap_text("Putar HTTPS"):
+    open_tab("Pengaturan")
+    if not tap_text("Putar HTTPS", scrolls=8):
         check(False, name, "Tombol 'Putar HTTPS' tidak ditemukan")
         return
 
@@ -320,11 +340,10 @@ def check_initial_accessibility() -> None:
     targets = [
         ("Tambah", "text", True),
         (menu_label, "content-desc", True),
-        ("Putar lokal", "text", True),
-        ("Putar HTTPS", "text", True),
-        ("Sebelumnya", "text", False),
-        ("Putar", "text", False),
-        ("Berikutnya", "text", False),
+        ("Beranda", "content-desc", True),
+        ("Cari", "content-desc", True),
+        ("Library", "content-desc", True),
+        ("Pengaturan", "content-desc", True),
     ]
     missing = []
     undersized = []
@@ -395,41 +414,32 @@ def check_large_font_accessibility() -> None:
     screenshot("06-large-font")
 
     menu_label = f"Buka menu {FIRST}"
+    open_tab("Cari")
+    scroll_to_top(3)
     cari_targets = [
         (menu_label, "content-desc"),
-        ("Putar lokal", "text"),
-        ("Putar HTTPS", "text"),
-        ("Sebelumnya", "text"),
-        ("Berikutnya", "text"),
+        ("Tambah", "text"),
     ]
     cari_found = collect_while_scrolling(cari_targets, scrolls=7, save_first="06-large-font-ui.xml")
-    cari_missing = [label for label, _ in cari_targets if label not in cari_found]
+    player_targets = [("Sebelumnya", "text"), ("Berikutnya", "text"), ("Tutup", "content-desc")]
+    player_found = collect_while_scrolling(player_targets, scrolls=4) if open_now_playing() else {}
+    shell("input keyevent KEYCODE_BACK")
+    time.sleep(1)
+    found = {**cari_found, **player_found}
+    targets = cari_targets + player_targets
+    cari_missing = [label for label, _ in targets if label not in found]
     cari_clipped = [
         f"{label}={box}"
-        for label, (box, _) in cari_found.items()
+        for label, (box, _) in found.items()
         if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
     ]
     check(
         not cari_missing and not cari_clipped,
-        "Kontrol tab Cari tidak terpotong dan minimal 48 dp pada skala font 200%",
+        "Kontrol tab Cari dan Sedang diputar tidak terpotong dan minimal 48 dp pada skala font 200%",
         f"lebar {width}px, hilang {cari_missing}, terpotong/kekecilan {cari_clipped}",
     )
 
-    scroll_to_top(6)
-    # Tab Pengaturan bisa berada di luar layar kanan pada skala font 200%, geser bilah tab ke kiri.
-    tab_boxes = ui_bounds("Cari") or ui_bounds("Favorit")
-    settings_opened = False
-    if tab_boxes:
-        tab_y = (tab_boxes[0][1] + tab_boxes[0][3]) // 2
-        for _ in range(4):
-            pts = ui_points("Pengaturan")
-            if pts:
-                tap(pts[0])
-                time.sleep(1)
-                settings_opened = True
-                break
-            shell(f"input swipe {width * 4 // 5} {tab_y} {width // 5} {tab_y} 300")
-            time.sleep(0.6)
+    settings_opened = open_tab("Pengaturan")
     if not check(settings_opened, "Tab Pengaturan dapat dibuka pada skala font 200%"):
         return
 
@@ -439,6 +449,8 @@ def check_large_font_accessibility() -> None:
         ("Warna mengikuti sampul", "text"),
         ("Ekspor backup", "text"),
         ("Impor backup", "text"),
+        ("Putar lokal", "text"),
+        ("Putar HTTPS", "text"),
     ]
     settings_found = collect_while_scrolling(settings_targets, scrolls=7, save_first="07-settings-ui.xml")
     settings_missing = [label for label, _ in settings_targets if label not in settings_found]
@@ -456,7 +468,7 @@ def check_large_font_accessibility() -> None:
     )
     backup_clipped = [
         f"{label}={settings_found[label][0]}"
-        for label in ("Ekspor backup", "Impor backup")
+        for label in ("Ekspor backup", "Impor backup", "Putar lokal", "Putar HTTPS")
         if label in settings_found
         and (
             settings_found[label][0][0] < 0
@@ -467,7 +479,7 @@ def check_large_font_accessibility() -> None:
     ]
     check(
         not settings_missing and not backup_clipped,
-        "Tombol Ekspor/Impor backup tidak terpotong dan minimal 48 dp pada skala font 200%",
+        "Tombol Ekspor/Impor backup dan uji audio tidak terpotong dan minimal 48 dp pada skala font 200%",
         f"lebar {width}px, hilang {settings_missing}, terpotong/kekecilan {backup_clipped}",
     )
 
@@ -479,20 +491,25 @@ def scenario() -> None:
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
 
-    if not check(wait_for(lambda: ui_points("Senada"), 30, 1), "Aplikasi terbuka"):
+    opened = wait_for(lambda: find_interactive("Cari", attribute="content-desc"), 30, 1)
+    if not check(opened and open_tab("Cari"), "Aplikasi terbuka dan tab Cari dapat dibuka"):
         screenshot("01-app")
         return
     screenshot("01-app")
     check_initial_accessibility()
 
     added = tap_text("Tambah", 0) and tap_text("Tambah", 1)
-    started = added and tap_text("Putar", 0)
-    if not check(started, "Dua lagu ditambahkan ke antrean dan entri pertama diputar lewat UI"):
+    started = added and tap_desc("Putar")
+    if not check(started, "Dua lagu ditambahkan ke antrean dan diputar dari mini player"):
         screenshot("02-ui")
         return
 
     playing = wait_session("PLAYING", FIRST, 15)
     if not check(playing, f"Sesi media memutar '{FIRST}'", playing or session()):
+        return
+
+    if not check(open_now_playing(), "Mini player membuka Sedang diputar"):
+        screenshot("02-ui")
         return
 
     # Ambil koordinat saat dijeda; kontrol Putar dan Jeda menempati tombol yang sama.
@@ -543,6 +560,15 @@ def scenario() -> None:
     # Jeda selama pencarian Berikutnya agar lagu pertama tidak berpindah otomatis.
     pause_for_setup(FIRST)
     check_app_navigation()
+
+    # Tombol kembali Android menutup Sedang diputar tanpa keluar dari aplikasi.
+    shell("input keyevent KEYCODE_BACK")
+    back_closed = wait_for(
+        lambda: not find_interactive("Tutup", attribute="content-desc")
+        and find_interactive("Buka Sedang diputar", attribute="content-desc"),
+        5,
+    )
+    check(back_closed, "Tombol kembali menutup Sedang diputar dan mini player tetap terlihat")
 
     shell("input keyevent KEYCODE_HOME")
     time.sleep(1)
