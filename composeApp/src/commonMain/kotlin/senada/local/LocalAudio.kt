@@ -6,6 +6,7 @@ import senada.model.Track
 /** Sumber lagu dari file audio yang diimpor pengguna ke penyimpanan aplikasi. */
 internal const val LOCAL_FILE_SOURCE = "local"
 private const val LOCAL_TRACK_PREFIX = "local:"
+private const val DAY_MS = 24L * 60 * 60 * 1_000
 
 /** Masalah file audio lokal yang perlu dijelaskan ke pengguna. */
 internal class LocalAudioException(val userMessage: String, cause: Throwable? = null) : Exception(userMessage, cause)
@@ -20,12 +21,22 @@ internal fun interface LocalAudioFiles {
 }
 
 /** File yang baru disalin ke penyimpanan aplikasi. */
-internal data class ImportedAudio(val fileName: String, val displayName: String, val sizeBytes: Long)
+internal data class ImportedAudio(
+    val fileName: String,
+    val displayName: String,
+    val sizeBytes: Long,
+    val title: String? = null,
+    val artist: String? = null,
+    val durationMs: Long? = null,
+)
 
 internal fun ImportedAudio.toTrack(): Track = Track(
     id = LOCAL_TRACK_PREFIX + fileName,
-    title = displayName.substringBeforeLast('.').trim().ifEmpty { displayName.ifBlank { "File audio" } },
-    artists = emptyList(),
+    title = title?.trim()?.takeIf { it.isNotEmpty() }
+        ?: displayName.substringBeforeLast('.').trim().ifEmpty { displayName.ifBlank { "File audio" } },
+    artists = artist?.split(";", " / ", ", ", " & ", " feat. ", ignoreCase = true)
+        ?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty(),
+    durationMs = durationMs?.takeIf { it > 0 && it < DAY_MS },
     source = LOCAL_FILE_SOURCE,
 )
 

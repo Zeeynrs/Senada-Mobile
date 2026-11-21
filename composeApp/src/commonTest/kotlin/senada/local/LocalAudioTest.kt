@@ -25,6 +25,55 @@ class LocalAudioTest {
     }
 
     @Test
+    fun importedMetadataSuppliesTitleArtistsAndDuration() {
+        val track = ImportedAudio(
+            "a1b2.mp3",
+            "Rekaman Latihan.mp3",
+            4_400_000,
+            title = "  Judul Rekaman  ",
+            artist = "  Penyanyi  ",
+            durationMs = 123_456L,
+        ).toTrack()
+
+        assertEquals("Judul Rekaman", track.title)
+        assertEquals(listOf("Penyanyi"), track.artists)
+        assertEquals(123_456L, track.durationMs)
+    }
+
+    @Test
+    fun blankMetadataTitleFallsBackToTheFileName() {
+        val audio = ImportedAudio("a1b2.mp3", "Rekaman Latihan.mp3", 1)
+
+        for (title in listOf("", "  \t\n")) {
+            assertEquals("Rekaman Latihan", audio.copy(title = title).toTrack().title)
+        }
+    }
+
+    @Test
+    fun artistCreditsSplitOnCommonSeparatorsWithoutEmptyNames() {
+        val audio = ImportedAudio("a1b2.mp3", "Rekaman.mp3", 1)
+
+        val artist = ";Satu;; Dua / Tiga, Empat & Lima feat. Enam;"
+        assertEquals(
+            listOf("Satu", "Dua", "Tiga", "Empat", "Lima", "Enam"),
+            audio.copy(artist = artist).toTrack().artists,
+        )
+        assertEquals(listOf("AC/DC"), audio.copy(artist = " AC/DC ").toTrack().artists)
+        assertEquals(emptyList(), audio.copy(artist = " ; ; ").toTrack().artists)
+    }
+
+    @Test
+    fun onlyPositiveDurationsShorterThanADayAreUsed() {
+        val audio = ImportedAudio("a1b2.mp3", "Rekaman.mp3", 1)
+
+        for (duration in listOf(-1L, 0L, 86_400_000L, Long.MAX_VALUE)) {
+            assertNull(audio.copy(durationMs = duration).toTrack().durationMs)
+        }
+        assertEquals(1L, audio.copy(durationMs = 1L).toTrack().durationMs)
+        assertEquals(86_399_999L, audio.copy(durationMs = 86_399_999L).toTrack().durationMs)
+    }
+
+    @Test
     fun onlySafeFileNamesFromLocalTracksAreUsed() {
         fun local(id: String) = Track(id, "T", emptyList(), source = LOCAL_FILE_SOURCE)
 
