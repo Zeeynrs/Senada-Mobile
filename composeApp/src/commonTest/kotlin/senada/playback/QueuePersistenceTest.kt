@@ -25,6 +25,27 @@ class QueuePersistenceTest {
     private val local = Track("demo:track:hujan", "Hujan", emptyList(), source = "demo")
 
     @Test
+    fun restoredShuffleContinuesInSavedOrderAndWraps() = runTest {
+        val store = MemoryQueueStore("""{
+            "version":1,"nextId":4,"selectedEntryId":2,"positionMs":4000,
+            "repeat":"all","shuffle":true,"shuffleOrder":[3,1,2],
+            "entries":[
+                {"id":1,"track":{"id":"a","title":"A","artists":[],"durationMs":null,"artworkUrl":null,"source":"demo"}},
+                {"id":2,"track":{"id":"b","title":"B","artists":[],"durationMs":null,"artworkUrl":null,"source":"demo"}},
+                {"id":3,"track":{"id":"c","title":"C","artists":[],"durationMs":null,"artworkUrl":null,"source":"demo"}}
+            ]
+        }""")
+        val playback = controller(FakeAudioOutput(), store)
+        assertEquals(2L, playback.state.value.currentEntry?.id)
+        playback.next()
+        assertEquals(3L, playback.state.value.currentEntry?.id)
+        playback.next()
+        assertEquals(1L, playback.state.value.currentEntry?.id)
+        playback.previous()
+        assertEquals(3L, playback.state.value.currentEntry?.id)
+    }
+
+    @Test
     fun snapshotRoundTripsMetadataOrderAndSelection() {
         val queue = Queue().append(stream).append(local).append(stream)
         val snapshot = QueueSnapshot(queue, queue.entries.last().id, 32_000)
