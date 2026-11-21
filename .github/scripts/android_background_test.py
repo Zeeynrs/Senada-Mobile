@@ -247,6 +247,21 @@ def open_now_playing() -> bool:
     return tap_desc("Buka Sedang diputar") and bool(wait_for(lambda: find_interactive("Tutup", attribute="content-desc"), 5))
 
 
+def dismiss_system_dialogs() -> bool:
+    """Tutup dialog "isn't responding" milik aplikasi sistem emulator (mis. Pixel Launcher) yang menutupi layar."""
+    root = ui_tree()
+    if root is None or not any("isn't responding" in (node.get("text") or "") for node in root.iter("node")):
+        return False
+    waits = find_interactive("Wait", root=root)
+    if waits:
+        x1, y1, x2, y2 = waits[0][0]
+        tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    else:
+        shell("input keyevent KEYCODE_BACK")
+    time.sleep(1)
+    return True
+
+
 def open_shade(name: str) -> None:
     shell("cmd statusbar expand-notifications")
     time.sleep(2)
@@ -506,11 +521,17 @@ def check_large_font_accessibility() -> None:
 def scenario() -> None:
     run("adb", "install", "-r", APK)
     shell("logcat -c")
+    # ANR aplikasi sistem di emulator CI tidak boleh menutupi Senada; crash Senada tetap terdeteksi lewat logcat.
+    shell("settings put global hide_error_dialogs 1")
     shell("input keyevent KEYCODE_WAKEUP")
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
 
-    opened = wait_for(lambda: find_interactive("Cari", attribute="content-desc"), 30, 1)
+    def search_tab_ready():
+        dismiss_system_dialogs()
+        return find_interactive("Cari", attribute="content-desc")
+
+    opened = wait_for(search_tab_ready, 30, 1)
     if not check(opened and open_tab("Cari"), "Aplikasi terbuka dan tab Cari dapat dibuka"):
         screenshot("01-app")
         return
