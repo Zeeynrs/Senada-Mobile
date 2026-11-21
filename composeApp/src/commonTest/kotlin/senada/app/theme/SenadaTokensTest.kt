@@ -24,6 +24,17 @@ class SenadaTokensTest {
     }
 
     @Test
+    fun secondaryContainersUseSenadaSurfaces() {
+        val dark = senadaColorScheme(dark = true, accent = null)
+        assertEquals(Color(0xFF2A2C31), dark.secondaryContainer)
+        assertEquals(Color(0xFFF2F2F3), dark.onSecondaryContainer)
+
+        val light = senadaColorScheme(dark = false, accent = null)
+        assertEquals(Color(0xFFECEAE5), light.secondaryContainer)
+        assertEquals(Color(0xFF17181A), light.onSecondaryContainer)
+    }
+
+    @Test
     fun coverAccentIsMadeReadable() {
         val scheme = senadaColorScheme(dark = false, accent = Color(0xFFFFF3B0))
 
