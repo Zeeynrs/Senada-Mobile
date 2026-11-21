@@ -7,6 +7,7 @@ import senada.catalog.StreamResolver
 import senada.catalog.youtube.InnertubeClient
 import senada.catalog.youtube.YouTubeMusicCatalog
 import senada.catalog.youtube.YouTubeMusicResolver
+import senada.lyrics.LyricsRepository
 
 /** Sumber katalog dan audio bersama untuk seluruh proses, termasuk pemutaran di latar belakang. */
 internal object SenadaSources {
@@ -24,4 +25,5 @@ internal object SenadaSources {
 
     val youTubeMusic: CatalogRepository by lazy { YouTubeMusicCatalog(innertube) }
     val streams: StreamResolver by lazy { YouTubeMusicResolver(innertube) }
+    val lyrics by lazy { LyricsRepository(http) }
 }
