@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package senada.platform
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
