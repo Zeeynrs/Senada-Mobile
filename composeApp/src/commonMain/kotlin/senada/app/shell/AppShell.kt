@@ -38,13 +38,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import senada.app.AppTab
 import senada.app.AppearancePreferences
 import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
+import senada.app.tabs.LibraryFilter
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
 import senada.app.tabs.mostPlayedScreen
@@ -108,7 +108,7 @@ internal fun AppShell(
         val id = openedPlaylistId ?: return@remember flowOf<Playlist?>(null)
         playlistLimit.flatMapLatest { limit -> library.playlist(id, limit) }
     }.collectAsState(null)
-    var librarySection by rememberSaveable { mutableStateOf(AppTab.Favorites) }
+    var librarySection by rememberSaveable { mutableStateOf(LibraryFilter.Favorites) }
 
     val search = rememberSearchTabState()
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
@@ -161,11 +161,11 @@ internal fun AppShell(
                         screenVisible = screenVisible,
                         onSearch = { navigator.select(AppDestination.Search) },
                         onOpenFavorites = {
-                            librarySection = AppTab.Favorites
+                            librarySection = LibraryFilter.Favorites
                             navigator.select(AppDestination.Library)
                         },
                         onOpenPlaylist = { id ->
-                            librarySection = AppTab.Playlists
+                            librarySection = LibraryFilter.Playlists
                             navigator.select(AppDestination.Library)
                             navigator.openPlaylist(id)
                         },
