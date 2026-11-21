@@ -9,7 +9,7 @@ Kedua platform membuka `SenadaApp()`. Saat kolom cari kosong, layar menampilkan 
 | `composeApp/src/commonMain/kotlin/senada/model` | Metadata dan ID lagu. Dua entri antrean boleh merujuk ke ID lagu yang sama. |
 | `composeApp/src/commonMain/kotlin/senada/catalog` | Katalog contoh, kontrak pencarian berhalaman dan resolusi alamat audio, serta `catalog/youtube` untuk pencarian dan alamat audio YouTube Music lewat Innertube. |
 | `composeApp/src/commonMain/kotlin/senada/playback` | Model antrean dan ID per entri, serta `PlaybackController` yang memiliki antrean dan pemutaran selama proses aplikasi berjalan. |
-| `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight): favorit, playlist, riwayat 200 lagu dan item tersimpan. Layarnya ada di tab Favorit, Playlist dan Riwayat (`app/LibraryViews.kt`). |
+| `composeApp/src/commonMain/kotlin/senada/library`, `composeApp/src/commonMain/sqldelight` | Library lokal di SQLite (SQLDelight) menyimpan favorit, playlist, riwayat 200 lagu, hitungan putar 30 hari (skema versi 4), dan item tersimpan. Beranda memakai hitungan putar. Favorit, Playlist, dan Riwayat ada di tab Library (`app/LibraryViews.kt`). |
 | `composeApp/src/commonMain/kotlin/senada/backup` | Backup library dalam format Senada desktop (`format` 1): ekspor, impor gabung dengan pratinjau, tanpa pengaturan desktop. Layarnya di tab **Pengaturan** (`app/SettingsViews.kt`, pemilih file di `BackupFiles.*.kt`). |
 | `composeApp/src/commonMain/kotlin/senada/app` | Layar Compose, data contoh dan `SenadaSources` (klien HTTP, katalog dan resolver bersama). Layar membaca status dari `PlaybackController`, bukan memiliki pemutar sendiri. |
 | `composeApp/src/androidMain`, `composeApp/src/iosMain` | Titik masuk platform, adapter ExoPlayer dan AVPlayer, `PlaybackService` (MediaSession Android), serta Now Playing dan kontrol layar kunci iOS. |
@@ -55,7 +55,16 @@ Untuk membuka aplikasinya, jalankan `open iosApp/Senada.xcodeproj`, pilih simula
 
 ## Navigasi
 
-Navigasi bawah yang mengambang punya empat tujuan: **Beranda**, **Cari**, **Library**, dan **Pengaturan**. Saat antrean berisi lagu, mini player muncul di atasnya; ketuk mini player untuk membuka **Sedang diputar** (kontrol, lirik, dan antrean). Tombol kembali Android menutup Sedang diputar, lalu detail playlist, lalu kembali ke Beranda sebelum keluar dari aplikasi. Di iPhone, Sedang diputar ditutup lewat tombol panah turun.
+Navigasi bawah yang mengambang punya empat tujuan: **Beranda**, **Cari**, **Library**, dan **Pengaturan**. Saat antrean berisi lagu, mini player muncul di atasnya; ketuk mini player untuk membuka **Sedang diputar** (kontrol, lirik, dan antrean). Tombol kembali Android menutup Sedang diputar lebih dulu, lalu daftar Paling sering diputar atau detail playlist yang terbuka, lalu kembali ke Beranda sebelum keluar dari aplikasi. Di iPhone, Sedang diputar ditutup lewat tombol panah turun.
+
+## Uji Beranda
+
+1. Sebelum ada pemutaran, Beranda menampilkan **Mulai dengarkan**. Tekan **Cari lagu** untuk membuka tab Cari.
+2. Putar beberapa lagu dari antrean. Lagu dengan hitungan tertinggi dalam 30 hari terakhir tampil di atas. Tekan **Lihat** untuk membuka **Paling sering diputar** dan **Putar semua** untuk memutar daftar itu. Melanjutkan lagu dari jeda tidak menambah hitungan.
+3. Buat playlist berisi lagu dan tekan **Putar semua** pada playlist itu tiga kali. Kembali ke Beranda. Playlist tampil di atas dengan sampul lagu pertamanya. **Lihat** membuka detail playlist di Library. Menghapus playlist itu atau semua entrinya mengembalikan hero ke lagu teratas atau sambutan.
+4. Gulir ke **Baru diputar** dan **Playlist kamu**. Kartu **Favorit** membuka Library › Favorit, kartu lagu langsung memutar lagu, dan kartu playlist membuka detailnya. Ulangi dengan skala font 200% dan cek teks serta tombol dapat dibaca dan dijangkau.
+
+Hitungan tersimpan di perangkat selama 30 hari dan tidak ikut backup. Migrasi ke skema versi 4 mempertahankan isi library sebelumnya.
 
 ## Uji audio contoh
 
@@ -71,7 +80,7 @@ Untuk memeriksa pemulihan, jeda lagu di tengah, tutup aplikasi sepenuhnya, lalu 
 
 ## Uji library
 
-1. Di tab **Cari**, buka menu **⋯** pada sebuah lagu, lalu pilih **Tambah ke favorit**. Lagu itu mendapat tanda ♥ di semua daftar dan muncul di **Library › Favorit** serta di **Beranda**.
+1. Di tab **Cari**, buka menu **⋯** pada sebuah lagu, lalu pilih **Tambah ke favorit**. Lagu itu mendapat tanda ♥ di semua daftar dan muncul di **Library › Favorit**, yang juga bisa dibuka lewat kartu **Favorit** di Beranda.
 2. Dari menu **⋯**, pilih **Playlist baru…**, beri nama, lalu tambahkan lagu lain ke playlist yang sama lewat **Tambah ke <nama>**. Lagu yang sama boleh ditambahkan dua kali.
 3. Di **Library › Playlist**, buka playlist itu. Ubah urutan lewat **Pindah ke atas**/**Pindah ke bawah**, hapus satu entri, lalu **Ganti nama**. **Putar semua** menambahkan seluruh lagu ke akhir antrean dan memutar yang pertama.
 4. Putar dua lagu dari antrean. Keduanya muncul di **Library › Riwayat**, terbaru di atas. Menjeda lalu melanjutkan lagu tidak menambah riwayat.
