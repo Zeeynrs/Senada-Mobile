@@ -175,16 +175,18 @@ internal fun rememberSearchTabState(): SearchTabState {
     return state
 }
 
-/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album/Playlist, impor audio, riwayat saat kosong, lalu hasil. */
+/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album/Playlist, impor audio, riwayat & rekomendasi saat kosong, lalu hasil. */
 internal fun LazyListScope.searchTab(
     tab: SearchTabState,
     searchHistory: List<String>,
+    discover: DiscoverUiState,
     library: LibraryState,
     actions: LibraryActions,
     onImported: suspend (Track) -> Unit,
     onRecordSearch: () -> Unit,
     onRemoveSearch: (String) -> Unit,
     onClearSearches: () -> Unit,
+    onRefreshDiscover: () -> Unit,
     onOpenArtist: (ArtistSummary) -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
     onOpenPlaylist: (PlaylistSummary) -> Unit = {},
@@ -241,6 +243,16 @@ internal fun LazyListScope.searchTab(
             onRetry = tab::retry,
             onLoadMore = tab::loadMore,
             onResultUsed = onRecordSearch,
+        )
+    }
+    if (tab.query.isBlank()) {
+        discoverSection(
+            state = discover,
+            library = library,
+            actions = actions,
+            onRefresh = onRefreshDiscover,
+            onOpenArtist = onOpenArtist,
+            onOpenAlbum = onOpenAlbum,
         )
     }
 }

@@ -79,14 +79,21 @@ internal class InnertubeClient(
         buildJsonObject { put("continuation", token) },
     )
 
-    suspend fun nextPlaylist(playlistId: String): JsonObject = post(
+    suspend fun nextPlaylist(playlistId: String): JsonObject = postNext(playlistId = playlistId)
+
+    suspend fun next(videoId: String, playlistId: String? = null): JsonObject =
+        postNext(videoId = videoId, playlistId = playlistId)
+
+    private suspend fun postNext(videoId: String? = null, playlistId: String? = null): JsonObject = post(
         "$MUSIC_API/next",
         WEB_REMIX,
         buildJsonObject {
-            put("playlistId", playlistId)
+            videoId?.let { put("videoId", it) }
+            playlistId?.let { put("playlistId", it) }
             put("isAudioOnly", true)
         },
     )
+
     suspend fun player(videoId: String): JsonObject {
         // Tanpa visitorData, banyak lagu dijawab LOGIN_REQUIRED.
         if (visitorData == null) {
