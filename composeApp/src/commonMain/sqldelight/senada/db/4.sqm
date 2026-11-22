@@ -1,0 +1,8 @@
+-- Versi 4 → 5: catatan file audio impor agar langsung tampil di Library sebelum diputar.
+CREATE TABLE imported_track (
+    track_id TEXT NOT NULL PRIMARY KEY,
+    imported_at INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO imported_track(track_id, imported_at)
+SELECT id, 0 FROM track WHERE source = 'local' AND id GLOB 'local:*';

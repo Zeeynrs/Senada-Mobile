@@ -100,7 +100,7 @@ internal fun LazyListScope.searchTab(
     searchHistory: List<String>,
     library: LibraryState,
     actions: LibraryActions,
-    onImported: (Track) -> Unit,
+    onImported: suspend (Track) -> Unit,
     onRecordSearch: () -> Unit,
     onRemoveSearch: (String) -> Unit,
     onClearSearches: () -> Unit,

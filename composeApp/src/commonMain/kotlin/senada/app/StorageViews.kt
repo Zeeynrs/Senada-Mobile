@@ -34,9 +34,9 @@ import okio.Path
 import senada.library.LibraryRepository
 import senada.local.ImportedAudioStorage
 import senada.local.ImportedAudioSummary
+import senada.local.deleteUnusedImportedAudio
 import senada.local.importedAudioLock
 import senada.local.summarizeImportedAudio
-import senada.local.unusedImportedAudioFileNames
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 
@@ -149,22 +149,16 @@ private fun ImportedAudioStorageControls(
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try {
                     withContext(NonCancellable) {
-                        importedAudioLock.withLock {
-                            val files = withContext(Dispatchers.IO) { storage.listFiles() }
-                            val result = library.withLocalTrackIds { libraryIds ->
-                                // Baca antrean dan hapus tanpa jeda di thread UI, tempat pemutar mengubah antrean.
-                                val queueTracks = playback.state.value.queue.entries.map { it.track }
-                                val unused = unusedImportedAudioFileNames(files, queueTracks, libraryIds)
-                                val failed = unused.count { !storage.deleteFile(it) }
-                                unused.size to failed
-                            }
-                            summary = withContext(Dispatchers.IO) { summarizeImportedAudio(storage.listFiles()) }
-                            val (unusedCount, failedCount) = result
-                            deleteMessage = when {
-                                failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
-                                unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
-                                else -> "$unusedCount file yang tidak dipakai dihapus."
-                            }
+                        val result = deleteUnusedImportedAudio(
+                            storage = storage,
+                            library = library,
+                            queueTracks = { playback.state.value.queue.entries.map { it.track } },
+                        )
+                        summary = result.summary
+                        deleteMessage = when {
+                            result.failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
+                            result.unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
+                            else -> "${result.unusedCount} file yang tidak dipakai dihapus."
                         }
                     }
                 } catch (e: CancellationException) {
