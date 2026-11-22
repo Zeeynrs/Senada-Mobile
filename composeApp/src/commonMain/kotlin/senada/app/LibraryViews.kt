@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -215,6 +217,36 @@ internal class LibraryActions(
         playAll(tracks, PlaySource.MostPlayed)
     }
 
+    /** Memutar riwayat dari yang terbaru atau mulai dari indeks lagu yang diketuk. */
+    fun playHistory(tracks: List<Track>, startIndex: Int? = null) {
+        playAll(
+            tracks = tracks,
+            source = PlaySource.History,
+            startIndex = startIndex ?: 0,
+            resetShuffle = startIndex == null,
+        )
+    }
+
+    /** Memutar seluruh daftar riwayat dalam urutan acak. */
+    fun shuffleHistory(tracks: List<Track>) {
+        playShuffled(tracks, PlaySource.History)
+    }
+
+    /** Memutar semua file impor atau mulai dari indeks lagu yang diketuk. */
+    fun playImportedTracks(tracks: List<Track>, startIndex: Int? = null) {
+        playAll(
+            tracks = tracks,
+            source = PlaySource.Imported,
+            startIndex = startIndex ?: 0,
+            resetShuffle = startIndex == null,
+        )
+    }
+
+    /** Memutar seluruh file impor dalam urutan acak. */
+    fun shuffleImportedTracks(tracks: List<Track>) {
+        playShuffled(tracks, PlaySource.Imported)
+    }
+
     /** Menambahkan semua lagu ke akhir antrean lalu memutar mulai dari indeks [startIndex]. */
     fun playAll(
         tracks: List<Track>,
@@ -400,20 +432,40 @@ internal fun NameDialog(
     )
 }
 
+/** Tampilan kosong seragam untuk tiap chip di tab Library: satu kalimat singkat + aksi relevan. */
 @Composable
-private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
-    AdaptiveRow(
+internal fun LibraryEmptyState(
+    message: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+    actionEnabled: Boolean = true,
+) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth(),
-        minPrimaryWidth = 140.dp,
-        primary = {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-        },
-        trailing = {
-            if (onPlayAll != null) {
-                TextButton(onClick = onPlayAll, modifier = Modifier.minTouchTarget()) { Text("Putar semua") }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Button(
+                onClick = onAction,
+                enabled = actionEnabled,
+                shape = CircleShape,
+                modifier = Modifier.minTouchTarget(),
+            ) {
+                Text(actionLabel)
             }
-        },
-    )
+        }
+    }
 }
 
 /** Satu daftar lagu library dengan menu ⋯. */
@@ -435,7 +487,12 @@ private fun LazyListScope.trackList(
     }
 }
 
-internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryActions, onLoadMore: () -> Unit) {
+internal fun LazyListScope.favoritesTab(
+    library: LibraryState,
+    actions: LibraryActions,
+    onLoadMore: () -> Unit,
+    onOpenSearch: () -> Unit = {},
+) {
     val favorites = library.favorites
     item(key = "favorites-header") {
         val accent = SenadaPalette.Favorite
@@ -464,11 +521,11 @@ internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryA
         )
     }
     if (library.favoriteTotal == 0) {
-        item {
-            Text(
-                "Belum ada favorit. Buka menu ⋯ pada lagu untuk menambahkannya.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        item(key = "favorites-empty") {
+            LibraryEmptyState(
+                message = "Belum ada lagu favorit.",
+                actionLabel = "Cari lagu",
+                onAction = onOpenSearch,
             )
         }
     }
@@ -487,19 +544,41 @@ private fun LazyListScope.loadMoreItem(key: String, loaded: Int, total: Int, onL
     }
 }
 
-internal fun LazyListScope.historyTab(library: LibraryState, actions: LibraryActions) {
-    item { SectionHeader("Riwayat", onPlayAll = null) }
+internal fun LazyListScope.historyTab(
+    library: LibraryState,
+    actions: LibraryActions,
+    onOpenSearch: () -> Unit = {},
+) {
+    item(key = "history-header") {
+        val meta = remember(library.history) {
+            collectionMeta(
+                trackCount = library.history.size,
+                totalDurationMs = sumKnownDurationMs(library.history),
+            )
+        }
+        CompactCollectionHeader(
+            title = "Riwayat",
+            meta = meta,
+        ) {
+            CollectionPlayButtons(
+                title = "Riwayat",
+                canPlay = library.history.isNotEmpty(),
+                onPlay = { actions.playHistory(library.history) },
+                onShuffle = { actions.shuffleHistory(library.history) },
+            )
+        }
+    }
     if (library.history.isEmpty()) {
-        item {
-            Text(
-                "Riwayat masih kosong. Lagu yang diputar dari antrean muncul di sini.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        item(key = "history-empty") {
+            LibraryEmptyState(
+                message = "Belum ada riwayat pemutaran.",
+                actionLabel = "Cari lagu",
+                onAction = onOpenSearch,
             )
         }
     }
     trackList("history", library.history, library, actions) { index ->
-        actions.playAll(library.history, startIndex = index)
+        actions.playHistory(library.history, startIndex = index)
     }
 }
 
@@ -510,6 +589,7 @@ internal fun LazyListScope.playlistsTab(
     actions: LibraryActions,
     onOpen: (String?) -> Unit,
     onLoadMore: () -> Unit,
+    onOpenSearch: () -> Unit = {},
     reordering: Boolean = false,
     onToggleReorder: () -> Unit = {},
 ) {
@@ -523,11 +603,15 @@ internal fun LazyListScope.playlistsTab(
         }
         if (library.playlists.isEmpty()) {
             item(key = "playlist-list-empty") {
-                Text(
-                    "Belum ada playlist.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                var naming by remember { mutableStateOf(false) }
+                LibraryEmptyState(
+                    message = "Belum ada playlist.",
+                    actionLabel = "Playlist baru",
+                    onAction = { naming = true },
                 )
+                if (naming) {
+                    NewPlaylistDialog(actions = actions, onDismiss = { naming = false })
+                }
             }
         }
         items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
@@ -551,11 +635,11 @@ internal fun LazyListScope.playlistsTab(
         )
     }
     if (opened.entryCount == 0) {
-        item {
-            Text(
-                "Playlist ini masih kosong. Tambahkan lagu lewat menu ⋯.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        item(key = "playlist-empty-${opened.id}") {
+            LibraryEmptyState(
+                message = "Playlist ini masih kosong.",
+                actionLabel = "Cari lagu",
+                onAction = onOpenSearch,
             )
         }
     }
@@ -828,10 +912,7 @@ private fun PlaylistListHeader(playlistCount: Int, actions: LibraryActions, onOp
         }
     }
     if (naming) {
-        NameDialog(title = "Playlist baru", initial = "", confirmLabel = "Buat", onDismiss = { naming = false }) { name ->
-            naming = false
-            actions.createPlaylist(name)
-        }
+        NewPlaylistDialog(actions = actions, onDismiss = { naming = false })
     }
     if (importing) {
         PlaylistImportDialog(
@@ -842,6 +923,14 @@ private fun PlaylistListHeader(playlistCount: Int, actions: LibraryActions, onOp
                 onOpen(playlistId)
             },
         )
+    }
+}
+
+@Composable
+private fun NewPlaylistDialog(actions: LibraryActions, onDismiss: () -> Unit) {
+    NameDialog(title = "Playlist baru", initial = "", confirmLabel = "Buat", onDismiss = onDismiss) { name ->
+        onDismiss()
+        actions.createPlaylist(name)
     }
 }
 

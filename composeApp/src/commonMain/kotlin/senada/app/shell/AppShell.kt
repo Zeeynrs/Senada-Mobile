@@ -361,6 +361,7 @@ internal fun AppShell(
                         onOpenPlaylist = { id -> if (id == null) navigator.back() else navigator.openPlaylist(id) },
                         onLoadMoreFavorites = { favoritesLimit.value += LIBRARY_PAGE_SIZE },
                         onLoadMorePlaylist = { playlistLimit.value += LIBRARY_PAGE_SIZE },
+                        onOpenSearch = { navigator.select(AppDestination.Search) },
                         reorderingPlaylist = reorderingPlaylist,
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
