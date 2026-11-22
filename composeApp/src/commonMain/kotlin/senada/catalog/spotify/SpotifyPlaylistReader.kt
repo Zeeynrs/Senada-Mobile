@@ -43,7 +43,7 @@ internal data class SpotifyPlaylist(
     val complete: Boolean = true,
 )
 
-internal fun interface SpotifyPlaylistSource {
+internal interface SpotifyPlaylistSource {
     suspend fun fetchPlaylist(
         playlistId: String,
         limit: Int = SpotifyPlaylistReader.DEFAULT_LIMIT,
