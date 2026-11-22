@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import senada.app.CollectionBackButton
 import senada.app.LibraryActions
 import senada.app.TrackRow
 import senada.app.minTouchTarget
@@ -27,10 +28,7 @@ internal fun LazyListScope.mostPlayedScreen(
 ) {
     item(key = "most-played-header") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(
-                onClick = onClose,
-                modifier = Modifier.minTouchTarget().semantics { contentDescription = "Kembali ke Beranda" },
-            ) { Text("‹ Beranda", modifier = Modifier.clearAndSetSemantics {}) }
+            CollectionBackButton("Beranda", onClose)
             Text(
                 "Paling sering diputar",
                 style = MaterialTheme.typography.headlineMedium,

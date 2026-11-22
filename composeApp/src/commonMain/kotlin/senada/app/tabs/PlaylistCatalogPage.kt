@@ -1,41 +1,36 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import senada.app.AdaptiveRow
+import senada.app.CollectionCover
+import senada.app.CollectionHeader
+import senada.app.CollectionKind
+import senada.app.CollectionMenuAction
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.collectionMenuItems
 import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
 import senada.app.shell.CatalogRoute
 import senada.app.shell.SenadaIcons
+import senada.app.youTubePlaylistCollectionMeta
 import senada.catalog.PlaylistDetail
 import senada.catalog.PlaylistSummary
 import senada.catalog.isYouTubeMixPlaylist
@@ -168,111 +163,35 @@ internal fun LazyListScope.playlistDetailScreen(
     val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
     val tracks = detail?.tracks.orEmpty()
     val isMix = isYouTubeMixPlaylist(route.id)
-    val metadata = if (detail != null) {
-        listOfNotNull(
-            detail.owner?.takeIf { it.isNotBlank() },
-            detail.songCountText?.takeIf { it.isNotBlank() }
-                ?: "${tracks.size} lagu".takeIf { tracks.isNotEmpty() },
-        ).joinToString(" · ")
-    } else {
-        route.subtitle.orEmpty()
-    }
 
-    item(key = "playlist-back-${route.id}") {
-        BackLink(previousLabel, onBack)
-    }
     item(key = "playlist-header-${route.id}") {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                CatalogArtwork(
-                    artworkUrl = artworkUrl,
-                    shape = MaterialTheme.shapes.medium,
-                    fallbackIcon = SenadaIcons.Library,
-                    imageSize = 544,
-                    modifier = Modifier.size(160.dp),
-                )
-                Text(
-                    if (isMix) "Mix / Radio" else "Playlist",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    displayTitle,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-                if (metadata.isNotEmpty()) {
-                    Text(
-                        metadata,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        val meta = remember(detail, isMix, route.subtitle) {
+            youTubePlaylistCollectionMeta(detail, isMix = isMix, fallbackSubtitle = route.subtitle)
+        }
+        val menuItems = remember(isMix, saveStatus, tracks.isNotEmpty()) {
+            collectionMenuItems(
+                kind = CollectionKind.YouTubePlaylist(isMix = isMix, saveStatus = saveStatus),
+                hasTracks = tracks.isNotEmpty(),
+            )
+        }
+        CollectionHeader(
+            title = displayTitle,
+            meta = meta,
+            cover = CollectionCover(artworkUrl = artworkUrl, fallbackIcon = SenadaIcons.Library),
+            menuItems = menuItems,
+            onMenuAction = { action ->
+                when (action) {
+                    CollectionMenuAction.EnqueueAll -> actions.enqueueAll(tracks)
+                    CollectionMenuAction.SaveToLibrary -> onSave(displayTitle, tracks)
+                    else -> Unit
                 }
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(
-                        onClick = { actions.playAll(tracks, PlaySource.Playlist(displayTitle)) },
-                        enabled = tracks.isNotEmpty(),
-                        shape = CircleShape,
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Putar playlist $displayTitle"
-                        },
-                    ) {
-                        Icon(
-                            imageVector = SenadaIcons.Play,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Putar", modifier = Modifier.clearAndSetSemantics {})
-                    }
-                    FilledTonalButton(
-                        onClick = { actions.enqueueAll(tracks) },
-                        enabled = tracks.isNotEmpty(),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Tambah semua lagu $displayTitle ke antrean"
-                        },
-                    ) {
-                        Text("Tambah semua", modifier = Modifier.clearAndSetSemantics {})
-                    }
-                    if (!isMix) {
-                        val isSaving = saveStatus is PlaylistSaveStatus.Saving
-                        val isSaved = saveStatus is PlaylistSaveStatus.Saved
-                        OutlinedButton(
-                            onClick = { onSave(displayTitle, tracks) },
-                            enabled = tracks.isNotEmpty() && !isSaving && !isSaved,
-                            shape = CircleShape,
-                            modifier = Modifier.minTouchTarget().semantics {
-                                contentDescription = "Simpan playlist $displayTitle ke Library"
-                            },
-                        ) {
-                            Text(
-                                when {
-                                    isSaving -> "Menyimpan…"
-                                    isSaved -> "Tersimpan"
-                                    else -> "Simpan ke Library"
-                                },
-                                modifier = Modifier.clearAndSetSemantics {},
-                            )
-                        }
-                    }
-                }
+            },
+            canPlay = tracks.isNotEmpty(),
+            onPlay = { actions.playAll(tracks, PlaySource.Playlist(displayTitle), resetShuffle = true) },
+            onShuffle = { actions.playShuffled(tracks, PlaySource.Playlist(displayTitle)) },
+            backLabel = previousLabel,
+            onBack = onBack,
+            footer = {
                 if (isMix) {
                     Text(
                         MIX_SAVE_DISABLED_MESSAGE,
@@ -329,8 +248,8 @@ internal fun LazyListScope.playlistDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-        }
+            },
+        )
     }
 
     if (state.loading && detail == null) {

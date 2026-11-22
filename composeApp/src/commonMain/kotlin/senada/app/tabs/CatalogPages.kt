@@ -58,11 +58,17 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import senada.app.AdaptiveRow
+import senada.app.CollectionCover
+import senada.app.CollectionHeader
+import senada.app.CollectionKind
+import senada.app.CollectionMenuAction
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.albumCollectionMeta
+import senada.app.collectionMenuItems
 import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
 import senada.app.shell.CatalogRoute
@@ -505,6 +511,7 @@ internal fun LazyListScope.catalogDetailScreen(
     onBack: () -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
     onOpenPlaylist: (PlaylistSummary) -> Unit = {},
+    onOpenArtist: (id: String, name: String) -> Unit = { _, _ -> },
     onSavePlaylist: (routeId: String, title: String, tracks: List<Track>) -> Unit = { _, _, _ -> },
     onOpenSavedPlaylist: (String) -> Unit = {},
 ) {
@@ -543,6 +550,7 @@ internal fun LazyListScope.catalogDetailScreen(
                 actions = actions,
                 onBack = onBack,
                 onRetry = state::retry,
+                onOpenArtist = onOpenArtist,
             )
         }
         is CatalogRoute.Playlist -> {
@@ -838,97 +846,41 @@ private fun LazyListScope.albumDetailScreen(
     actions: LibraryActions,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onOpenArtist: (id: String, name: String) -> Unit,
 ) {
     val detail = state.data
     val displayTitle = detail?.title?.takeIf { it.isNotBlank() } ?: route.label
     val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
     val tracks = detail?.tracks.orEmpty()
-    val metadata = if (detail != null) {
-        listOfNotNull(
-            detail.artists.joinToString().takeIf { it.isNotEmpty() },
-            detail.year,
-            "${tracks.size} lagu".takeIf { tracks.isNotEmpty() },
-        ).joinToString(" · ")
-    } else {
-        route.subtitle.orEmpty()
-    }
+    val artistId = detail?.artistId?.takeIf { it.isNotBlank() }
+    val primaryArtist = detail?.artists?.firstOrNull { it.isNotBlank() }.orEmpty()
 
-    item(key = "album-back-${route.id}") {
-        BackLink(previousLabel, onBack)
-    }
     item(key = "album-header-${route.id}") {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                CatalogArtwork(
-                    artworkUrl = artworkUrl,
-                    shape = MaterialTheme.shapes.medium,
-                    fallbackIcon = SenadaIcons.Album,
-                    imageSize = 544,
-                    modifier = Modifier.size(160.dp),
-                )
-                Text(
-                    detail?.typeLabel ?: "Album",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    displayTitle,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-                if (metadata.isNotEmpty()) {
-                    Text(
-                        metadata,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(
-                        onClick = { actions.playAll(tracks, PlaySource.Album(displayTitle)) },
-                        enabled = tracks.isNotEmpty(),
-                        shape = CircleShape,
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Putar album $displayTitle"
-                        },
-                    ) {
-                        Icon(
-                            imageVector = SenadaIcons.Play,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Putar", modifier = Modifier.clearAndSetSemantics {})
-                    }
-                    FilledTonalButton(
-                        onClick = { actions.enqueueAll(tracks) },
-                        enabled = tracks.isNotEmpty(),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Tambah semua lagu $displayTitle ke antrean"
-                        },
-                    ) {
-                        Text("Tambah semua", modifier = Modifier.clearAndSetSemantics {})
-                    }
-                }
-            }
+        val meta = remember(detail, route.subtitle) { albumCollectionMeta(detail, route.subtitle) }
+        val menuItems = remember(artistId != null, tracks.isNotEmpty()) {
+            collectionMenuItems(
+                kind = CollectionKind.Album(hasArtistId = artistId != null),
+                hasTracks = tracks.isNotEmpty(),
+            )
         }
+        CollectionHeader(
+            title = displayTitle,
+            meta = meta,
+            cover = CollectionCover(artworkUrl = artworkUrl, fallbackIcon = SenadaIcons.Album),
+            menuItems = menuItems,
+            onMenuAction = { action ->
+                when (action) {
+                    CollectionMenuAction.EnqueueAll -> actions.enqueueAll(tracks)
+                    CollectionMenuAction.OpenArtist -> artistId?.let { onOpenArtist(it, primaryArtist) }
+                    else -> Unit
+                }
+            },
+            canPlay = tracks.isNotEmpty(),
+            onPlay = { actions.playAll(tracks, PlaySource.Album(displayTitle), resetShuffle = true) },
+            onShuffle = { actions.playShuffled(tracks, PlaySource.Album(displayTitle)) },
+            backLabel = previousLabel,
+            onBack = onBack,
+        )
     }
 
     if (state.loading && detail == null) {

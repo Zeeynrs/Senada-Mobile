@@ -116,11 +116,12 @@ internal fun AppShell(
     val playlistLimit = remember { MutableStateFlow(LIBRARY_PAGE_SIZE) }
     val favorites by remember(library) { favoritesLimit.flatMapLatest(library::favoritesPage) }.collectAsState(emptyList())
     val favoriteTotal by remember(library) { library.favoriteTotal }.collectAsState(0)
+    val favoriteDurationMs by remember(library) { library.favoriteDurationMs }.collectAsState(null)
     val favoriteIds by remember(library) { library.favoriteIds }.collectAsState(emptySet())
     val playlists by library.playlists.collectAsState(emptyList())
     val history by remember(library) { library.history() }.collectAsState(emptyList())
-    val libraryState = remember(favorites, favoriteTotal, favoriteIds, playlists, history) {
-        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history)
+    val libraryState = remember(favorites, favoriteTotal, favoriteDurationMs, favoriteIds, playlists, history) {
+        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history, favoriteDurationMs)
     }
     val hero = if (navigator.destination == AppDestination.Home) {
         remember(library, screenVisible) { library.homeHero() }.collectAsState(HomeHero.Welcome).value
@@ -144,6 +145,7 @@ internal fun AppShell(
         val id = openedPlaylistId ?: return@remember flowOf<Playlist?>(null)
         playlistLimit.flatMapLatest { limit -> library.playlist(id, limit) }
     }.collectAsState(null)
+    var reorderingPlaylist by remember(openedPlaylistId) { mutableStateOf(false) }
     var librarySection by rememberSaveable { mutableStateOf(LibraryFilter.Favorites) }
 
     val search = rememberSearchTabState()
@@ -221,6 +223,9 @@ internal fun AppShell(
                                 playlist.artworkUrl,
                             )
                         },
+                        onOpenArtist = { id, name ->
+                            navigator.openArtist(id, name)
+                        },
                         onSavePlaylist = { routeId, title, tracks ->
                             if (catalogPage.playlistSaves[routeId] !is PlaylistSaveStatus.Saving) {
                                 catalogPage.playlistSaves =
@@ -259,7 +264,7 @@ internal fun AppShell(
                     mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
                     return@LazyColumn
                 }
-                if (navigator.destination != AppDestination.Home) {
+                if (navigator.destination != AppDestination.Home && navigator.openedPlaylistId == null) {
                     item(key = "title-${navigator.destination}") {
                         Text(
                             navigator.destination.label,
@@ -323,6 +328,8 @@ internal fun AppShell(
                         onOpenPlaylist = { id -> if (id == null) navigator.back() else navigator.openPlaylist(id) },
                         onLoadMoreFavorites = { favoritesLimit.value += LIBRARY_PAGE_SIZE },
                         onLoadMorePlaylist = { playlistLimit.value += LIBRARY_PAGE_SIZE },
+                        reorderingPlaylist = reorderingPlaylist,
+                        onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
                     AppDestination.Settings -> settingsTab(appearance, library, playback)
                 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
+import senada.app.CollectionBackButton
 import senada.app.LibraryActions
 import senada.app.SettingsCard
 import senada.app.TrackRow
@@ -70,10 +71,7 @@ internal fun LazyListScope.listeningStatsScreen(
 ) {
     item(key = "listening-header") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(
-                onClick = onClose,
-                modifier = Modifier.minTouchTarget().semantics { contentDescription = "Kembali ke Beranda" },
-            ) { Text("‹ Beranda", modifier = Modifier.clearAndSetSemantics {}) }
+            CollectionBackButton("Beranda", onClose)
             Text(
                 "Statistik dengar",
                 style = MaterialTheme.typography.headlineMedium,
