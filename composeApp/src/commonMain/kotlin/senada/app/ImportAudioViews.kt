@@ -31,17 +31,19 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import senada.app.shell.SenadaIcons
 import senada.local.LocalAudioException
 import senada.local.importedAudioLock
 import senada.local.toTrack
 import senada.model.Track
 
-/** Baris aksi impor satu file audio dari ponsel; lagunya langsung masuk antrean. */
+/** Baris aksi impor satu file audio dari ponsel; lagunya langsung masuk library dan antrean. */
 @Composable
-internal fun ImportAudioButton(onImported: (Track) -> Unit) {
+internal fun ImportAudioButton(onImported: suspend (Track) -> Unit) {
     val importer = rememberAudioImporter()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -66,7 +68,7 @@ internal fun ImportAudioButton(onImported: (Track) -> Unit) {
                                 importedAudioLock.withLock {
                                     importer.import()?.let { audio ->
                                         val track = audio.toTrack()
-                                        onImported(track)
+                                        withContext(NonCancellable) { onImported(track) }
                                         "\"${track.title}\" (${formatSize(audio.sizeBytes)}) ditambahkan ke antrean."
                                     }
                                 }

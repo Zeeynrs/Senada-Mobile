@@ -21,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
 import senada.app.AdaptiveRow
 import senada.app.LibraryActions
 import senada.app.LibraryState
@@ -43,6 +45,7 @@ import senada.app.minTouchTarget
 import senada.app.playlistsTab
 import senada.library.Playlist
 import senada.model.Track
+import senada.platform.importedAudioStorage
 
 /** Pilihan filter di dalam satu tab Library. */
 internal enum class LibraryFilter(val label: String) {
@@ -127,6 +130,9 @@ private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter
 /** Daftar file audio yang diimpor pengguna ke library. */
 private fun LazyListScope.importedTracksTab(library: LibraryState, actions: LibraryActions) {
     item(key = "library-imported") {
+        val context = LocalPlatformContext.current
+        val storage = remember(context) { importedAudioStorage(context) }
+        LaunchedEffect(actions, storage) { actions.syncImportedFiles(storage) }
         val tracks by remember(actions) { actions.localTracks() }.collectAsState(emptyList())
         ImportedTracksContent(tracks, library, actions)
     }

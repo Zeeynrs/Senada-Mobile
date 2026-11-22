@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -50,6 +51,8 @@ import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistSummary
 import senada.library.recordPlaylistPlay
+import senada.local.ImportedAudioStorage
+import senada.local.syncImportedAudio
 import senada.model.Track
 import senada.playback.PlaybackController
 
@@ -75,6 +78,21 @@ internal class LibraryActions(
     private val scope: CoroutineScope,
 ) {
     fun localTracks(): Flow<List<Track>> = library.localTracks()
+
+    /** Menyelaraskan daftar file impor dengan file yang benar-benar masih ada di penyimpanan. */
+    suspend fun syncImportedFiles(storage: ImportedAudioStorage) {
+        try {
+            syncImportedAudio(
+                storage = storage,
+                library = library,
+                queueTracks = { playback.state.value.queue.entries.map { it.track } },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Kegagalan menyinkronkan catatan tidak boleh mengganggu tampilan Library.
+        }
+    }
     fun toggleFavorite(track: Track) = write { library.toggleFavorite(track) }
     fun addToPlaylist(playlistId: String, track: Track) = write { library.addToPlaylist(playlistId, listOf(track)) }
     fun createPlaylist(name: String, tracks: List<Track> = emptyList()) = write { library.createPlaylist(name, tracks) }

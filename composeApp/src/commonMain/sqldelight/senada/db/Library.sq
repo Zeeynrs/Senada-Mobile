@@ -72,25 +72,52 @@ CREATE TABLE search_history (
     searched_at INTEGER NOT NULL
 );
 
+-- File audio yang diimpor pengguna ke penyimpanan aplikasi agar langsung tampil di Library.
+CREATE TABLE imported_track (
+    track_id TEXT NOT NULL PRIMARY KEY,
+    imported_at INTEGER NOT NULL
+);
+
 -- Lagu --
 
 upsertTrack:
 INSERT OR REPLACE INTO track(id, title, artists, duration_ms, artwork_url, source)
 VALUES (?, ?, ?, ?, ?, ?);
 
--- Lagu yang tidak lagi dirujuk favorit, playlist, riwayat atau hitungan putar.
+-- Lagu yang tidak lagi dirujuk favorit, playlist, riwayat, hitungan putar, atau file impor.
 deleteUnusedTracks:
 DELETE FROM track
 WHERE id NOT IN (SELECT track_id FROM favorite)
   AND id NOT IN (SELECT track_id FROM playlist_item)
   AND id NOT IN (SELECT track_id FROM history)
-  AND id NOT IN (SELECT track_id FROM play_event);
+  AND id NOT IN (SELECT track_id FROM play_event)
+  AND id NOT IN (SELECT track_id FROM imported_track);
 
+-- ID lagu lokal yang masih dirujuk favorit, playlist, riwayat, atau hitungan putar.
 localTrackIds:
-SELECT id FROM track WHERE source = 'local' AND id GLOB 'local:*';
+SELECT id FROM track
+WHERE source = 'local' AND id GLOB 'local:*'
+  AND (
+      id IN (SELECT track_id FROM favorite)
+      OR id IN (SELECT track_id FROM playlist_item)
+      OR id IN (SELECT track_id FROM history)
+      OR id IN (SELECT track_id FROM play_event)
+  );
 
 localTracks:
-SELECT * FROM track WHERE source = 'local' ORDER BY title COLLATE NOCASE, id;
+SELECT track.*
+FROM imported_track JOIN track ON track.id = imported_track.track_id
+WHERE track.source = 'local' AND track.id GLOB 'local:*'
+ORDER BY track.title COLLATE NOCASE, track.id;
+
+importedTrackIds:
+SELECT track_id FROM imported_track;
+
+recordImportedTrack:
+INSERT OR REPLACE INTO imported_track(track_id, imported_at) VALUES (?, ?);
+
+removeImportedTrack:
+DELETE FROM imported_track WHERE track_id = ?;
 
 -- Favorit --
 

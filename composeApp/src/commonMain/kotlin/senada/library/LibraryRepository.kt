@@ -22,6 +22,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import senada.db.SenadaDatabase
 import senada.epochMillis
+import senada.local.localFileNameFromId
+import senada.local.localFileNameOf
 import senada.model.Track
 
 data class PlaylistSummary(
@@ -69,9 +71,66 @@ class LibraryRepository internal constructor(
         block(ids)
     }
 
-    /** Lagu dari file audio yang diimpor pengguna dan masih tersimpan di library. */
+    /** Lagu dari file audio yang diimpor pengguna dan masih ada di penyimpanan aplikasi. */
     fun localTracks(): Flow<List<Track>> =
         queries.localTracks(::trackOf).asFlow().mapToList(dispatcher)
+
+    /** Mencatat file audio impor agar langsung tampil di Library sebelum diputar atau difavoritkan. */
+    suspend fun recordImported(track: Track) {
+        if (localFileNameOf(track) == null) return
+        write {
+            upsert(track)
+            queries.recordImportedTrack(track.id, now())
+        }
+    }
+
+    /** Menghapus catatan file impor berdasarkan nama file yang sudah dihapus dari penyimpanan. */
+    internal suspend fun removeImportedFiles(fileNames: Collection<String>) {
+        if (fileNames.isEmpty()) return
+        val targets = fileNames.toSet()
+        write {
+            var removed = false
+            for (id in queries.importedTrackIds().executeAsList()) {
+                val fileName = localFileNameFromId(id)
+                if (fileName == null || fileName in targets) {
+                    queries.removeImportedTrack(id)
+                    removed = true
+                }
+            }
+            if (removed) queries.deleteUnusedTracks()
+        }
+    }
+
+    /**
+     * Menyelaraskan catatan file impor dengan isi folder penyimpanan: file yang sudah tidak ada
+     * dibuang dari daftar, dan lagu lokal di [knownTracks] yang filenya masih ada ikut dicatat
+     * bila belum tersimpan (misalnya setelah pembaruan dari versi sebelumnya).
+     */
+    suspend fun syncImportedFiles(
+        existingFileNames: Set<String>,
+        knownTracks: Collection<Track> = emptyList(),
+    ) {
+        write {
+            val recorded = queries.importedTrackIds().executeAsList().toMutableSet()
+            var removed = false
+            for (id in recorded.toList()) {
+                val fileName = localFileNameFromId(id)
+                if (fileName == null || fileName !in existingFileNames) {
+                    queries.removeImportedTrack(id)
+                    recorded.remove(id)
+                    removed = true
+                }
+            }
+            for (track in knownTracks) {
+                val fileName = localFileNameOf(track) ?: continue
+                if (fileName in existingFileNames && recorded.add(track.id)) {
+                    upsert(track)
+                    queries.recordImportedTrack(track.id, now())
+                }
+            }
+            if (removed) queries.deleteUnusedTracks()
+        }
+    }
 
     // -- Favorit --
 

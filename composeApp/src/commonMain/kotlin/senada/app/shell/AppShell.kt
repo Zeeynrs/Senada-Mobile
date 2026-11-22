@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import coil3.compose.LocalPlatformContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -57,6 +59,7 @@ import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.homeHero
 import senada.library.mostPlayed
+import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
@@ -81,6 +84,11 @@ internal fun AppShell(
     }
     val uiScope = rememberCoroutineScope()
     val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
+    val platformContext = LocalPlatformContext.current
+    val importedStorage = remember(platformContext) { importedAudioStorage(platformContext) }
+    LaunchedEffect(actions, importedStorage) {
+        actions.syncImportedFiles(importedStorage)
+    }
 
     // Daftar panjang dimuat per halaman; menaikkan batas menambah halaman tanpa mengosongkan daftar.
     val favoritesLimit = remember { MutableStateFlow(LIBRARY_PAGE_SIZE) }
@@ -181,7 +189,16 @@ internal fun AppShell(
                         searchHistory = searchHistory,
                         library = libraryState,
                         actions = actions,
-                        onImported = playback::add,
+                        onImported = { track ->
+                            try {
+                                library.recordImported(track)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                // Kegagalan mencatat ke library tidak menghalangi pemutaran di antrean.
+                            }
+                            playback.add(track)
+                        },
                         onRecordSearch = recordSearch,
                         onRemoveSearch = { uiScope.launch { library.removeSearch(it) } },
                         onClearSearches = { uiScope.launch { library.clearSearchHistory() } },
