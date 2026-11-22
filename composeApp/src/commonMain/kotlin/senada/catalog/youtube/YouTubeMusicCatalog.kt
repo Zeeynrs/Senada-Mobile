@@ -7,6 +7,8 @@ import senada.catalog.AlbumPage
 import senada.catalog.ArtistDetail
 import senada.catalog.ArtistPage
 import senada.catalog.CatalogBrowser
+import senada.catalog.PlaylistDetail
+import senada.catalog.PlaylistPage
 import senada.catalog.TrackPage
 import senada.model.Track
 
@@ -40,11 +42,17 @@ internal class YouTubeMusicCatalog(private val innertube: InnertubeClient) : Cat
         return parseAlbumSearchPage(innertube.search(trimmed, InnertubeClient.ALBUMS_FILTER))
     }
 
+    override suspend fun searchPlaylists(query: String, pageToken: String?): PlaylistPage =
+        searchYouTubePlaylists(innertube, query, pageToken)
+
     override suspend fun artist(id: String): ArtistDetail =
         parseArtistPage(id, innertube.browse(id))
 
     override suspend fun album(id: String): AlbumDetail =
         parseAlbumPage(id, innertube.browse(id))
+
+    override suspend fun playlist(id: String): PlaylistDetail =
+        YouTubeMusicPlaylists(innertube).fetchPlaylistDetail(id)
 }
 
 /** Membaca halaman pertama pencarian lagu atau halaman lanjutannya. */

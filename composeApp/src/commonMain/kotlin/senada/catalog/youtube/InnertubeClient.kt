@@ -78,6 +78,15 @@ internal class InnertubeClient(
         WEB_REMIX,
         buildJsonObject { put("continuation", token) },
     )
+
+    suspend fun nextPlaylist(playlistId: String): JsonObject = post(
+        "$MUSIC_API/next",
+        WEB_REMIX,
+        buildJsonObject {
+            put("playlistId", playlistId)
+            put("isAudioOnly", true)
+        },
+    )
     suspend fun player(videoId: String): JsonObject {
         // Tanpa visitorData, banyak lagu dijawab LOGIN_REQUIRED.
         if (visitorData == null) {
@@ -171,6 +180,12 @@ internal class InnertubeClient(
 
         /** Filter tab "Album" di pencarian YouTube Music. */
         internal const val ALBUMS_FILTER = "EgWKAQIYAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
+
+        /** Filter tab "Playlist unggulan" milik YouTube Music. */
+        internal const val FEATURED_PLAYLISTS_FILTER = "EgeKAQQoADgBahAQAxAEEAkQChAFEBEQEBAV"
+
+        /** Filter tab "Playlist komunitas" di YouTube Music. */
+        internal const val COMMUNITY_PLAYLISTS_FILTER = "EgeKAQQoAEABahAQAxAEEAkQChAFEBEQEBAV"
 
         /** Filter tab "Video" di pencarian YouTube Music (cadangan pencocokan). */
         private const val VIDEOS_FILTER = "EgWKAQIQAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
