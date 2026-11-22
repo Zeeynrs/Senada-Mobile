@@ -74,6 +74,9 @@ import senada.catalog.ArtistDetail
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogBrowser
 import senada.catalog.CatalogException
+import senada.catalog.PlaylistDetail
+import senada.catalog.PlaylistImportException
+import senada.catalog.PlaylistSummary
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
 
@@ -82,6 +85,7 @@ internal enum class SearchFilter(val label: String) {
     Songs("Lagu"),
     Artists("Artis"),
     Albums("Album"),
+    Playlists("Playlist"),
 }
 
 /** Hasil pencarian artis di YouTube Music. */
@@ -97,6 +101,15 @@ internal data class ArtistSearchState(
 internal data class AlbumSearchState(
     val query: String = "",
     val items: List<AlbumSummary> = emptyList(),
+    val nextPageToken: String? = null,
+    val loading: Boolean = false,
+    val error: String? = null,
+)
+
+/** Hasil pencarian playlist di YouTube Music. */
+internal data class PlaylistSearchState(
+    val query: String = "",
+    val items: List<PlaylistSummary> = emptyList(),
     val nextPageToken: String? = null,
     val loading: Boolean = false,
     val error: String? = null,
@@ -136,6 +149,24 @@ internal suspend fun loadAlbumSearchPage(
     throw e
 } catch (e: Exception) {
     current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian album gagal. Coba lagi.")
+}
+
+/** Memuat halaman pencarian playlist; saat gagal, hasil dan token tetap disimpan untuk coba lagi. */
+internal suspend fun loadPlaylistSearchPage(
+    current: PlaylistSearchState,
+    catalog: CatalogBrowser = SenadaSources.youTubeMusic,
+): PlaylistSearchState = try {
+    val page = catalog.searchPlaylists(current.query, current.nextPageToken)
+    current.copy(
+        items = (current.items + page.items).distinctBy { it.id },
+        nextPageToken = page.nextPageToken,
+        loading = false,
+        error = null,
+    )
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian playlist gagal. Coba lagi.")
 }
 
 /** Deret chip filter pil di tab Cari yang dapat digeser mendatar agar aman pada skala font besar. */
@@ -324,16 +355,18 @@ internal data class CatalogLoadState<T>(
     val error: String? = null,
 )
 
-/** Menyimpan halaman artis dan album yang baru dibuka agar navigasi kembali tampil instan. */
+/** Menyimpan halaman artis, album, dan playlist yang baru dibuka agar navigasi kembali tampil instan. */
 internal class CatalogDetailStore(
     private val catalog: CatalogBrowser = SenadaSources.youTubeMusic,
     private val maxEntries: Int = 20,
 ) {
     private val artists = mutableMapOf<String, ArtistDetail>()
     private val albums = mutableMapOf<String, AlbumDetail>()
+    private val playlists = mutableMapOf<String, PlaylistDetail>()
 
     fun cachedArtist(id: String): ArtistDetail? = artists[id]
     fun cachedAlbum(id: String): AlbumDetail? = albums[id]
+    fun cachedPlaylist(id: String): PlaylistDetail? = playlists[id]
 
     suspend fun loadArtist(id: String): CatalogLoadState<ArtistDetail> {
         artists[id]?.let { return CatalogLoadState(routeId = id, data = it) }
@@ -367,6 +400,24 @@ internal class CatalogDetailStore(
         }
     }
 
+    suspend fun loadPlaylist(id: String): CatalogLoadState<PlaylistDetail> {
+        playlists[id]?.let { return CatalogLoadState(routeId = id, data = it) }
+        return try {
+            val detail = catalog.playlist(id)
+            putBounded(playlists, id, detail)
+            CatalogLoadState(routeId = id, data = detail)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CatalogLoadState(
+                routeId = id,
+                error = (e as? CatalogException)?.userMessage
+                    ?: (e as? PlaylistImportException)?.userMessage
+                    ?: "Halaman playlist gagal dimuat. Coba lagi.",
+            )
+        }
+    }
+
     private fun <T> putBounded(map: MutableMap<String, T>, key: String, value: T) {
         map.remove(key)
         map[key] = value
@@ -377,11 +428,15 @@ internal class CatalogDetailStore(
     }
 }
 
-/** State Compose untuk halaman detail artis atau album yang sedang dibuka. */
+/** State Compose untuk halaman detail artis, album, atau playlist yang sedang dibuka. */
 internal class CatalogPageState {
     var artist by mutableStateOf(CatalogLoadState<ArtistDetail>())
         internal set
     var album by mutableStateOf(CatalogLoadState<AlbumDetail>())
+        internal set
+    var playlist by mutableStateOf(CatalogLoadState<PlaylistDetail>())
+        internal set
+    var playlistSaves by mutableStateOf<Map<String, PlaylistSaveStatus>>(emptyMap())
         internal set
     var attempt by mutableStateOf(0)
         internal set
@@ -399,9 +454,12 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
             null -> {
                 state.artist = CatalogLoadState()
                 state.album = CatalogLoadState()
+                state.playlist = CatalogLoadState()
+                state.playlistSaves = emptyMap()
             }
             is CatalogRoute.Artist -> {
                 state.album = CatalogLoadState()
+                state.playlist = CatalogLoadState()
                 val cached = store.cachedArtist(route.id)
                 if (cached != null) {
                     state.artist = CatalogLoadState(routeId = route.id, data = cached)
@@ -412,6 +470,7 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
             }
             is CatalogRoute.Album -> {
                 state.artist = CatalogLoadState()
+                state.playlist = CatalogLoadState()
                 val cached = store.cachedAlbum(route.id)
                 if (cached != null) {
                     state.album = CatalogLoadState(routeId = route.id, data = cached)
@@ -420,12 +479,23 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
                     state.album = store.loadAlbum(route.id)
                 }
             }
+            is CatalogRoute.Playlist -> {
+                state.artist = CatalogLoadState()
+                state.album = CatalogLoadState()
+                val cached = store.cachedPlaylist(route.id)
+                if (cached != null) {
+                    state.playlist = CatalogLoadState(routeId = route.id, data = cached)
+                } else {
+                    state.playlist = CatalogLoadState(routeId = route.id, loading = true)
+                    state.playlist = store.loadPlaylist(route.id)
+                }
+            }
         }
     }
     return state
 }
 
-/** Merender halaman detail artis atau album di dalam LazyColumn utama aplikasi. */
+/** Merender halaman detail artis, album, atau playlist di dalam LazyColumn utama aplikasi. */
 internal fun LazyListScope.catalogDetailScreen(
     route: CatalogRoute,
     state: CatalogPageState,
@@ -435,6 +505,8 @@ internal fun LazyListScope.catalogDetailScreen(
     actions: LibraryActions,
     onBack: () -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
+    onSavePlaylist: (routeId: String, title: String, tracks: List<Track>) -> Unit = { _, _, _ -> },
+    onOpenSavedPlaylist: (String) -> Unit = {},
 ) {
     when (route) {
         is CatalogRoute.Artist -> {
@@ -465,6 +537,26 @@ internal fun LazyListScope.catalogDetailScreen(
             albumDetailScreen(
                 route = route,
                 state = current,
+                previousLabel = previousLabel,
+                library = library,
+                actions = actions,
+                onBack = onBack,
+                onRetry = state::retry,
+            )
+        }
+        is CatalogRoute.Playlist -> {
+            val current = if (state.playlist.routeId == route.id) {
+                state.playlist
+            } else {
+                val cached = store.cachedPlaylist(route.id)
+                CatalogLoadState(routeId = route.id, data = cached, loading = cached == null)
+            }
+            playlistDetailScreen(
+                route = route,
+                state = current,
+                saveStatus = state.playlistSaves[route.id],
+                onSave = { title, tracks -> onSavePlaylist(route.id, title, tracks) },
+                onOpenSavedPlaylist = onOpenSavedPlaylist,
                 previousLabel = previousLabel,
                 library = library,
                 actions = actions,
@@ -748,7 +840,7 @@ private fun LazyListScope.albumDetailScreen(
 }
 
 @Composable
-private fun BackLink(previousLabel: String, onBack: () -> Unit) {
+internal fun BackLink(previousLabel: String, onBack: () -> Unit) {
     TextButton(
         onClick = onBack,
         modifier = Modifier.minTouchTarget().semantics {
@@ -765,7 +857,7 @@ private fun BackLink(previousLabel: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun CatalogTrackRow(
+internal fun CatalogTrackRow(
     track: Track,
     favorite: Boolean,
     trackNumber: Int? = null,
@@ -796,7 +888,7 @@ private fun CatalogTrackRow(
 }
 
 @Composable
-private fun CatalogSummaryRow(
+internal fun CatalogSummaryRow(
     title: String,
     subtitle: String?,
     artworkUrl: String?,
@@ -905,7 +997,7 @@ private fun ReleaseCard(album: AlbumSummary, onClick: () -> Unit) {
 }
 
 @Composable
-private fun CatalogArtwork(
+internal fun CatalogArtwork(
     artworkUrl: String?,
     shape: Shape,
     fallbackIcon: ImageVector,
@@ -934,7 +1026,7 @@ private fun CatalogArtwork(
 }
 
 @Composable
-private fun CatalogErrorCard(message: String, onRetry: () -> Unit) {
+internal fun CatalogErrorCard(message: String, onRetry: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -959,7 +1051,7 @@ private fun CatalogErrorCard(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun PoliteStatusText(text: String) {
+internal fun PoliteStatusText(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodyMedium,

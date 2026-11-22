@@ -61,6 +61,27 @@ internal class NoMatchedTracksException(
     "Tidak ada lagu dari \"$playlistName\" yang berhasil dicocokkan di YouTube Music.",
 )
 
+/** Ringkasan playlist lokal yang baru disimpan. */
+internal data class SavedLocalPlaylist(
+    val id: String,
+    val name: String,
+    val trackCount: Int,
+)
+
+/** Menyimpan playlist ke library lokal dengan akhiran `(2)`, `(3)`, dst. bila nama sudah dipakai. */
+internal suspend fun savePlaylistWithUniqueName(
+    library: LibraryRepository,
+    rawName: String,
+    tracks: List<Track>,
+): SavedLocalPlaylist {
+    val existingLowerNames = library.playlists.first()
+        .map { it.name.trim().lowercase() }
+        .toSet()
+    val uniqueName = uniquePlaylistName(rawName, existingLowerNames)
+    val playlistId = library.createPlaylist(uniqueName, tracks)
+    return SavedLocalPlaylist(id = playlistId, name = uniqueName, trackCount = tracks.size)
+}
+
 /**
  * Mengimpor playlist publik dari YouTube Music atau Spotify menjadi playlist lokal Senada.
  * Untuk Spotify, setiap lagu dicocokkan ke YouTube Music dengan konkurensi terbatas.
@@ -203,15 +224,11 @@ internal class PlaylistImporter(
         onProgress: (PlaylistImportProgress) -> Unit,
     ): PlaylistImportSummary {
         onProgress(PlaylistImportProgress.Saving)
-        val existingLowerNames = library.playlists.first()
-            .map { it.name.trim().lowercase() }
-            .toSet()
-        val uniqueName = uniquePlaylistName(rawName, existingLowerNames)
-        val playlistId = library.createPlaylist(uniqueName, tracks)
+        val saved = savePlaylistWithUniqueName(library, rawName, tracks)
         return PlaylistImportSummary(
-            playlistId = playlistId,
-            playlistName = uniqueName,
-            addedCount = tracks.size,
+            playlistId = saved.id,
+            playlistName = saved.name,
+            addedCount = saved.trackCount,
             skippedTracks = skipped,
             partialNote = partialNote,
         )

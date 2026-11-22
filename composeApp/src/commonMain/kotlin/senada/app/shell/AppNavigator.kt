@@ -16,7 +16,7 @@ internal enum class AppDestination(val label: String) {
     Settings("Pengaturan"),
 }
 
-/** Rute halaman katalog di atas tab (artis atau album), disusun sebagai tumpukan kembali. */
+/** Rute halaman katalog di atas tab (artis, album, atau playlist), disusun sebagai tumpukan kembali. */
 internal sealed interface CatalogRoute {
     val id: String
     val label: String
@@ -37,6 +37,15 @@ internal sealed interface CatalogRoute {
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
         override val label: String get() = title.ifBlank { "Album" }
+    }
+
+    data class Playlist(
+        override val id: String,
+        val title: String,
+        val subtitle: String? = null,
+        override val artworkUrl: String? = null,
+    ) : CatalogRoute {
+        override val label: String get() = title.ifBlank { "Playlist" }
     }
 }
 
@@ -113,6 +122,14 @@ internal class AppNavigator(
         catalogStack = catalogStack + CatalogRoute.Album(cleanId, title, subtitle, artworkUrl)
     }
 
+    fun openCatalogPlaylist(id: String, title: String = "", subtitle: String? = null, artworkUrl: String? = null) {
+        val cleanId = id.trim().removePrefix("VL")
+        if (cleanId.isEmpty()) return
+        val top = catalogStack.lastOrNull()
+        if (top is CatalogRoute.Playlist && top.id == cleanId) return
+        catalogStack = catalogStack + CatalogRoute.Playlist(cleanId, title, subtitle, artworkUrl)
+    }
+
     /** Menutup lapisan paling atas: Sedang diputar, Paling sering diputar, halaman artis/album, detail playlist, lalu Beranda. */
     fun back(): Boolean {
         when {
@@ -153,6 +170,13 @@ internal class AppNavigator(
                                 add(route.subtitle)
                                 add(route.artworkUrl)
                             }
+                            is CatalogRoute.Playlist -> {
+                                add("playlist")
+                                add(route.id)
+                                add(route.title)
+                                add(route.subtitle)
+                                add(route.artworkUrl)
+                            }
                         }
                     }
                 }
@@ -170,6 +194,7 @@ internal class AppNavigator(
                             when (kind) {
                                 "artist" -> add(CatalogRoute.Artist(id, label, artwork))
                                 "album" -> add(CatalogRoute.Album(id, label, subtitle, artwork))
+                                "playlist" -> add(CatalogRoute.Playlist(id, label, subtitle, artwork))
                             }
                         }
                         i += ROUTE_FIELDS
