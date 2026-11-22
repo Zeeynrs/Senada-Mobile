@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -121,22 +122,26 @@ internal fun AppShell(
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
     val miniPlayerVisible = showsMiniPlayer(state)
+    val imeInsets = WindowInsets.ime
+    val density = LocalDensity.current
+    val imeVisible = imeInsets.getBottom(density) > 0
     // Tinggi bilah bawah diukur, bukan ditebak: dengan font besar mini player dan navigasi ikut membesar,
     // dan baris terakhir tetap harus bisa digulir ke atasnya.
-    val density = LocalDensity.current
     var overlayHeight by remember { mutableStateOf(0.dp) }
+    val bottomPadding = if (imeVisible) BelowContentGap else overlayHeight + BelowContentGap
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = key(navigator.destination, navigator.mostPlayedOpen) { rememberLazyListState() },
                 modifier = Modifier
                     .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                    .windowInsetsPadding(imeInsets),
                 contentPadding = PaddingValues(
                     start = 20.dp,
                     end = 20.dp,
                     top = 16.dp,
-                    bottom = overlayHeight + BelowContentGap,
+                    bottom = bottomPadding,
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -195,23 +200,25 @@ internal fun AppShell(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (miniPlayerVisible) {
-                    MiniPlayer(
-                        state = state,
-                        onOpen = navigator::openNowPlaying,
-                        onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
-                        onNext = playback::next,
-                    )
+            if (!imeVisible) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (miniPlayerVisible) {
+                        MiniPlayer(
+                            state = state,
+                            onOpen = navigator::openNowPlaying,
+                            onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
+                            onNext = playback::next,
+                        )
+                    }
+                    FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
                 }
-                FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
             }
 
             if (navigator.nowPlayingOpen) {
