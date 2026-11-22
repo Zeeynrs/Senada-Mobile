@@ -46,10 +46,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import senada.app.AdaptiveRow
 import senada.app.LibraryActions
 import senada.app.LibraryState
@@ -86,6 +89,7 @@ internal class DiscoverController(
     private val scope: CoroutineScope,
     private val now: () -> Long = ::epochMillis,
     private val ttlMs: Long = DISCOVER_TTL_MS,
+    private val workContext: CoroutineContext = Dispatchers.Default,
 ) {
     var state by mutableStateOf(DiscoverUiState())
         private set
@@ -113,7 +117,10 @@ internal class DiscoverController(
         state = state.copy(loading = true, error = null, deferredByDataSaver = false)
         job = scope.launch {
             try {
-                val loaded = buildDiscoverRecommendations(seeds = seeds, source = source, saveData = saveData)
+                // Parsing respons Innertube berjalan di luar thread UI agar guliran dan input tetap mulus.
+                val loaded = withContext(workContext) {
+                    buildDiscoverRecommendations(seeds = seeds, source = source, saveData = saveData)
+                }
                 lastLoadedAtMs = now()
                 lastSeeds = seeds
                 lastSaveData = saveData
