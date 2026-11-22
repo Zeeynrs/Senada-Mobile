@@ -59,6 +59,7 @@ internal class AppNavigator(
     openedPlaylistId: String? = null,
     mostPlayedOpen: Boolean = false,
     catalogStack: List<CatalogRoute> = emptyList(),
+    listeningStatsOpen: Boolean = false,
 ) {
     var destination by mutableStateOf(destination)
         private set
@@ -70,17 +71,20 @@ internal class AppNavigator(
         private set
     var catalogStack by mutableStateOf(catalogStack)
         private set
+    var listeningStatsOpen by mutableStateOf(listeningStatsOpen)
+        private set
 
     val currentCatalogRoute: CatalogRoute?
         get() = catalogStack.lastOrNull()
 
     /** Label layar sebelum rute katalog teratas, dipakai untuk tombol kembali. */
     fun previousCatalogLabel(): String =
-        catalogStack.dropLast(1).lastOrNull()?.label ?: destination.label
+        catalogStack.dropLast(1).lastOrNull()?.label ?: if (listeningStatsOpen) "Statistik dengar" else destination.label
 
     /** Benar bila tombol kembali masih punya sesuatu untuk ditutup sebelum keluar aplikasi. */
     val canGoBack: Boolean
-        get() = nowPlayingOpen || mostPlayedOpen || catalogStack.isNotEmpty() || openedPlaylistId != null || destination != AppDestination.Home
+        get() = nowPlayingOpen || mostPlayedOpen || listeningStatsOpen || catalogStack.isNotEmpty() ||
+            openedPlaylistId != null || destination != AppDestination.Home
 
     /** Pindah tab menutup layar detail tab sebelumnya. */
     fun select(destination: AppDestination) {
@@ -88,6 +92,7 @@ internal class AppNavigator(
         openedPlaylistId = null
         mostPlayedOpen = false
         catalogStack = emptyList()
+        listeningStatsOpen = false
     }
 
     fun openNowPlaying() {
@@ -103,6 +108,7 @@ internal class AppNavigator(
     }
 
     fun openMostPlayed() {
+        listeningStatsOpen = false
         mostPlayedOpen = true
     }
 
@@ -130,12 +136,18 @@ internal class AppNavigator(
         catalogStack = catalogStack + CatalogRoute.Playlist(cleanId, title, subtitle, artworkUrl)
     }
 
-    /** Menutup lapisan paling atas: Sedang diputar, Paling sering diputar, halaman artis/album, detail playlist, lalu Beranda. */
+    fun openListeningStats() {
+        mostPlayedOpen = false
+        listeningStatsOpen = true
+    }
+
+    /** Menutup lapisan paling atas: Sedang diputar, detail tab, lalu kembali ke Beranda. */
     fun back(): Boolean {
         when {
             nowPlayingOpen -> nowPlayingOpen = false
             mostPlayedOpen -> mostPlayedOpen = false
             catalogStack.isNotEmpty() -> catalogStack = catalogStack.dropLast(1)
+            listeningStatsOpen -> listeningStatsOpen = false
             openedPlaylistId != null -> openedPlaylistId = null
             destination != AppDestination.Home -> destination = AppDestination.Home
             else -> return false
@@ -179,6 +191,8 @@ internal class AppNavigator(
                             }
                         }
                     }
+                    // Simpan penanda setelah blok rute agar susunan rute lama tetap bisa dipulihkan.
+                    add(nav.listeningStatsOpen)
                 }
             },
             restore = { saved ->
@@ -206,6 +220,7 @@ internal class AppNavigator(
                     openedPlaylistId = saved[2] as String?,
                     mostPlayedOpen = saved[3] as Boolean,
                     catalogStack = routes,
+                    listeningStatsOpen = saved.size > BASE_FIELDS && saved.lastOrNull() == true,
                 )
             },
         )

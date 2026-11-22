@@ -54,6 +54,7 @@ import senada.app.tabs.PlaylistSaveStatus
 import senada.app.tabs.catalogDetailScreen
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
+import senada.app.tabs.listeningStatsScreen
 import senada.app.tabs.mostPlayedScreen
 import senada.app.tabs.rememberCatalogPageState
 import senada.app.tabs.rememberSearchTabState
@@ -61,8 +62,10 @@ import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
 import senada.library.HomeHero
 import senada.library.LibraryRepository
+import senada.library.ListenPeriod
 import senada.library.Playlist
 import senada.library.homeHero
+import senada.library.listeningStats
 import senada.library.mostPlayed
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
@@ -116,6 +119,12 @@ internal fun AppShell(
     } else {
         emptyList()
     }
+    var listenPeriod by rememberSaveable { mutableStateOf(ListenPeriod.Month) }
+    val listeningSummary = if (navigator.listeningStatsOpen) {
+        key(listenPeriod) {
+            remember(library, screenVisible) { library.listeningStats(listenPeriod) }.collectAsState(null).value
+        }
+    } else null
     val openedPlaylistId = navigator.openedPlaylistId
     val openedPlaylist by remember(openedPlaylistId) {
         playlistLimit.value = LIBRARY_PAGE_SIZE
@@ -148,7 +157,9 @@ internal fun AppShell(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
-                state = key(navigator.destination, navigator.mostPlayedOpen, currentCatalogRoute) { rememberLazyListState() },
+                state = key(navigator.destination, navigator.mostPlayedOpen, currentCatalogRoute, navigator.listeningStatsOpen) {
+                    rememberLazyListState()
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
@@ -205,6 +216,12 @@ internal fun AppShell(
                     )
                     return@LazyColumn
                 }
+                if (navigator.listeningStatsOpen) {
+                    listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions, { listenPeriod = it }) {
+                        navigator.back()
+                    }
+                    return@LazyColumn
+                }
                 if (navigator.destination != AppDestination.Home) {
                     item(key = "title-${navigator.destination}") {
                         Text(
@@ -231,6 +248,7 @@ internal fun AppShell(
                             navigator.openPlaylist(id)
                         },
                         onOpenMostPlayed = navigator::openMostPlayed,
+                        onOpenListeningStats = navigator::openListeningStats,
                     )
                     AppDestination.Search -> searchTab(
                         tab = search,

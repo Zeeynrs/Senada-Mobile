@@ -51,6 +51,7 @@ internal fun LazyListScope.homeTab(
     onOpenFavorites: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onOpenMostPlayed: () -> Unit,
+    onOpenListeningStats: () -> Unit,
 ) {
     item(key = "home-hero") {
         HomeHeroCard(
@@ -72,6 +73,7 @@ internal fun LazyListScope.homeTab(
             },
         )
     }
+    item(key = "home-listening-stats") { ListeningStatsEntry(onOpenListeningStats) }
     item(key = "home-recent-title") { HomeSectionTitle("Baru diputar") }
     item(key = "home-recent") {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
