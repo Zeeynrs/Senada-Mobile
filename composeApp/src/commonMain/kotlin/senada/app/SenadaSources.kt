@@ -2,7 +2,7 @@ package senada.app
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
-import senada.catalog.CatalogRepository
+import senada.catalog.CatalogBrowser
 import senada.catalog.StreamResolver
 import senada.catalog.youtube.InnertubeClient
 import senada.catalog.youtube.YouTubeMusicCatalog
@@ -23,7 +23,7 @@ internal object SenadaSources {
     }
     private val innertube by lazy { InnertubeClient(http) }
 
-    val youTubeMusic: CatalogRepository by lazy { YouTubeMusicCatalog(innertube) }
+    val youTubeMusic: CatalogBrowser by lazy { YouTubeMusicCatalog(innertube) }
     val streams: StreamResolver by lazy { YouTubeMusicResolver(innertube) }
     val lyrics by lazy { LyricsRepository(http) }
 }
