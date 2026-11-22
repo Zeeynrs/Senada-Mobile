@@ -12,9 +12,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,11 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,29 +33,8 @@ import senada.app.SettingsCard
 import senada.app.TrackRow
 import senada.app.accessibleAccent
 import senada.app.minTouchTarget
-import senada.app.shell.SenadaIcons
 import senada.library.ListenPeriod
 import senada.library.ListeningSummary
-
-@Composable
-internal fun ListeningStatsEntry(onOpen: () -> Unit) {
-    Surface(
-        onClick = onOpen,
-        modifier = Modifier.fillMaxWidth().minTouchTarget().semantics { role = Role.Button },
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(SenadaIcons.Clock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Statistik dengar", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            Icon(SenadaIcons.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 internal fun LazyListScope.listeningStatsScreen(
     summary: ListeningSummary?,
