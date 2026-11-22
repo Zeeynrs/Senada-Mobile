@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,21 +24,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
-import senada.app.AdaptiveRow
+import senada.app.CollectionPlayButtons
+import senada.app.CompactCollectionHeader
 import senada.app.ImportAudioButton
+import senada.app.ImportAudioStatusMessage
 import senada.app.LibraryActions
+import senada.app.LibraryEmptyState
 import senada.app.LibraryState
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.collectionMeta
 import senada.app.favoritesTab
 import senada.app.historyTab
 import senada.app.minTouchTarget
 import senada.app.playlistsTab
+import senada.app.rememberAudioImportController
+import senada.app.sumKnownDurationMs
 import senada.library.Playlist
 import senada.model.Track
 import senada.platform.importedAudioStorage
@@ -62,6 +66,7 @@ internal fun LazyListScope.libraryTab(
     onOpenPlaylist: (String?) -> Unit,
     onLoadMoreFavorites: () -> Unit,
     onLoadMorePlaylist: () -> Unit,
+    onOpenSearch: () -> Unit = {},
     reorderingPlaylist: Boolean = false,
     onToggleReorderPlaylist: () -> Unit = {},
 ) {
@@ -76,17 +81,18 @@ internal fun LazyListScope.libraryTab(
         }
     }
     when (section) {
-        LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites)
+        LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites, onOpenSearch)
         LibraryFilter.Playlists -> playlistsTab(
             library = library,
             opened = openedPlaylist,
             actions = actions,
             onOpen = onOpenPlaylist,
             onLoadMore = onLoadMorePlaylist,
+            onOpenSearch = onOpenSearch,
             reordering = reorderingPlaylist,
             onToggleReorder = onToggleReorderPlaylist,
         )
-        LibraryFilter.History -> historyTab(library, actions)
+        LibraryFilter.History -> historyTab(library, actions, onOpenSearch)
         LibraryFilter.Imported -> importedTracksTab(library, actions)
     }
 }
@@ -146,41 +152,37 @@ private fun ImportedTracksContent(
     library: LibraryState,
     actions: LibraryActions,
 ) {
-    val title = if (tracks.isNotEmpty()) "File impor (${tracks.size})" else "File impor"
+    val importController = rememberAudioImportController(onImported = actions::addImportedTrack)
+    val meta = remember(tracks) {
+        collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AdaptiveRow(
-            modifier = Modifier.fillMaxWidth(),
-            minPrimaryWidth = 140.dp,
-            primary = {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-            },
-            trailing = {
-                if (tracks.isNotEmpty()) {
-                    TextButton(
-                        onClick = { actions.playAll(tracks) },
-                        modifier = Modifier.minTouchTarget(),
-                    ) { Text("Putar semua") }
-                }
-            },
-        )
-        ImportAudioButton(onImported = actions::addImportedTrack)
-        if (tracks.isEmpty()) {
-            Text(
-                "Belum ada file audio. Impor lagu dari penyimpanan ponsel.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        CompactCollectionHeader(
+            title = "File impor",
+            meta = meta,
+        ) {
+            CollectionPlayButtons(
+                title = "File impor",
+                canPlay = tracks.isNotEmpty(),
+                onPlay = { actions.playImportedTracks(tracks) },
+                onShuffle = { actions.shuffleImportedTracks(tracks) },
             )
+        }
+        if (tracks.isEmpty()) {
+            LibraryEmptyState(
+                message = "Belum ada file audio impor.",
+                actionLabel = if (importController.busy) "Menyalin file…" else "Impor file audio",
+                actionEnabled = !importController.busy,
+                onAction = importController::launchImport,
+            )
+            importController.message?.let { ImportAudioStatusMessage(it) }
         } else {
+            ImportAudioButton(controller = importController)
             for ((index, track) in tracks.withIndex()) {
                 TrackRow(
                     track = track,
                     favorite = track.id in library.favoriteIds,
-                    onClick = { actions.playAll(tracks, startIndex = index) },
+                    onClick = { actions.playImportedTracks(tracks, startIndex = index) },
                 ) {
                     TrackMenu(track, library, actions)
                 }
