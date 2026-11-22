@@ -204,10 +204,107 @@ class LibraryRepositoryTest {
     fun localTracksListsOnlyImportedSongs() = runTest {
         val library = library()
         val imported = duet.copy(id = "local:rekaman.m4a", title = "Rekaman", artworkUrl = null, source = "local")
+        val wrongPrefix = duet.copy(id = "LOCAL:salah.m4a", title = "Salah", artworkUrl = null, source = "local")
         library.setFavorite(track(1), true)
-        library.setFavorite(imported, true)
+        library.recordImported(track(2))
+        library.recordImported(wrongPrefix)
+        library.recordImported(imported)
 
         assertEquals(listOf(imported), library.localTracks().first())
+    }
+
+    @Test
+    fun importedTrackAppearsBeforeBeingPlayedAndSurvivesCleanupAndRestart() = runTest {
+        val library = library()
+        val imported = Track(
+            id = "local:latihan.m4a",
+            title = "Rekaman Latihan",
+            artists = listOf("Senada"),
+            durationMs = 123_456L,
+            artworkUrl = null,
+            source = "local",
+        )
+
+        library.recordImported(imported)
+        assertEquals(listOf(imported), library.localTracks().first())
+
+        // Pembersihan lagu tak terpakai tidak boleh menghapus file impor yang belum pernah diputar.
+        library.setFavorite(track(1), true)
+        library.setFavorite(track(1), false)
+        assertEquals(listOf(imported), library.localTracks().first())
+
+        // Tetap tampil dengan metadatanya setelah repository dibuka ulang seperti saat aplikasi dimulai ulang.
+        assertEquals(listOf(imported), library().localTracks().first())
+    }
+
+    @Test
+    fun deletedImportedFileIsNoLongerListed() = runTest {
+        val library = library()
+        val first = duet.copy(id = "local:pertama.m4a", title = "Pertama", artworkUrl = null, source = "local")
+        val second = duet.copy(id = "local:kedua.mp3", title = "Kedua", artworkUrl = null, source = "local")
+        library.recordImported(first)
+        library.recordImported(second)
+        library.setFavorite(first, true)
+
+        library.syncImportedFiles(setOf("kedua.mp3"))
+
+        assertEquals(listOf(second), library.localTracks().first())
+        assertEquals(listOf(first), library.favorites.first())
+
+        library.syncImportedFiles(emptySet())
+        assertEquals(emptyList(), library.localTracks().first())
+
+        library.setFavorite(first, false)
+        assertEquals(0L, trackRows())
+    }
+
+    @Test
+    fun importedOnlyTrackDoesNotBlockUnusedFileCleanup() = runTest {
+        val library = library()
+        val importedOnly = duet.copy(id = "local:sementara.mp3", title = "Sementara", artworkUrl = null, source = "local")
+        val favorited = duet.copy(id = "local:favorit.mp3", title = "Favorit", artworkUrl = null, source = "local")
+        library.recordImported(importedOnly)
+        library.recordImported(favorited)
+        library.setFavorite(favorited, true)
+
+        assertEquals(setOf("local:favorit.mp3"), library.withLocalTrackIds { it.toSet() })
+
+        library.setFavorite(favorited, false)
+        assertEquals(emptySet(), library.withLocalTrackIds { it.toSet() })
+        assertEquals(listOf(favorited, importedOnly), library.localTracks().first())
+    }
+
+    @Test
+    fun syncImportedFilesRecordsExistingQueuedLocalTracksAndSkipsCatalogSongs() = runTest {
+        val library = library()
+        val queued = duet.copy(id = "local:antrean.m4a", title = "Antrean", artworkUrl = null, source = "local")
+        val missing = duet.copy(id = "local:hilang.m4a", title = "Hilang", artworkUrl = null, source = "local")
+
+        library.syncImportedFiles(
+            existingFileNames = setOf("antrean.m4a"),
+            knownTracks = listOf(queued, missing, track(1)),
+        )
+
+        assertEquals(listOf(queued), library.localTracks().first())
+    }
+
+    @Test
+    fun aVersionFourDatabaseMigratesExistingLocalTracksToImportedList() = runTest {
+        driver.execute(null, "DROP TABLE imported_track", 0)
+        val library = library()
+        val existingLocal = duet.copy(id = "local:lama.m4a", title = "Rekaman Lama", artworkUrl = null, source = "local")
+        val newlyImported = duet.copy(id = "local:baru.mp3", title = "Baru Diimpor", artworkUrl = null, source = "local")
+        library.setFavorite(existingLocal, true)
+        library.setFavorite(track(1), true)
+
+        SenadaDatabase.Schema.migrate(driver, 4, 5)
+
+        assertEquals(5L, SenadaDatabase.Schema.version)
+        assertEquals(listOf(existingLocal), library.localTracks().first())
+        assertEquals(listOf(track(1), existingLocal), library.favorites.first())
+
+        library.recordImported(newlyImported)
+        assertEquals(listOf(newlyImported, existingLocal), library.localTracks().first())
     }
 
     @Test
