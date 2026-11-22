@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import senada.app.shell.SenadaIcons
@@ -173,6 +174,13 @@ internal fun playlistCollectionMeta(trackCount: Int, totalDurationMs: Long?): Co
 
 internal fun favoritesCollectionMeta(trackCount: Int, totalDurationMs: Long?): CollectionMeta =
     collectionMeta(trackCount = trackCount, totalDurationMs = totalDurationMs)
+
+/** Menyusun baris meta jumlah playlist untuk header ringkas daftar playlist. */
+internal fun playlistListMeta(playlistCount: Int): CollectionMeta {
+    val count = playlistCount.coerceAtLeast(0)
+    val text = "$count playlist"
+    return CollectionMeta(display = text, spoken = text)
+}
 
 internal fun albumCollectionMeta(detail: AlbumDetail?, fallbackSubtitle: String?): CollectionMeta? {
     if (detail == null) return fallbackMeta(fallbackSubtitle)
@@ -374,6 +382,49 @@ private fun CollectionCoverTile(
     }
 }
 
+/**
+ * Header ringkas untuk bagian di tab Library (Playlist, Riwayat, File impor) yang sekeluarga dengan
+ * [CollectionHeader]: judul, baris meta jumlah/durasi, dan aksi kanan yang turun ke bawah pada font besar.
+ */
+@Composable
+internal fun CompactCollectionHeader(
+    title: String,
+    meta: CollectionMeta?,
+    minPrimaryWidth: Dp = 140.dp,
+    trailing: @Composable () -> Unit,
+) {
+    AdaptiveRow(
+        modifier = Modifier.fillMaxWidth(),
+        minPrimaryWidth = minPrimaryWidth,
+        horizontalSpacing = 12.dp,
+        verticalSpacing = 8.dp,
+        primary = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.semantics { heading() },
+                )
+                if (meta != null && meta.display.isNotEmpty()) {
+                    Text(
+                        text = meta.display,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clearAndSetSemantics {
+                            contentDescription = meta.spoken
+                        },
+                    )
+                }
+            }
+        },
+        trailing = trailing,
+    )
+}
+
 @Composable
 private fun CollectionActionRow(
     title: String,
@@ -385,8 +436,6 @@ private fun CollectionActionRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
-    val playContainer = if (canPlay) colors.primary else colors.surfaceContainerHighest
-    val playContent = if (canPlay) textOnAccent(playContainer) else colors.onSurface.copy(alpha = 0.38f)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -419,47 +468,67 @@ private fun CollectionActionRow(
                 }
             }
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        CollectionPlayButtons(
+            title = title,
+            canPlay = canPlay,
+            onPlay = onPlay,
+            onShuffle = onShuffle,
+        )
+    }
+}
+
+/** Sepasang tombol Acak (48 dp) dan Putar aksen (56 dp) bersama untuk header koleksi penuh dan ringkas. */
+@Composable
+internal fun CollectionPlayButtons(
+    title: String,
+    canPlay: Boolean,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val playContainer = if (canPlay) colors.primary else colors.surfaceContainerHighest
+    val playContent = if (canPlay) textOnAccent(playContainer) else colors.onSurface.copy(alpha = 0.38f)
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            onClick = onShuffle,
+            enabled = canPlay,
+            shape = CircleShape,
+            color = Color.Transparent,
+            border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
+            modifier = Modifier.size(48.dp).semantics {
+                role = Role.Button
+                contentDescription = "Putar acak $title"
+            },
         ) {
-            Surface(
-                onClick = onShuffle,
-                enabled = canPlay,
-                shape = CircleShape,
-                color = Color.Transparent,
-                border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
-                modifier = Modifier.size(48.dp).semantics {
-                    role = Role.Button
-                    contentDescription = "Putar acak $title"
-                },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = SenadaIcons.Shuffle,
-                        contentDescription = null,
-                        tint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f),
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = SenadaIcons.Shuffle,
+                    contentDescription = null,
+                    tint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f),
+                )
             }
-            Surface(
-                onClick = onPlay,
-                enabled = canPlay,
-                shape = CircleShape,
-                color = playContainer,
-                contentColor = playContent,
-                modifier = Modifier.size(56.dp).semantics {
-                    role = Role.Button
-                    contentDescription = "Putar $title"
-                },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = SenadaIcons.Play,
-                        contentDescription = null,
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
+        }
+        Surface(
+            onClick = onPlay,
+            enabled = canPlay,
+            shape = CircleShape,
+            color = playContainer,
+            contentColor = playContent,
+            modifier = Modifier.size(56.dp).semantics {
+                role = Role.Button
+                contentDescription = "Putar $title"
+            },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = SenadaIcons.Play,
+                    contentDescription = null,
+                    modifier = Modifier.size(26.dp),
+                )
             }
         }
     }

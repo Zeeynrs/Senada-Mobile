@@ -124,9 +124,10 @@ internal fun AppShell(
     val favoriteDurationMs by remember(library) { library.favoriteDurationMs }.collectAsState(null)
     val favoriteIds by remember(library) { library.favoriteIds }.collectAsState(emptySet())
     val playlists by library.playlists.collectAsState(emptyList())
+    val playlistCovers by remember(library) { library.playlistCovers }.collectAsState(emptyMap())
     val history by remember(library) { library.history() }.collectAsState(emptyList())
-    val libraryState = remember(favorites, favoriteTotal, favoriteDurationMs, favoriteIds, playlists, history) {
-        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history, favoriteDurationMs)
+    val libraryState = remember(favorites, favoriteTotal, favoriteDurationMs, favoriteIds, playlists, playlistCovers, history) {
+        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history, favoriteDurationMs, playlistCovers)
     }
     val hero = if (navigator.destination == AppDestination.Home) {
         remember(library, screenVisible) { library.homeHero() }.collectAsState(HomeHero.Welcome).value
