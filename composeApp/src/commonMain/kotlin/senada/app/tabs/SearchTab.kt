@@ -42,7 +42,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import senada.app.ImportAudioButton
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
@@ -53,7 +52,6 @@ import senada.catalog.AlbumSummary
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogBrowser
 import senada.catalog.PlaylistSummary
-import senada.model.Track
 
 /** Kueri, filter, dan hasil tab Cari; hasil terbaru menang, mengetik lagi membatalkan pencarian sebelumnya. */
 internal class SearchTabState(
@@ -175,14 +173,13 @@ internal fun rememberSearchTabState(): SearchTabState {
     return state
 }
 
-/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album/Playlist, impor audio, riwayat & rekomendasi saat kosong, lalu hasil. */
+/** Tab Cari: kolom cari, chip filter Lagu/Artis/Album/Playlist, riwayat dan rekomendasi saat kosong, lalu hasil. */
 internal fun LazyListScope.searchTab(
     tab: SearchTabState,
     searchHistory: List<String>,
     discover: DiscoverUiState,
     library: LibraryState,
     actions: LibraryActions,
-    onImported: suspend (Track) -> Unit,
     onRecordSearch: () -> Unit,
     onRemoveSearch: (String) -> Unit,
     onClearSearches: () -> Unit,
@@ -205,7 +202,6 @@ internal fun LazyListScope.searchTab(
     item(key = "search-filters") {
         SearchFilterChips(selected = tab.filter, onSelect = { tab.filter = it })
     }
-    item(key = "import-audio") { ImportAudioButton(onImported = onImported) }
     if (tab.query.isBlank()) {
         searchHistoryItems(
             history = searchHistory,

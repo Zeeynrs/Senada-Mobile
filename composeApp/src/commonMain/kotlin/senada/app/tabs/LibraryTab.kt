@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import senada.app.AdaptiveRow
+import senada.app.ImportAudioButton
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.TrackMenu
@@ -166,9 +167,10 @@ private fun ImportedTracksContent(
                 }
             },
         )
+        ImportAudioButton(onImported = actions::addImportedTrack)
         if (tracks.isEmpty()) {
             Text(
-                "Belum ada file impor. Impor dari tab Cari.",
+                "Belum ada file audio. Impor lagu dari penyimpanan ponsel.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
