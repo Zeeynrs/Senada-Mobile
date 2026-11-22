@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -119,7 +120,7 @@ class PlaylistImportTest {
                 try {
                     delay(10)
                     when {
-                        "hati hati" in query -> listOf(
+                        "hati-hati" in query -> listOf(
                             MatchCandidate(ytTrack("yt1", "Hati-Hati di Jalan", "Tulus", 242_000L), "MUSIC_VIDEO_TYPE_ATV"),
                         )
                         "gagal jaringan" in query -> throw CatalogException(CatalogException.Kind.Network, "Timeout")
@@ -181,6 +182,7 @@ class PlaylistImportTest {
         assertEquals(emptyList(), repo.playlists.first())
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun cancellingMidImportStopsMatchingAndDoesNotSavePlaylist() = runTest {
         val repo = repository()
