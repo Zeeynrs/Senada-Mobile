@@ -66,6 +66,7 @@ import senada.app.tabs.rememberCatalogPageState
 import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
+import senada.app.tabs.shouldRefreshDiscover
 import senada.catalog.youtube.DiscoverSeeds
 import senada.library.HomeHero
 import senada.library.LibraryRepository
@@ -75,6 +76,7 @@ import senada.library.discoverSeeds
 import senada.library.homeHero
 import senada.library.listeningStats
 import senada.library.mostPlayed
+import senada.library.recentHomeItems
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 
@@ -128,6 +130,11 @@ internal fun AppShell(
     } else {
         HomeHero.Welcome
     }
+    val recentHome = if (navigator.destination == AppDestination.Home) {
+        remember(library) { library.recentHomeItems() }.collectAsState(emptyList()).value
+    } else {
+        emptyList()
+    }
     val mostPlayed = if (navigator.mostPlayedOpen) {
         remember(library, screenVisible) { library.mostPlayed() }.collectAsState(emptyList()).value
     } else {
@@ -154,18 +161,34 @@ internal fun AppShell(
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
-    val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(DiscoverSeeds())
+    val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(null)
     val discoverController = remember(uiScope) { DiscoverController(SenadaSources.discover, uiScope) }
+    val refreshDiscover: () -> Unit = {
+        discoverController.refreshIfNeeded(discoverSeeds ?: DiscoverSeeds(), saveData = saveData, force = true)
+    }
     LaunchedEffect(
         navigator.destination,
+        navigator.mostPlayedOpen,
+        navigator.listeningStatsOpen,
         currentCatalogRoute,
         search.query.isBlank(),
         discoverSeeds,
         saveData,
         screenVisible,
     ) {
-        if (screenVisible && navigator.destination == AppDestination.Search && currentCatalogRoute == null && search.query.isBlank()) {
-            discoverController.refreshIfNeeded(discoverSeeds, saveData = saveData)
+        val seeds = discoverSeeds
+        if (
+            seeds != null &&
+            shouldRefreshDiscover(
+                screenVisible = screenVisible,
+                destination = navigator.destination,
+                hasCatalogRoute = currentCatalogRoute != null,
+                mostPlayedOpen = navigator.mostPlayedOpen,
+                listeningStatsOpen = navigator.listeningStatsOpen,
+                searchQueryBlank = search.query.isBlank(),
+            )
+        ) {
+            discoverController.refreshIfNeeded(seeds, saveData = saveData)
         }
     }
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
@@ -278,12 +301,10 @@ internal fun AppShell(
                         library = libraryState,
                         actions = actions,
                         hero = hero,
+                        recentItems = recentHome,
+                        discover = discoverController.state,
                         screenVisible = screenVisible,
                         onSearch = { navigator.select(AppDestination.Search) },
-                        onOpenFavorites = {
-                            librarySection = LibraryFilter.Favorites
-                            navigator.select(AppDestination.Library)
-                        },
                         onOpenPlaylist = { id ->
                             librarySection = LibraryFilter.Playlists
                             navigator.select(AppDestination.Library)
@@ -291,6 +312,13 @@ internal fun AppShell(
                         },
                         onOpenMostPlayed = navigator::openMostPlayed,
                         onOpenListeningStats = navigator::openListeningStats,
+                        onRefreshDiscover = refreshDiscover,
+                        onOpenArtist = { artist ->
+                            navigator.openArtist(artist.id, artist.name, artist.artworkUrl)
+                        },
+                        onOpenAlbum = { album ->
+                            navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
+                        },
                     )
                     AppDestination.Search -> searchTab(
                         tab = search,
@@ -301,9 +329,7 @@ internal fun AppShell(
                         onRecordSearch = recordSearch,
                         onRemoveSearch = { uiScope.launch { library.removeSearch(it) } },
                         onClearSearches = { uiScope.launch { library.clearSearchHistory() } },
-                        onRefreshDiscover = {
-                            discoverController.refreshIfNeeded(discoverSeeds, saveData = saveData, force = true)
-                        },
+                        onRefreshDiscover = refreshDiscover,
                         onOpenArtist = { artist ->
                             navigator.openArtist(artist.id, artist.name, artist.artworkUrl)
                         },

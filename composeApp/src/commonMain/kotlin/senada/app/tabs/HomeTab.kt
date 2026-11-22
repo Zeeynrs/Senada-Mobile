@@ -1,9 +1,12 @@
 package senada.app.tabs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,8 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -31,27 +35,37 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import senada.app.LibraryActions
 import senada.app.LibraryState
-import senada.app.accessibleAccent
+import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
 import senada.app.theme.SenadaPalette
 import senada.app.trackAccessibilityLabel
+import senada.catalog.AlbumSummary
+import senada.catalog.ArtistSummary
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
+import senada.library.RecentHomeItem
 
+/** Tab Beranda: hero ringkas, pintasan statistik & teratas, rak Baru diputar, lalu rekomendasi Untuk kamu. */
 internal fun LazyListScope.homeTab(
     library: LibraryState,
     actions: LibraryActions,
     hero: HomeHero,
+    recentItems: List<RecentHomeItem>,
+    discover: DiscoverUiState,
     screenVisible: Boolean,
     onSearch: () -> Unit,
-    onOpenFavorites: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onOpenMostPlayed: () -> Unit,
     onOpenListeningStats: () -> Unit,
+    onRefreshDiscover: () -> Unit,
+    onOpenArtist: (ArtistSummary) -> Unit,
+    onOpenAlbum: (AlbumSummary) -> Unit,
 ) {
     item(key = "home-hero") {
         HomeHeroCard(
@@ -73,48 +87,75 @@ internal fun LazyListScope.homeTab(
             },
         )
     }
-    item(key = "home-listening-stats") { ListeningStatsEntry(onOpenListeningStats) }
-    item(key = "home-recent-title") { HomeSectionTitle("Baru diputar") }
-    item(key = "home-recent") {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item(key = "home-favorites") {
-                val count = "${library.favoriteTotal} lagu"
-                val accent = SenadaPalette.Favorite
-                val background = accent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                HomeTile("Favorit", count, "Favorit, $count", onOpenFavorites) {
-                    HomeCover(
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                        icon = SenadaIcons.HeartFilled,
-                        containerColor = background,
-                        iconColor = accessibleAccent(accent, background),
-                    )
-                }
-            }
-            items(library.history, key = { it.id }) { track ->
-                val favorite = track.id in library.favoriteIds
-                HomeTile(
-                    title = track.title,
-                    detail = track.artists.joinToString().takeIf { it.isNotBlank() },
-                    accessibilityLabel = trackAccessibilityLabel(track, favorite),
-                    onClick = { actions.playAll(listOf(track)) },
-                ) {
-                    Box {
-                        HomeCover(
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                            icon = SenadaIcons.Queue,
-                            artworkUrl = track.artworkUrl,
-                        )
-                        if (favorite) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                shape = CircleShape,
-                                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+
+    item(key = "home-shortcuts") {
+        HomeQuickLinksCard(
+            onOpenListeningStats = onOpenListeningStats,
+            onOpenMostPlayed = onOpenMostPlayed,
+        )
+    }
+
+    if (recentItems.isNotEmpty()) {
+        item(key = "home-recent-title") { HomeSectionTitle("Baru diputar") }
+        item(key = "home-recent") {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(recentItems, key = { it.key }) { item ->
+                    when (item) {
+                        is RecentHomeItem.Song -> {
+                            val track = item.track
+                            val favorite = track.id in library.favoriteIds
+                            val subtitle = track.artists
+                                .filter { it.isNotBlank() }
+                                .joinToString()
+                                .ifEmpty { "Lagu" }
+                            HomeRecentCard(
+                                title = track.title,
+                                subtitle = subtitle,
+                                accessibilityLabel = "Putar ${trackAccessibilityLabel(track, favorite)}",
+                                onClick = { actions.playAll(listOf(track)) },
                             ) {
-                                Icon(
-                                    SenadaIcons.HeartFilled,
-                                    contentDescription = null,
-                                    tint = SenadaPalette.Favorite,
-                                    modifier = Modifier.padding(6.dp).size(16.dp),
+                                Box {
+                                    HomeCover(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(1f)
+                                            .clip(MaterialTheme.shapes.medium),
+                                        icon = SenadaIcons.MusicNote,
+                                        artworkUrl = track.artworkUrl,
+                                    )
+                                    if (favorite) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            shape = CircleShape,
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                                        ) {
+                                            Icon(
+                                                SenadaIcons.HeartFilled,
+                                                contentDescription = null,
+                                                tint = SenadaPalette.Favorite,
+                                                modifier = Modifier.padding(6.dp).size(16.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        is RecentHomeItem.Playlist -> {
+                            val summary = item.summary
+                            val count = "${summary.trackCount} lagu"
+                            HomeRecentCard(
+                                title = summary.name,
+                                subtitle = "Playlist · $count",
+                                accessibilityLabel = "Buka playlist ${summary.name}, $count",
+                                onClick = { onOpenPlaylist(summary.id) },
+                            ) {
+                                HomeCover(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                        .clip(MaterialTheme.shapes.medium),
+                                    icon = SenadaIcons.Library,
+                                    artworkUrl = item.artworkUrl,
                                 )
                             }
                         }
@@ -123,23 +164,81 @@ internal fun LazyListScope.homeTab(
             }
         }
     }
-    item(key = "home-playlists-title") { HomeSectionTitle("Playlist kamu") }
-    item(key = "home-playlists") {
-        if (library.playlists.isEmpty()) {
-            Text("Belum ada playlist.", style = MaterialTheme.typography.bodyMedium)
-        } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(library.playlists, key = { it.id }) { playlist ->
-                    val count = "${playlist.trackCount} lagu"
-                    HomeTile(playlist.name, count, "Playlist ${playlist.name}, $count", { onOpenPlaylist(playlist.id) }) {
-                        HomeCover(
-                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                            icon = SenadaIcons.Library,
-                        )
-                    }
-                }
-            }
+
+    discoverSection(
+        state = discover,
+        library = library,
+        actions = actions,
+        onRefresh = onRefreshDiscover,
+        onOpenArtist = onOpenArtist,
+        onOpenAlbum = onOpenAlbum,
+    )
+}
+
+/** Kartu berisi pintu masuk Statistik dengar dan Paling sering diputar dengan gaya baris seragam. */
+@Composable
+private fun HomeQuickLinksCard(
+    onOpenListeningStats: () -> Unit,
+    onOpenMostPlayed: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HomeQuickLinkRow(
+                icon = SenadaIcons.Clock,
+                title = "Statistik dengar",
+                onClick = onOpenListeningStats,
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            HomeQuickLinkRow(
+                icon = SenadaIcons.MusicNote,
+                title = "Paling sering diputar",
+                onClick = onOpenMostPlayed,
+            )
         }
+    }
+}
+
+@Composable
+private fun HomeQuickLinkRow(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .minTouchTarget()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = SenadaIcons.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
@@ -148,21 +247,22 @@ private fun HomeSectionTitle(title: String) {
     Text(
         title,
         style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = 8.dp).semantics { heading() },
     )
 }
 
 @Composable
-private fun HomeTile(
+private fun HomeRecentCard(
     title: String,
-    detail: String?,
+    subtitle: String,
     accessibilityLabel: String,
     onClick: () -> Unit,
     cover: @Composable () -> Unit,
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.width(150.dp).semantics {
+        modifier = Modifier.width(156.dp).minTouchTarget().semantics {
             contentDescription = accessibilityLabel
             role = Role.Button
         },
@@ -175,10 +275,20 @@ private fun HomeTile(
                 modifier = Modifier.padding(12.dp).clearAndSetSemantics {},
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                detail?.let {
-                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -190,11 +300,12 @@ internal fun HomeCover(
     icon: ImageVector,
     artworkUrl: String? = null,
     imageSize: Int = 320,
-    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
-    iconColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    iconSize: Dp = 32.dp,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    iconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
 ) {
     Box(modifier.background(containerColor), contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(44.dp))
+        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(iconSize))
         if (!artworkUrl.isNullOrBlank()) {
             AsyncImage(
                 model = remember(artworkUrl, imageSize) { resizeGoogleArtwork(artworkUrl, imageSize) },

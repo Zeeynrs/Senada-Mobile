@@ -56,6 +56,7 @@ import senada.app.LibraryState
 import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.minTouchTarget
+import senada.app.shell.AppDestination
 import senada.app.shell.SenadaIcons
 import senada.catalog.AlbumSummary
 import senada.catalog.ArtistSummary
@@ -69,7 +70,24 @@ import senada.epochMillis
 
 internal const val DISCOVER_TTL_MS = 10L * 60 * 1_000
 
-/** Status tampilan rak rekomendasi "Untuk kamu" di tab Cari. */
+/** Menentukan apakah rak "Untuk kamu" sedang terlihat (di Beranda atau Cari kosong) sehingga boleh disegarkan. */
+internal fun shouldRefreshDiscover(
+    screenVisible: Boolean,
+    destination: AppDestination,
+    hasCatalogRoute: Boolean,
+    mostPlayedOpen: Boolean,
+    listeningStatsOpen: Boolean,
+    searchQueryBlank: Boolean,
+): Boolean {
+    if (!screenVisible || hasCatalogRoute) return false
+    return when (destination) {
+        AppDestination.Home -> !mostPlayedOpen && !listeningStatsOpen
+        AppDestination.Search -> searchQueryBlank
+        AppDestination.Library, AppDestination.Settings -> false
+    }
+}
+
+/** Status tampilan rak rekomendasi "Untuk kamu" di Beranda dan tab Cari. */
 internal data class DiscoverUiState(
     val result: DiscoverResult? = null,
     val loading: Boolean = false,
@@ -133,7 +151,7 @@ internal class DiscoverController(
     }
 }
 
-/** Rak rekomendasi "Untuk kamu" yang tampil saat kolom cari kosong. */
+/** Rak rekomendasi "Untuk kamu" yang dipakai bersama di Beranda dan tab Cari saat kolom cari kosong. */
 internal fun LazyListScope.discoverSection(
     state: DiscoverUiState,
     library: LibraryState,

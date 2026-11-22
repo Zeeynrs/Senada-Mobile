@@ -219,6 +219,12 @@ FROM history JOIN track ON track.id = history.track_id
 ORDER BY history.played_at DESC, history.rowid DESC
 LIMIT ?;
 
+recentHistory:
+SELECT history.played_at, track.*
+FROM history JOIN track ON track.id = history.track_id
+ORDER BY history.played_at DESC, history.rowid DESC
+LIMIT ?;
+
 recordPlay:
 INSERT OR REPLACE INTO history(track_id, played_at) VALUES (?, ?);
 
@@ -272,6 +278,26 @@ GROUP BY playlist.id
 HAVING count(*) >= :min_plays
 ORDER BY count(*) DESC, max(playlist_play.played_at) DESC, playlist.id
 LIMIT 1;
+
+recentPlaylistPlays:
+SELECT playlist.id, playlist.name, playlist.description, playlist.created_at,
+       (SELECT count(*) FROM playlist_item WHERE playlist_item.playlist_id = playlist.id) AS track_count,
+       (SELECT track.artwork_url
+        FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+        WHERE playlist_item.playlist_id = playlist.id
+          AND track.artwork_url IS NOT NULL
+          AND track.artwork_url <> ''
+        ORDER BY playlist_item.position
+        LIMIT 1) AS artwork_url,
+       max(playlist_play.played_at) AS last_played_at
+FROM playlist_play JOIN playlist ON playlist.id = playlist_play.playlist_id
+WHERE EXISTS (
+  SELECT 1 FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+  WHERE playlist_item.playlist_id = playlist.id
+)
+GROUP BY playlist.id
+ORDER BY max(playlist_play.played_at) DESC, playlist.id
+LIMIT ?;
 
 -- Item tersimpan --
 
