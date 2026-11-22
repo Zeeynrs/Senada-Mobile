@@ -504,6 +504,7 @@ internal fun LazyListScope.catalogDetailScreen(
     actions: LibraryActions,
     onBack: () -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
+    onOpenPlaylist: (PlaylistSummary) -> Unit = {},
     onSavePlaylist: (routeId: String, title: String, tracks: List<Track>) -> Unit = { _, _, _ -> },
     onOpenSavedPlaylist: (String) -> Unit = {},
 ) {
@@ -524,6 +525,7 @@ internal fun LazyListScope.catalogDetailScreen(
                 onBack = onBack,
                 onRetry = state::retry,
                 onOpenAlbum = onOpenAlbum,
+                onOpenPlaylist = onOpenPlaylist,
             )
         }
         is CatalogRoute.Album -> {
@@ -566,6 +568,52 @@ internal fun LazyListScope.catalogDetailScreen(
     }
 }
 
+/** Jumlah maksimum lagu pada bagian Lagu terpopuler di halaman artis. */
+internal const val MAX_ARTIST_POPULAR_SONGS = 5
+
+/** Bagian yang ditampilkan pada halaman artis yang disederhanakan. */
+internal sealed interface ArtistPageSection {
+    val title: String
+
+    data class PopularSongs(
+        override val title: String = "Lagu terpopuler",
+        val songs: List<Track>,
+        val fullListPlaylistId: String? = null,
+    ) : ArtistPageSection
+
+    data class PopularAlbums(
+        override val title: String = "Album terpopuler",
+        val albums: List<AlbumSummary>,
+    ) : ArtistPageSection
+
+    data class NewestAlbums(
+        override val title: String = "Album terbaru",
+        val albums: List<AlbumSummary>,
+    ) : ArtistPageSection
+}
+
+/** Menyusun tepat tiga bagian halaman artis: Lagu terpopuler, Album terpopuler, dan Album terbaru. */
+internal fun artistPageSections(detail: ArtistDetail?): List<ArtistPageSection> {
+    if (detail == null) return emptyList()
+    return buildList {
+        val songs = detail.topSongs.take(MAX_ARTIST_POPULAR_SONGS)
+        if (songs.isNotEmpty()) {
+            add(
+                ArtistPageSection.PopularSongs(
+                    songs = songs,
+                    fullListPlaylistId = detail.topSongsPlaylistId?.takeIf { it.isNotBlank() },
+                ),
+            )
+        }
+        if (detail.popularAlbums.isNotEmpty()) {
+            add(ArtistPageSection.PopularAlbums(albums = detail.popularAlbums))
+        }
+        if (detail.newestAlbums.isNotEmpty()) {
+            add(ArtistPageSection.NewestAlbums(albums = detail.newestAlbums))
+        }
+    }
+}
+
 private fun LazyListScope.artistDetailScreen(
     route: CatalogRoute.Artist,
     state: CatalogLoadState<ArtistDetail>,
@@ -575,11 +623,17 @@ private fun LazyListScope.artistDetailScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
+    onOpenPlaylist: (PlaylistSummary) -> Unit,
 ) {
     val detail = state.data
     val displayName = detail?.name?.takeIf { it.isNotBlank() } ?: route.label
     val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
-    val topSongs = detail?.topSongs.orEmpty()
+    val sections = artistPageSections(detail)
+    val popularSongs = sections
+        .filterIsInstance<ArtistPageSection.PopularSongs>()
+        .firstOrNull()
+        ?.songs
+        .orEmpty()
 
     item(key = "artist-back-${route.id}") {
         BackLink(previousLabel, onBack)
@@ -625,11 +679,11 @@ private fun LazyListScope.artistDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Button(
-                        onClick = { actions.playAll(topSongs, PlaySource.Artist(displayName)) },
-                        enabled = topSongs.isNotEmpty(),
+                        onClick = { actions.playAll(popularSongs, PlaySource.Artist(displayName)) },
+                        enabled = popularSongs.isNotEmpty(),
                         shape = CircleShape,
                         modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Putar lagu teratas $displayName"
+                            contentDescription = "Putar lagu terpopuler $displayName"
                         },
                     ) {
                         Icon(
@@ -655,47 +709,123 @@ private fun LazyListScope.artistDetailScreen(
             CatalogErrorCard(message, onRetry)
         }
     }
-    if (topSongs.isNotEmpty()) {
-        item(key = "artist-songs-heading-${route.id}") {
-            Text(
-                "Lagu teratas",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp).semantics { heading() },
-            )
-        }
-        itemsIndexed(topSongs, key = { _, track -> "artist-song-${route.id}-${track.id}" }) { index, track ->
-            CatalogTrackRow(
-                track = track,
-                favorite = track.id in library.favoriteIds,
-                library = library,
-                actions = actions,
-                onPlay = { actions.playAll(topSongs, PlaySource.Artist(displayName), startIndex = index) },
-            )
-        }
-    }
 
-    detail?.releases.orEmpty().forEachIndexed { sectionIndex, section ->
-        item(key = "artist-release-title-${route.id}-$sectionIndex") {
-            Text(
-                section.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 8.dp).semantics { heading() },
-            )
-        }
-        item(key = "artist-release-row-${route.id}-$sectionIndex") {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(section.items, key = { "artist-album-${route.id}-$sectionIndex-${it.id}" }) { album ->
-                    ReleaseCard(album, onClick = { onOpenAlbum(album) })
+    for (section in sections) {
+        when (section) {
+            is ArtistPageSection.PopularSongs -> {
+                item(key = "artist-songs-heading-${route.id}") {
+                    Text(
+                        section.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+                    )
+                }
+                itemsIndexed(section.songs, key = { _, track -> "artist-song-${route.id}-${track.id}" }) { index, track ->
+                    CatalogTrackRow(
+                        track = track,
+                        favorite = track.id in library.favoriteIds,
+                        library = library,
+                        actions = actions,
+                        onPlay = { actions.playAll(section.songs, PlaySource.Artist(displayName), startIndex = index) },
+                    )
+                }
+                section.fullListPlaylistId?.let { playlistId ->
+                    item(key = "artist-songs-all-${route.id}") {
+                        ArtistSeeAllRow(
+                            artistName = displayName,
+                            onClick = {
+                                onOpenPlaylist(
+                                    PlaylistSummary(
+                                        id = playlistId,
+                                        title = "Lagu terpopuler $displayName",
+                                        subtitle = displayName,
+                                        artworkUrl = artworkUrl,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+            is ArtistPageSection.PopularAlbums -> {
+                item(key = "artist-popular-albums-heading-${route.id}") {
+                    Text(
+                        section.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+                    )
+                }
+                item(key = "artist-popular-albums-row-${route.id}") {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(section.albums, key = { "artist-popular-album-${route.id}-${it.id}" }) { album ->
+                            ReleaseCard(album, onClick = { onOpenAlbum(album) })
+                        }
+                    }
+                }
+            }
+            is ArtistPageSection.NewestAlbums -> {
+                item(key = "artist-newest-albums-heading-${route.id}") {
+                    Text(
+                        section.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+                    )
+                }
+                item(key = "artist-newest-albums-row-${route.id}") {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(section.albums, key = { "artist-newest-album-${route.id}-${it.id}" }) { album ->
+                            ReleaseCard(album, onClick = { onOpenAlbum(album) })
+                        }
+                    }
                 }
             }
         }
     }
 
-    if (!state.loading && state.error == null && detail != null && topSongs.isEmpty() && detail.releases.isEmpty()) {
+    if (!state.loading && state.error == null && detail != null && sections.isEmpty()) {
         item(key = "artist-empty-${route.id}") {
-            PoliteStatusText("Belum ada lagu atau rilis untuk artis ini.")
+            PoliteStatusText("Belum ada lagu atau album untuk artis ini.")
+        }
+    }
+}
+
+@Composable
+private fun ArtistSeeAllRow(artistName: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().minTouchTarget().semantics {
+            contentDescription = "Lihat semua lagu terpopuler $artistName"
+            role = Role.Button
+        },
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "Lihat semua",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).clearAndSetSemantics {},
+            )
+            Icon(
+                imageVector = SenadaIcons.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
