@@ -447,9 +447,7 @@ internal const val ARTIST_PAGE_TULUS = """
         "height": 340
        }
       ]
-     },
-     "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-     "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+     }
     }
    },
    "monthlyListenerCount": {
@@ -506,9 +504,7 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 120
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FIT"
+                }
                }
               },
               "flexColumns": [
@@ -521,18 +517,12 @@ internal const val ARTIST_PAGE_TULUS = """
                     "navigationEndpoint": {
                      "watchEndpoint": {
                       "videoId": "5F28ye50-Kc",
-                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w",
-                      "watchEndpointMusicSupportedConfigs": {
-                       "watchEndpointMusicConfig": {
-                        "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
-                       }
-                      }
+                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w"
                      }
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -553,8 +543,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -565,8 +554,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     "text": "246 jt pemutaran"
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -587,8 +575,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_MEDIUM"
+                 }
                 }
                }
               ],
@@ -614,9 +601,7 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 120
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FIT"
+                }
                }
               },
               "flexColumns": [
@@ -629,18 +614,12 @@ internal const val ARTIST_PAGE_TULUS = """
                     "navigationEndpoint": {
                      "watchEndpoint": {
                       "videoId": "qrnJL6P-QqQ",
-                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w",
-                      "watchEndpointMusicSupportedConfigs": {
-                       "watchEndpointMusicConfig": {
-                        "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
-                       }
-                      }
+                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w"
                      }
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -661,8 +640,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -673,8 +651,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     "text": "165 jt pemutaran"
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_HIGH"
+                 }
                 }
                },
                {
@@ -695,8 +672,7 @@ internal const val ARTIST_PAGE_TULUS = """
                     }
                    }
                   ]
-                 },
-                 "displayPriority": "MUSIC_RESPONSIVE_LIST_ITEM_COLUMN_DISPLAY_PRIORITY_MEDIUM"
+                 }
                 }
                }
               ],
@@ -704,11 +680,314 @@ internal const val ARTIST_PAGE_TULUS = """
                "videoId": "qrnJL6P-QqQ"
               }
              }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/SJTWzxOnk0D_TIfYfkcIUzlYbSB5P8QtPYfdjRt3cBeyMk-0cuxdxTIXYp45ghLEhjEvnUpakX8scPgN=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/SJTWzxOnk0D_TIfYfkcIUzlYbSB5P8QtPYfdjRt3cBeyMk-0cuxdxTIXYp45ghLEhjEvnUpakX8scPgN=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  }
+                 ]
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Monokrom",
+                    "navigationEndpoint": {
+                     "watchEndpoint": {
+                      "videoId": "1RrF6Ee_io0",
+                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Tulus",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UC_DHlXllTSMB8pTC38_leFg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "222 jt pemutaran"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Monokrom",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "MPREb_4TEBtGA3cZb",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "playlistItemData": {
+               "videoId": "1RrF6Ee_io0"
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/0LkNos-al_3gRdfeVnsoULGEInj8_1uQkE4p9nT_6heSYKzO2emQrqm-XcexNEhl_sfTueS-gT45yoQ=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/0LkNos-al_3gRdfeVnsoULGEInj8_1uQkE4p9nT_6heSYKzO2emQrqm-XcexNEhl_sfTueS-gT45yoQ=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  }
+                 ]
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Interaksi",
+                    "navigationEndpoint": {
+                     "watchEndpoint": {
+                      "videoId": "-WF72CWKKEI",
+                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Tulus",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UC_DHlXllTSMB8pTC38_leFg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "152 jt pemutaran"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Manusia",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "MPREb_7FNmIeIV9kf",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "playlistItemData": {
+               "videoId": "-WF72CWKKEI"
+              }
+             }
+            },
+            {
+             "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/0LkNos-al_3gRdfeVnsoULGEInj8_1uQkE4p9nT_6heSYKzO2emQrqm-XcexNEhl_sfTueS-gT45yoQ=w60-h60-l90-rj",
+                   "width": 60,
+                   "height": 60
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/0LkNos-al_3gRdfeVnsoULGEInj8_1uQkE4p9nT_6heSYKzO2emQrqm-XcexNEhl_sfTueS-gT45yoQ=w120-h120-l90-rj",
+                   "width": 120,
+                   "height": 120
+                  }
+                 ]
+                }
+               }
+              },
+              "flexColumns": [
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Hati-Hati di Jalan",
+                    "navigationEndpoint": {
+                     "watchEndpoint": {
+                      "videoId": "E7kHvjvU6JY",
+                      "playlistId": "OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w"
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Tulus",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "UC_DHlXllTSMB8pTC38_leFg",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "332 jt pemutaran"
+                   }
+                  ]
+                 }
+                }
+               },
+               {
+                "musicResponsiveListItemFlexColumnRenderer": {
+                 "text": {
+                  "runs": [
+                   {
+                    "text": "Manusia",
+                    "navigationEndpoint": {
+                     "browseEndpoint": {
+                      "browseId": "MPREb_7FNmIeIV9kf",
+                      "browseEndpointContextSupportedConfigs": {
+                       "browseEndpointContextMusicConfig": {
+                        "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                       }
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                }
+               }
+              ],
+              "playlistItemData": {
+               "videoId": "E7kHvjvU6JY"
+              }
+             }
             }
            ],
-           "shelfDivider": {
-            "musicShelfDividerRenderer": {
-             "hidden": true
+           "bottomText": {
+            "runs": [
+             {
+              "text": "Tampilkan semua"
+             }
+            ]
+           },
+           "bottomEndpoint": {
+            "browseEndpoint": {
+             "browseId": "VLOLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w",
+             "browseEndpointContextSupportedConfigs": {
+              "browseEndpointContextMusicConfig": {
+               "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+              }
+             }
             }
            }
           }
@@ -723,8 +1002,7 @@ internal const val ARTIST_PAGE_TULUS = """
                 "text": "Album"
                }
               ]
-             },
-             "headerStyle": "MUSIC_CAROUSEL_SHELF_BASIC_HEADER_STYLE_DISPLAY_TWO"
+             }
             }
            },
            "contents": [
@@ -745,12 +1023,9 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 544
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE",
               "title": {
                "runs": [
                 {
@@ -804,12 +1079,9 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 544
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE",
               "title": {
                "runs": [
                 {
@@ -845,9 +1117,176 @@ internal const val ARTIST_PAGE_TULUS = """
                }
               }
              }
+            },
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/rbdAVYsqSMwwOUh5nR9nL0LjoD9IFW9myJ2ChNNrO3iONjmldRA5dYLVVVQijDpiv95YmQ3omnjERp8q=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/rbdAVYsqSMwwOUh5nR9nL0LjoD9IFW9myJ2ChNNrO3iONjmldRA5dYLVVVQijDpiv95YmQ3omnjERp8q=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "Gajah",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_qTrW9rQ11SS",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "2014"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_qTrW9rQ11SS",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/lyU_Lq5Y358oPfvsbroDZp8wy-qDQkGvKvfw6hYf78JvWtX3x2_BTSpTtteWGGyMwFC5tixNaw622TQ7=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/lyU_Lq5Y358oPfvsbroDZp8wy-qDQkGvKvfw6hYf78JvWtX3x2_BTSpTtteWGGyMwFC5tixNaw622TQ7=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "Tulus",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_kOJ8CITYAHR",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "2011"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_kOJ8CITYAHR",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
+            },
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/IaaiZU1iEQ9sfLcutqYllc4deAG67KA_oqsQtHEt4UhRzpdDz1RZSo_SXv_Y_AZ5xssmTlZiflSSFL1uVw=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/IaaiZU1iEQ9sfLcutqYllc4deAG67KA_oqsQtHEt4UhRzpdDz1RZSo_SXv_Y_AZ5xssmTlZiflSSFL1uVw=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "Langsung Dari Konser Monokrom Jakarta (Live)",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "MPREb_JiwubZvgoGu",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "2019"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "MPREb_JiwubZvgoGu",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                 }
+                }
+               }
+              }
+             }
             }
-           ],
-           "itemSize": "COLLECTION_STYLE_ITEM_SIZE_MEDIUM"
+           ]
           }
          },
          {
@@ -870,8 +1309,7 @@ internal const val ARTIST_PAGE_TULUS = """
                 }
                }
               ]
-             },
-             "headerStyle": "MUSIC_CAROUSEL_SHELF_BASIC_HEADER_STYLE_DISPLAY_TWO"
+             }
             }
            },
            "contents": [
@@ -892,12 +1330,9 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 544
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE",
               "title": {
                "runs": [
                 {
@@ -957,12 +1392,9 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 544
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE",
               "title": {
                "runs": [
                 {
@@ -1005,8 +1437,7 @@ internal const val ARTIST_PAGE_TULUS = """
               }
              }
             }
-           ],
-           "itemSize": "COLLECTION_STYLE_ITEM_SIZE_MEDIUM"
+           ]
           }
          },
          {
@@ -1029,8 +1460,7 @@ internal const val ARTIST_PAGE_TULUS = """
                 }
                }
               ]
-             },
-             "headerStyle": "MUSIC_CAROUSEL_SHELF_BASIC_HEADER_STYLE_DISPLAY_TWO"
+             }
             }
            },
            "contents": [
@@ -1041,22 +1471,19 @@ internal const val ARTIST_PAGE_TULUS = """
                 "thumbnail": {
                  "thumbnails": [
                   {
-                   "url": "https://i.ytimg.com/vi/zyLmavBAY7k/hqdefault.jpg",
+                   "url": "https://i.ytimg.com/vi/zyLmavBAY7k/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3kL374WeAfgJPFlKXgjc04Lxz3q3w",
                    "width": 400,
                    "height": 225
                   },
                   {
-                   "url": "https://i.ytimg.com/vi/zyLmavBAY7k/hq720.jpg",
+                   "url": "https://i.ytimg.com/vi/zyLmavBAY7k/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3k6IUEyLuEfHl88gvkNpRYFYEK-WA",
                    "width": 800,
                    "height": 450
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_UNSPECIFIED",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_RECTANGLE_16_9",
               "title": {
                "runs": [
                 {
@@ -1091,18 +1518,260 @@ internal const val ARTIST_PAGE_TULUS = """
                "watchEndpoint": {
                 "videoId": "zyLmavBAY7k",
                 "playlistId": "OLAK5uy_m5BUAnhiPKqlHU_VJn4fOzzBIz8EUDi0M",
-                "index": 0,
-                "watchEndpointMusicSupportedConfigs": {
-                 "watchEndpointMusicConfig": {
-                  "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                "index": 0
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Pertunjukan langsung"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://i.ytimg.com/vi/3R8MaXnc7dY/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3lUbJqZ8gD_81I6ERcpGgIch9s5WA",
+                   "width": 400,
+                   "height": 225
+                  },
+                  {
+                   "url": "https://i.ytimg.com/vi/3R8MaXnc7dY/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3ndkb8ZUCI5RcpN2L88FFYAyuqzeg",
+                   "width": 800,
+                   "height": 450
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "TULUS - Pamit (Live at Smecky Music Studio)"
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Tulus",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UC_DHlXllTSMB8pTC38_leFg",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "text": " • "
+                },
+                {
+                 "text": "3,9 jt x ditonton"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "watchEndpoint": {
+                "videoId": "3R8MaXnc7dY"
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Termasuk di"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.googleusercontent.com/Nlt01qkHg1MyYC34uuFYGMxXUp8wCND-QRqwXPak5EZPAj5oAfdsvUPreA9hpRiGDG4Wp1DxHeJi9qI=w226-h226-l90-rj",
+                   "width": 226,
+                   "height": 226
+                  },
+                  {
+                   "url": "https://yt3.googleusercontent.com/Nlt01qkHg1MyYC34uuFYGMxXUp8wCND-QRqwXPak5EZPAj5oAfdsvUPreA9hpRiGDG4Wp1DxHeJi9qI=w544-h544-l90-rj",
+                   "width": 544,
+                   "height": 544
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "Presenting Tulus",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "VLRDCLAK5uy_kR2pM9ewJOAAqSZLidzflfoknDik6dinM",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Playlist"
+                },
+                {
+                 "text": " • "
+                },
+                {
+                 "text": "YouTube Music"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLRDCLAK5uy_kR2pM9ewJOAAqSZLidzflfoknDik6dinM",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
                  }
                 }
                }
               }
              }
             }
-           ],
-           "itemSize": "COLLECTION_STYLE_ITEM_SIZE_MEDIUM"
+           ]
+          }
+         },
+         {
+          "musicCarouselShelfRenderer": {
+           "header": {
+            "musicCarouselShelfBasicHeaderRenderer": {
+             "title": {
+              "runs": [
+               {
+                "text": "Playlist dari Tulus"
+               }
+              ]
+             }
+            }
+           },
+           "contents": [
+            {
+             "musicTwoRowItemRenderer": {
+              "thumbnailRenderer": {
+               "musicThumbnailRenderer": {
+                "thumbnail": {
+                 "thumbnails": [
+                  {
+                   "url": "https://yt3.ggpht.com/0puwEQfKIv0PnXxDpA2MKa_AagSQvMndCQCVTPPsdWO8IDIzaZN88rF5kYoeuHuHRfPN2Pj4zec=s192",
+                   "width": 192,
+                   "height": 192
+                  },
+                  {
+                   "url": "https://yt3.ggpht.com/0puwEQfKIv0PnXxDpA2MKa_AagSQvMndCQCVTPPsdWO8IDIzaZN88rF5kYoeuHuHRfPN2Pj4zec=s576",
+                   "width": 576,
+                   "height": 576
+                  }
+                 ]
+                }
+               }
+              },
+              "title": {
+               "runs": [
+                {
+                 "text": "TULUS - Manusia (Official Video Lyric)",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "VLPLzgVPDDV8B8coULgS5rJYh2HW9dhtjc8b",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                    }
+                   }
+                  }
+                 }
+                }
+               ]
+              },
+              "subtitle": {
+               "runs": [
+                {
+                 "text": "Playlist"
+                },
+                {
+                 "text": " • "
+                },
+                {
+                 "text": "Tulus",
+                 "navigationEndpoint": {
+                  "browseEndpoint": {
+                   "browseId": "UCRggxhdYIz0zSvUgJmCWMGg",
+                   "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                     "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                    }
+                   }
+                  }
+                 }
+                },
+                {
+                 "text": " • "
+                },
+                {
+                 "text": "3,3 jt x ditonton"
+                }
+               ]
+              },
+              "navigationEndpoint": {
+               "browseEndpoint": {
+                "browseId": "VLPLzgVPDDV8B8coULgS5rJYh2HW9dhtjc8b",
+                "browseEndpointContextSupportedConfigs": {
+                 "browseEndpointContextMusicConfig": {
+                  "pageType": "MUSIC_PAGE_TYPE_PLAYLIST"
+                 }
+                }
+               }
+              }
+             }
+            }
+           ]
           }
          },
          {
@@ -1115,8 +1784,7 @@ internal const val ARTIST_PAGE_TULUS = """
                 "text": "Penggemar mungkin juga suka"
                }
               ]
-             },
-             "headerStyle": "MUSIC_CAROUSEL_SHELF_BASIC_HEADER_STYLE_DISPLAY_TWO"
+             }
             }
            },
            "contents": [
@@ -1137,12 +1805,9 @@ internal const val ARTIST_PAGE_TULUS = """
                    "height": 544
                   }
                  ]
-                },
-                "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_CIRCLE",
-                "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
                }
               },
-              "aspectRatio": "MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE",
               "title": {
                "runs": [
                 {
@@ -1179,8 +1844,7 @@ internal const val ARTIST_PAGE_TULUS = """
               }
              }
             }
-           ],
-           "itemSize": "COLLECTION_STYLE_ITEM_SIZE_MEDIUM"
+           ]
           }
          }
         ]

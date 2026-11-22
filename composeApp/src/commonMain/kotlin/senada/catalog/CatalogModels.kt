@@ -46,6 +46,10 @@ data class ArtistDetail(
     val artworkUrl: String? = null,
     val monthlyListeners: String? = null,
     val topSongs: List<Track> = emptyList(),
+    val topSongsPlaylistId: String? = null,
+    val topSongAlbums: Map<String, AlbumSummary> = emptyMap(),
+    val popularAlbums: List<AlbumSummary> = emptyList(),
+    val newestAlbums: List<AlbumSummary> = emptyList(),
     val releases: List<ReleaseSection> = emptyList(),
 )
 
