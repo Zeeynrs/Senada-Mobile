@@ -386,6 +386,40 @@ def check_initial_accessibility() -> None:
     )
 
 
+def check_search_keyboard() -> None:
+    scroll_to_top(2)
+    placeholder = "Cari judul atau artis"
+    labels = ("Beranda", "Buka Sedang diputar")
+
+    def visible_bars(root: ET.Element) -> list[str]:
+        return [label for label in labels if ui_bounds(label, attribute="content-desc", root=root)]
+
+    def keyboard_visible() -> bool:
+        return "mInputShown=true" in shell("dumpsys input_method")
+
+    initial = ui_tree()
+    if not check(
+        initial is not None and visible_bars(initial) == list(labels) and tap_text(placeholder, scrolls=0),
+        "Kolom Cari bisa difokuskan saat navigasi dan mini player terlihat",
+    ):
+        return
+
+    if not check(wait_for(keyboard_visible, 5), "Papan ketik tab Cari terbuka"):
+        return
+    typing = ui_tree(save_as="search-keyboard-open.xml")
+    visible = visible_bars(typing) if typing is not None else None
+    check(visible == [], "Navigasi dan mini player tersembunyi saat papan ketik terbuka", visible)
+
+    shell("input keyevent KEYCODE_BACK")
+    closed = wait_for(lambda: not keyboard_visible(), 5)
+    restored = ui_tree(save_as="search-keyboard-closed.xml")
+    check(
+        closed and restored is not None and visible_bars(restored) == list(labels)
+        and ui_bounds(placeholder, root=restored),
+        "Tombol kembali menutup papan ketik dan memulihkan kedua bilah di tab Cari",
+    )
+
+
 def overlay_top(root: ET.Element, height: int) -> int:
     """Batas atas mini player dan navigasi bawah yang mengambang di atas isi tab."""
     tops = [
@@ -539,6 +573,8 @@ def scenario() -> None:
     check_initial_accessibility()
 
     added = tap_text("Tambah", 0) and tap_text("Tambah", 1)
+    if added:
+        check_search_keyboard()
     started = added and tap_desc("Putar")
     if not check(started, "Dua lagu ditambahkan ke antrean dan diputar dari mini player"):
         screenshot("02-ui")
