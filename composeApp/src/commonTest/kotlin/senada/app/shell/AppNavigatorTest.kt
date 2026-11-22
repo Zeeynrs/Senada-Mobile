@@ -7,6 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import senada.catalog.MoodChip
 
 class AppNavigatorTest {
     @Test
@@ -266,5 +267,43 @@ class AppNavigatorTest {
         assertTrue(navigator.listeningStatsOpen)
         assertTrue(navigator.back())
         assertFalse(navigator.listeningStatsOpen)
+    }
+
+    @Test
+    fun moodRouteHandlesBackStackParamsDistinctnessAndSaver() {
+        val navigator = AppNavigator()
+        navigator.openMood(MoodChip("Kosong", "   ", "p1"))
+        assertTrue(navigator.catalogStack.isEmpty())
+
+        val chill = MoodChip("Santai", "FEmusic_moods_and_genres_category", "params_chill")
+        val focus = MoodChip("Fokus", "FEmusic_moods_and_genres_category", "params_focus")
+        navigator.openNowPlaying()
+        navigator.openMood(chill)
+        assertFalse(navigator.nowPlayingOpen)
+        assertEquals(CatalogRoute.Mood(chill.browseId, "Santai", "params_chill"), navigator.currentCatalogRoute)
+        assertEquals("Beranda", navigator.previousCatalogLabel())
+
+        // Mood yang persis sama di puncak tumpukan diabaikan, tetapi params berbeda tetap dibuka.
+        navigator.openMood(chill)
+        assertEquals(1, navigator.catalogStack.size)
+        navigator.openMood(focus)
+        assertEquals(2, navigator.catalogStack.size)
+        assertEquals("Santai", navigator.previousCatalogLabel())
+
+        // Membuka playlist dari halaman Mood menyusun tumpukan kembali seperti halaman katalog lain.
+        navigator.openCatalogPlaylist("PL_fokus", "Fokus Malam", "YouTube Music")
+        assertEquals("Fokus", navigator.previousCatalogLabel())
+
+        val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
+        val restored = assertNotNull(AppNavigator.Saver.restore(assertNotNull(saved)))
+        assertEquals(navigator.catalogStack, restored.catalogStack)
+
+        assertTrue(restored.back())
+        assertEquals(CatalogRoute.Mood(focus.browseId, "Fokus", "params_focus"), restored.currentCatalogRoute)
+        assertTrue(restored.back())
+        assertEquals(CatalogRoute.Mood(chill.browseId, "Santai", "params_chill"), restored.currentCatalogRoute)
+        assertTrue(restored.back())
+        assertNull(restored.currentCatalogRoute)
+        assertEquals(AppDestination.Home, restored.destination)
     }
 }
