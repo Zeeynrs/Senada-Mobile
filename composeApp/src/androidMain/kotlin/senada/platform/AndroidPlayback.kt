@@ -95,6 +95,10 @@ private class ExoAudioOutput(context: Context) : SampleAudioOutput {
 
     override val durationMs get() = player.duration.takeIf { it > 0 }
 
+    override var volume: Float
+        get() = player.volume
+        set(value) { player.volume = value }
+
     override fun play(uri: String, restart: Boolean, startAtMs: Long) {
         if (restart) {
             player.setMediaItem(MediaItem.fromUri(uri), startAtMs)

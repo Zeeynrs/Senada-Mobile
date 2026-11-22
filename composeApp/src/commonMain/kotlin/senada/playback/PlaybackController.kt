@@ -52,6 +52,8 @@ internal class PlaybackController(
     private var queue = Queue()
     private val mutableState = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
+    private val sleepTimer = SleepTimer(scope, now, output, ::pauseForSleep)
+    val sleepTimerState: StateFlow<SleepTimerState> = sleepTimer.state
 
     private val listeners = mutableListOf<(PlaybackState) -> Unit>()
     private var lastAnnounced: PlaybackState? = null
@@ -60,6 +62,7 @@ internal class PlaybackController(
     private var ticker: Job? = null
     private var persistence: QueuePersistence? = null
     private var resumeAfterInterruption = false
+    private var resumeAfterTrackEnd = false
 
     private var preparing: Job? = null
     private var prefetched: Prefetch? = null
@@ -134,6 +137,7 @@ internal class PlaybackController(
             preparing?.cancel()
             problem = null
             retryEntryId = null
+            resumeAfterTrackEnd = false
         }
         if (prefetched?.entryId == entryId) dropPrefetch()
         queue = queue.remove(entryId)
@@ -144,10 +148,13 @@ internal class PlaybackController(
 
     /** Memutar alamat yang sudah diketahui, misalnya tombol uji audio. */
     fun play(selection: SampleAudioSelection) {
+        sleepTimer.expireIfDue()
+        val restart = resumeAfterTrackEnd
+        resumeAfterTrackEnd = false
         preparing?.cancel()
         problem = null
         retryEntryId = null
-        player.play(selection)
+        player.play(selection, forceRestart = restart)
         prefetchNext()
         publish()
     }
@@ -155,7 +162,7 @@ internal class PlaybackController(
     /** Entri yang sedang dipilih dilanjutkan dari posisinya; entri lain, atau yang sudah selesai, diputar dari awal. */
     fun playEntry(entryId: Long) {
         val audio = player.state
-        if (audio.selection?.queueEntryId == entryId && audio.status != SampleAudioStatus.Ended) {
+        if (audio.selection?.queueEntryId == entryId && audio.status != SampleAudioStatus.Ended && !resumeAfterTrackEnd) {
             resume()
         } else {
             entry(entryId)?.let { start(it) }
@@ -164,12 +171,18 @@ internal class PlaybackController(
 
     /** Melanjutkan lagu terpilih, atau memulai entri pertama bila belum ada yang dipilih. */
     fun resume() {
+        sleepTimer.expireIfDue()
         val audio = player.state
         val selection = audio.selection
         val entry = selection?.queueEntryId?.let(::entry)
         when {
             selection == null -> queue.playOrder.firstOrNull()?.let { start(it) }
             preparing?.isActive == true -> Unit
+            // Setelah timer akhir lagu, lanjutkan antrean saat pengguna menekan Putar lagi.
+            resumeAfterTrackEnd && entry != null -> {
+                val order = queue.playOrder
+                start(order.getOrNull(order.indexOf(entry) + 1) ?: entry)
+            }
             // Alamat belum ada, gagal, atau kedaluwarsa setelah jeda lama: minta alamat baru, lanjut dari posisi terakhir.
             entry != null && (selection.isPending || audio.status == SampleAudioStatus.Failed || selection.isExpired(now())) ->
                 start(entry, resumeAtMs = if (audio.status == SampleAudioStatus.Ended) 0 else audio.positionMs)
@@ -189,7 +202,28 @@ internal class PlaybackController(
         publish()
     }
 
+    fun startSleepTimer(minutes: Int) = sleepTimer.start(minutes)
+
+    fun stopAfterCurrentTrack() {
+        val audio = player.state
+        if (audio.canStopAfterTrack) {
+            sleepTimer.stopAfterTrack()
+        }
+    }
+
+    fun cancelSleepTimer() = sleepTimer.cancel()
+
+    private fun pauseForSleep() {
+        player.refresh()
+        if (player.state.status == SampleAudioStatus.Ended) {
+            player.pauseAtEnd()
+            resumeAfterTrackEnd = true
+        }
+        pause()
+    }
+
     fun seekTo(positionMs: Long) {
+        if (player.state.canSeek) resumeAfterTrackEnd = false
         player.seekTo(positionMs)
         announceNextPublish = true
         publish()
@@ -223,6 +257,7 @@ internal class PlaybackController(
 
     /** Lanjut hanya bila sistem mengizinkan dan audio sedang diputar sebelum interupsi. */
     fun onInterruptionEnded(shouldResume: Boolean) {
+        sleepTimer.expireIfDue()
         val resumeNow = shouldResume && resumeAfterInterruption
         resumeAfterInterruption = false
         if (resumeNow) resume() else sync()
@@ -237,6 +272,8 @@ internal class PlaybackController(
         isRetry: Boolean = false,
         replay: SampleAudioSelection? = null,
     ) {
+        sleepTimer.expireIfDue()
+        resumeAfterTrackEnd = false
         preparing?.cancel()
         problem = null
         retryEntryId = null
@@ -310,11 +347,16 @@ internal class PlaybackController(
     }
 
     private fun sync() {
+        if (sleepTimer.expireIfDue()) return
         player.refresh()
         val audio = player.state
         val entryId = audio.selection?.queueEntryId
         if (preparing?.isActive != true) {
             if (audio.status == SampleAudioStatus.Ended) {
+                if (sleepTimer.consumeTrackEnd()) {
+                    pauseForSleep()
+                    return
+                }
                 val nextEntry = queue.afterEnd(entryId)
                 if (nextEntry != null) {
                     start(nextEntry, replay = audio.selection.takeIf { queue.repeatMode == RepeatMode.One })

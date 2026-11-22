@@ -46,12 +46,15 @@ internal data class SampleAudioState(
 ) {
     val isActive get() = status == SampleAudioStatus.Loading || status == SampleAudioStatus.Playing
     val canSeek get() = durationMs != null && (isActive || status == SampleAudioStatus.Paused)
+    val canStopAfterTrack get() = selection != null && status != SampleAudioStatus.Ended
 }
 
 internal interface SampleAudioOutput {
     val status: SampleAudioStatus
     val positionMs: Long
     val durationMs: Long?
+    /** Gain pemutar dari 0 hingga 1, terpisah dari volume perangkat. */
+    var volume: Float
 
     /** Dipanggil pemutar native saat status berubah, termasuk saat aplikasi di latar belakang. */
     var onEvent: (() -> Unit)?
@@ -96,10 +99,10 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     }
 
     /** Lagu baru dimulai dari [startAtMs]; lagu yang sama dan sedang dijeda dilanjutkan dari posisinya. */
-    fun play(selection: SampleAudioSelection, startAtMs: Long = 0) {
+    fun play(selection: SampleAudioSelection, startAtMs: Long = 0, forceRestart: Boolean = false) {
         awaitingSource = false
         refresh()
-        val sameSelection = state.selection == selection
+        val sameSelection = !forceRestart && state.selection == selection
         if (sameSelection && state.isActive) return
 
         val resume = sameSelection && state.status == SampleAudioStatus.Paused
@@ -122,6 +125,11 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         refresh()
         if (!state.isActive) return
 
+        output.pause()
+        state = state.copy(status = SampleAudioStatus.Paused)
+    }
+
+    fun pauseAtEnd() {
         output.pause()
         state = state.copy(status = SampleAudioStatus.Paused)
     }

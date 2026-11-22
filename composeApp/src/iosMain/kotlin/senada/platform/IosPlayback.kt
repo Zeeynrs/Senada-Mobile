@@ -26,7 +26,9 @@ import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
+import platform.AVFoundation.setVolume
 import platform.AVFoundation.timeControlStatus
+import platform.AVFoundation.volume
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSApplicationSupportDirectory
@@ -236,6 +238,7 @@ private class IosQueueStore : QueueStore {
 private class AvAudioOutput : SampleAudioOutput {
     private val player = AVPlayer()
     private var pendingSeek: PendingSeek? = null
+    private var reachedEnd = false
     private val observers = mutableListOf<Any>()
 
     override var onEvent: (() -> Unit)? = null
@@ -243,7 +246,12 @@ private class AvAudioOutput : SampleAudioOutput {
     init {
         val center = NSNotificationCenter.defaultCenter
         for (name in listOf(AVPlayerItemDidPlayToEndTimeNotification, AVPlayerItemFailedToPlayToEndTimeNotification)) {
-            observers += center.addObserverForName(name, null, NSOperationQueue.mainQueue) { _ -> onEvent?.invoke() }
+            observers += center.addObserverForName(name, null, NSOperationQueue.mainQueue) { notification ->
+                if (notification?.`object` == player.currentItem()) {
+                    if (name == AVPlayerItemDidPlayToEndTimeNotification && pendingSeek == null) reachedEnd = true
+                    onEvent?.invoke()
+                }
+            }
         }
         // AVPlayer juga memanggil blok ini saat audio mulai atau berhenti, misalnya saat headset dilepas.
         observers += player.addPeriodicTimeObserverForInterval(CMTimeMake(5, 1), dispatch_get_main_queue()) { _ ->
@@ -255,6 +263,7 @@ private class AvAudioOutput : SampleAudioOutput {
         get() {
             val item = player.currentItem() ?: return SampleAudioStatus.Failed
             if (item.status == AVPlayerItemStatusFailed) return SampleAudioStatus.Failed
+            if (reachedEnd) return SampleAudioStatus.Ended
             return when (player.timeControlStatus()) {
                 AVPlayerTimeControlStatusPlaying -> SampleAudioStatus.Playing
                 AVPlayerTimeControlStatusPaused -> {
@@ -280,9 +289,14 @@ private class AvAudioOutput : SampleAudioOutput {
             ?.takeIf { it.isFinite() && it > 0 }
             ?.let { (it * 1_000).roundToLong() }
 
+    override var volume: Float
+        get() = player.volume()
+        set(value) { player.setVolume(value) }
+
     override fun play(uri: String, restart: Boolean, startAtMs: Long) {
         if (restart) {
             pendingSeek = null
+            reachedEnd = false
             player.pause()
             val url = NSURL.URLWithString(uri)
             player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
@@ -295,6 +309,7 @@ private class AvAudioOutput : SampleAudioOutput {
     override fun pause() = player.pause()
 
     override fun seekTo(positionMs: Long) {
+        reachedEnd = false
         val request = PendingSeek(positionMs)
         pendingSeek = request
         val zeroTolerance = CMTimeMake(0, 1_000)
