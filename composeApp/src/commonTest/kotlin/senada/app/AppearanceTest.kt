@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import senada.app.theme.AccentChoice
 
 class AppearanceTest {
     @Test
@@ -17,9 +18,9 @@ class AppearanceTest {
         fun open() = AppearanceStore({ saved }, { saved = it })
         assertEquals(Appearance(), open().load())
         for (mode in ThemeMode.entries) {
-            for (follow in listOf(false, true)) {
+            for (accent in AccentChoice.entries) {
                 for (saveData in listOf(false, true)) {
-                    val settings = Appearance(mode, follow, saveData)
+                    val settings = Appearance(mode, accent, saveData)
                     open().save(settings)
                     assertEquals(settings, open().load())
                 }
@@ -58,6 +59,7 @@ class AppearanceTest {
         val store = AppearanceStore({ saved }, { saved = it })
         val settings = store.load()
         assertEquals(ThemeMode.Light, settings.mode)
+        assertEquals(AccentChoice.Mint, settings.accent)
         assertTrue(settings.saveMobileData)
         store.save(settings)
         assertEquals(JsonPrimitive("mint"), Json.parseToJsonElement(saved).jsonObject["accent"])
@@ -72,13 +74,23 @@ class AppearanceTest {
     }
 
     @Test
-    fun unreadable_or_invalid_settings_restore_both_defaults() {
-        for (bad in listOf("{", "{}", """{"version":2,"mode":"Dark","followCover":false}""",
+    fun unreadable_or_invalid_settings_restore_defaults() {
+        val defaults = Appearance(ThemeMode.System, AccentChoice.Senada, saveMobileData = false)
+        for (bad in listOf(
+            "{",
+            "{}",
             """{"version":1,"mode":"Unknown","followCover":false}""",
-            """{"version":1,"mode":"Dark","followCover":"yes"}""")) {
-            assertEquals(Appearance(), AppearanceStore({ bad }, {}).load())
+            """{"version":1,"mode":"Dark","followCover":"true"}""",
+            """{"version":2,"mode":"Dark","followCover":false}""",
+            """{"version":2,"mode":"Dark","accent":"unknown","saveMobileData":true}""",
+            """{"version":2,"mode":"Dark","accent":null}""",
+            """{"version":2,"mode":"Dark","accent":{"name":"mint"}}""",
+            """{"version":3,"mode":"Dark","accent":"mint"}""",
+        )) {
+            assertEquals(defaults, AppearanceStore({ bad }, {}).load(), bad)
         }
-        assertEquals(Appearance(), AppearanceStore({ error("gagal membaca") }, {}).load())
+        assertEquals(defaults, AppearanceStore({ null }, {}).load())
+        assertEquals(defaults, AppearanceStore({ error("gagal membaca") }, {}).load())
     }
 
     @Test

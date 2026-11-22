@@ -8,11 +8,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -52,27 +50,6 @@ internal fun AppearanceSection(preferences: AppearancePreferences) {
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(
-            Modifier.fillMaxWidth()
-                .toggleable(
-                    value = settings.followCover,
-                    enabled = ready,
-                    role = Role.Switch,
-                    onValueChange = preferences::followCover,
-                )
-                .semantics { stateDescription = if (settings.followCover) "Aktif" else "Nonaktif" }
-                .heightIn(min = 48.dp)
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                "Warna mengikuti sampul",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            Switch(settings.followCover, onCheckedChange = null, enabled = ready)
-        }
+        AccentPicker(settings.accent, ready, preferences::selectAccent)
     }
 }

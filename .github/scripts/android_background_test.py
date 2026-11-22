@@ -512,27 +512,49 @@ def check_large_font_accessibility() -> None:
         return
 
     screenshot("07-settings-large-font")
+    accent_labels = [
+        f"Warna aksen {label}" for label in (
+            "Senada", "Ikuti sampul", "Mint", "Indigo", "Sky", "Aurora", "Sunset", "Ocean",
+            "Forest", "Berry", "Amber", "Rose", "Carbon", "Chrome",
+        )
+    ]
     settings_targets = [
         ("Ikuti sistem", "text"),
-        ("Warna mengikuti sampul", "text"),
         ("Ekspor backup", "text"),
         ("Impor backup", "text"),
         ("Putar lokal", "text"),
         ("Putar HTTPS", "text"),
     ]
-    settings_found = collect_while_scrolling(settings_targets, scrolls=7, save_first="07-settings-ui.xml")
+    accent_targets = [(label, "content-desc") for label in accent_labels]
+    settings_found = collect_while_scrolling(
+        settings_targets + accent_targets, scrolls=7, save_first="07-settings-ui.xml",
+    )
     settings_missing = [label for label, _ in settings_targets if label not in settings_found]
     radio_node = settings_found["Ikuti sistem"][1] if "Ikuti sistem" in settings_found else None
-    switch_node = settings_found["Warna mengikuti sampul"][1] if "Warna mengikuti sampul" in settings_found else None
     radio_ok = radio_node is not None and (
         radio_node.get("checkable") == "true" or radio_node.get("selected") == "true"
     )
-    switch_ok = switch_node is not None and switch_node.get("checkable") == "true"
+    selected_accents = [
+        label for label in accent_labels if label in settings_found
+        and any(settings_found[label][1].get(attr) == "true" for attr in ("checked", "selected"))
+    ]
     check(
-        radio_ok and switch_ok,
-        "Pilihan radio dan sakelar di Pengaturan mengumumkan statusnya",
+        radio_ok and selected_accents == ["Warna aksen Senada"],
+        "Pilihan radio tema dan warna aksen di Pengaturan mengumumkan statusnya",
         f"radio={radio_node.attrib if radio_node is not None else None}, "
-        f"switch={switch_node.attrib if switch_node is not None else None}",
+        f"aksen dipilih={selected_accents}",
+    )
+    accent_missing = [label for label in accent_labels if label not in settings_found]
+    accent_clipped = [
+        f"{label}={box}"
+        for label, (box, _) in settings_found.items()
+        if label in accent_labels
+        and (box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px)
+    ]
+    check(
+        not accent_missing and not accent_clipped,
+        "Semua pilihan warna aksen memiliki label dan minimal 48 dp pada skala font 200%",
+        f"lebar {width}px, hilang {accent_missing}, terpotong/kekecilan {accent_clipped}",
     )
     backup_clipped = [
         f"{label}={settings_found[label][0]}"

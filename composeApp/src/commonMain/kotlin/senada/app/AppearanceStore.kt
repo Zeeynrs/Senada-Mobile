@@ -9,6 +9,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import senada.app.theme.AccentChoice
 
 internal enum class ThemeMode(val label: String) {
     System("Ikuti sistem"), Light("Terang"), Dark("Gelap"),
@@ -16,30 +17,40 @@ internal enum class ThemeMode(val label: String) {
 
 internal data class Appearance(
     val mode: ThemeMode = ThemeMode.System,
-    val followCover: Boolean = true,
+    val accent: AccentChoice = AccentChoice.Senada,
     val saveMobileData: Boolean = false,
 )
 
-/** Satu nilai berversi agar mode dan pilihan sampul selalu disimpan bersama. */
+/** Satu nilai berversi agar mode, aksen, dan penghemat data disimpan bersama. */
 internal class AppearanceStore(private val read: () -> String?, private val write: (String) -> Unit) {
     fun load(): Appearance {
         return try {
             val value = Json.parseToJsonElement(read() ?: return Appearance()).jsonObject
-            require(value["version"] == JsonPrimitive(1))
             val mode = ThemeMode.valueOf(value.getValue("mode").jsonPrimitive.content)
-            val follow = value.getValue("followCover").jsonPrimitive
-            require(!follow.isString)
+            val accent = when (value["version"]) {
+                JsonPrimitive(1) -> {
+                    val follow = value.getValue("followCover").jsonPrimitive
+                    require(!follow.isString)
+                    if (follow.boolean) AccentChoice.FollowCover else AccentChoice.Senada
+                }
+                JsonPrimitive(2) -> {
+                    val choice = value.getValue("accent").jsonPrimitive
+                    require(choice.isString)
+                    AccentChoice.entries.first { it.key == choice.content }
+                }
+                else -> return Appearance()
+            }
             val saveData = value["saveMobileData"] as? JsonPrimitive
-            Appearance(mode, follow.boolean, saveData?.takeUnless { it.isString }?.booleanOrNull ?: false)
+            Appearance(mode, accent, saveData?.takeUnless { it.isString }?.booleanOrNull ?: false)
         } catch (_: Exception) {
             Appearance()
         }
     }
 
     fun save(settings: Appearance) = write(buildJsonObject {
-        put("version", 1)
+        put("version", 2)
         put("mode", settings.mode.name)
-        put("followCover", settings.followCover)
+        put("accent", settings.accent.key)
         put("saveMobileData", settings.saveMobileData)
     }.toString())
 }
