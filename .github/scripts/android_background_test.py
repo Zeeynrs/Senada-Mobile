@@ -539,7 +539,7 @@ def check_large_font_accessibility() -> None:
         and any(settings_found[label][1].get(attr) == "true" for attr in ("checked", "selected"))
     ]
     check(
-        radio_ok and selected_accents == ["Warna aksen Senada"],
+        radio_ok and selected_accents == ["Warna aksen Ikuti sampul"],
         "Pilihan radio tema dan warna aksen di Pengaturan mengumumkan statusnya",
         f"radio={radio_node.attrib if radio_node is not None else None}, "
         f"aksen dipilih={selected_accents}",

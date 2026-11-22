@@ -17,7 +17,7 @@ internal enum class ThemeMode(val label: String) {
 
 internal data class Appearance(
     val mode: ThemeMode = ThemeMode.System,
-    val accent: AccentChoice = AccentChoice.Senada,
+    val accent: AccentChoice = AccentChoice.FollowCover,
     val saveMobileData: Boolean = false,
 )
 
