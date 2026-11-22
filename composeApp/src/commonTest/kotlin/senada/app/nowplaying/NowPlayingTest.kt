@@ -13,6 +13,8 @@ class NowPlayingTest {
         assertEquals("Dari Favorit", PlaySource.Favorites.label())
         assertEquals("Dari playlist Senja", PlaySource.Playlist("Senja").label())
         assertEquals("Dari Paling sering diputar", PlaySource.MostPlayed.label())
+        assertEquals("Dari artis Tulus", PlaySource.Artist("Tulus").label())
+        assertEquals("Dari album Manusia", PlaySource.Album("Manusia").label())
         assertNull(null.label())
     }
 

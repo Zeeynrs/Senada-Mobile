@@ -16,6 +16,30 @@ internal enum class AppDestination(val label: String) {
     Settings("Pengaturan"),
 }
 
+/** Rute halaman katalog di atas tab (artis atau album), disusun sebagai tumpukan kembali. */
+internal sealed interface CatalogRoute {
+    val id: String
+    val label: String
+    val artworkUrl: String?
+
+    data class Artist(
+        override val id: String,
+        val name: String,
+        override val artworkUrl: String? = null,
+    ) : CatalogRoute {
+        override val label: String get() = name.ifBlank { "Artis" }
+    }
+
+    data class Album(
+        override val id: String,
+        val title: String,
+        val subtitle: String? = null,
+        override val artworkUrl: String? = null,
+    ) : CatalogRoute {
+        override val label: String get() = title.ifBlank { "Album" }
+    }
+}
+
 /**
  * Posisi navigasi aplikasi: tab yang aktif dan layar yang terbuka di atasnya. Nilainya state Compose,
  * jadi layar ikut berubah saat navigator berubah.
@@ -25,6 +49,7 @@ internal class AppNavigator(
     nowPlayingOpen: Boolean = false,
     openedPlaylistId: String? = null,
     mostPlayedOpen: Boolean = false,
+    catalogStack: List<CatalogRoute> = emptyList(),
 ) {
     var destination by mutableStateOf(destination)
         private set
@@ -34,16 +59,26 @@ internal class AppNavigator(
         private set
     var mostPlayedOpen by mutableStateOf(mostPlayedOpen)
         private set
+    var catalogStack by mutableStateOf(catalogStack)
+        private set
+
+    val currentCatalogRoute: CatalogRoute?
+        get() = catalogStack.lastOrNull()
+
+    /** Label layar sebelum rute katalog teratas, dipakai untuk tombol kembali. */
+    fun previousCatalogLabel(): String =
+        catalogStack.dropLast(1).lastOrNull()?.label ?: destination.label
 
     /** Benar bila tombol kembali masih punya sesuatu untuk ditutup sebelum keluar aplikasi. */
     val canGoBack: Boolean
-        get() = nowPlayingOpen || mostPlayedOpen || openedPlaylistId != null || destination != AppDestination.Home
+        get() = nowPlayingOpen || mostPlayedOpen || catalogStack.isNotEmpty() || openedPlaylistId != null || destination != AppDestination.Home
 
     /** Pindah tab menutup layar detail tab sebelumnya. */
     fun select(destination: AppDestination) {
         this.destination = destination
         openedPlaylistId = null
         mostPlayedOpen = false
+        catalogStack = emptyList()
     }
 
     fun openNowPlaying() {
@@ -62,11 +97,28 @@ internal class AppNavigator(
         mostPlayedOpen = true
     }
 
-    /** Menutup lapisan paling atas: Sedang diputar, Paling sering diputar, detail playlist, lalu kembali ke Beranda. */
+    fun openArtist(id: String, name: String = "", artworkUrl: String? = null) {
+        val cleanId = id.trim()
+        if (cleanId.isEmpty()) return
+        val top = catalogStack.lastOrNull()
+        if (top is CatalogRoute.Artist && top.id == cleanId) return
+        catalogStack = catalogStack + CatalogRoute.Artist(cleanId, name, artworkUrl)
+    }
+
+    fun openAlbum(id: String, title: String = "", subtitle: String? = null, artworkUrl: String? = null) {
+        val cleanId = id.trim()
+        if (cleanId.isEmpty()) return
+        val top = catalogStack.lastOrNull()
+        if (top is CatalogRoute.Album && top.id == cleanId) return
+        catalogStack = catalogStack + CatalogRoute.Album(cleanId, title, subtitle, artworkUrl)
+    }
+
+    /** Menutup lapisan paling atas: Sedang diputar, Paling sering diputar, halaman artis/album, detail playlist, lalu Beranda. */
     fun back(): Boolean {
         when {
             nowPlayingOpen -> nowPlayingOpen = false
             mostPlayedOpen -> mostPlayedOpen = false
+            catalogStack.isNotEmpty() -> catalogStack = catalogStack.dropLast(1)
             openedPlaylistId != null -> openedPlaylistId = null
             destination != AppDestination.Home -> destination = AppDestination.Home
             else -> return false
@@ -75,14 +127,60 @@ internal class AppNavigator(
     }
 
     companion object {
+        private const val ROUTE_FIELDS = 5
+        private const val BASE_FIELDS = 4
+
         val Saver: Saver<AppNavigator, Any> = listSaver(
-            save = { listOf(it.destination.name, it.nowPlayingOpen, it.openedPlaylistId, it.mostPlayedOpen) },
+            save = { nav ->
+                buildList<Any?> {
+                    add(nav.destination.name)
+                    add(nav.nowPlayingOpen)
+                    add(nav.openedPlaylistId)
+                    add(nav.mostPlayedOpen)
+                    nav.catalogStack.forEach { route ->
+                        when (route) {
+                            is CatalogRoute.Artist -> {
+                                add("artist")
+                                add(route.id)
+                                add(route.name)
+                                add(null)
+                                add(route.artworkUrl)
+                            }
+                            is CatalogRoute.Album -> {
+                                add("album")
+                                add(route.id)
+                                add(route.title)
+                                add(route.subtitle)
+                                add(route.artworkUrl)
+                            }
+                        }
+                    }
+                }
+            },
             restore = { saved ->
+                val routes = buildList {
+                    var i = BASE_FIELDS
+                    while (i + ROUTE_FIELDS - 1 < saved.size) {
+                        val kind = saved[i] as? String
+                        val id = saved[i + 1] as? String
+                        val label = saved[i + 2] as? String ?: ""
+                        val subtitle = saved[i + 3] as? String
+                        val artwork = saved[i + 4] as? String
+                        if (!id.isNullOrBlank()) {
+                            when (kind) {
+                                "artist" -> add(CatalogRoute.Artist(id, label, artwork))
+                                "album" -> add(CatalogRoute.Album(id, label, subtitle, artwork))
+                            }
+                        }
+                        i += ROUTE_FIELDS
+                    }
+                }
                 AppNavigator(
                     destination = AppDestination.valueOf(saved[0] as String),
                     nowPlayingOpen = saved[1] as Boolean,
                     openedPlaylistId = saved[2] as String?,
                     mostPlayedOpen = saved[3] as Boolean,
+                    catalogStack = routes,
                 )
             },
         )

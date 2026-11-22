@@ -60,6 +60,8 @@ internal object SenadaIcons {
     val Lyrics = stroke("Lyrics", "M4 6h16", "M4 12h10", "M4 18h13")
     val Queue = stroke("Queue", "M3 6h13", "M3 12h13", "M3 18h8", "M16 15l5 3-5 3Z")
     val Close = stroke("Close", "M6 6l12 12", "M18 6L6 18")
+    val Person = stroke("Person", "M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8Z", "M5 20a7 7 0 0 1 14 0")
+    val Album = stroke("Album", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6Z")
 
     private fun stroke(name: String, vararg paths: String) = icon(name, filled = false, paths)
     private fun fill(name: String, vararg paths: String) = icon(name, filled = true, paths)
