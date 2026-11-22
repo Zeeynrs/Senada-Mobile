@@ -1,10 +1,14 @@
 package senada.app
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import coil3.ImageLoader
@@ -125,12 +130,42 @@ private fun ImportedAudioStorageControls(
     val scope = rememberCoroutineScope()
     var summary by remember(storage) { mutableStateOf<ImportedAudioSummary?>(null) }
     var reading by remember(storage) { mutableStateOf(true) }
+    var confirmingDelete by remember(storage) { mutableStateOf(false) }
     var deleting by remember(storage) { mutableStateOf(false) }
     var deleteMessage by remember(storage) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(storage) {
         summary = storage.readImportedAudioSummary()
         reading = false
+    }
+
+    fun deleteUnusedFiles() {
+        deleting = true
+        deleteMessage = null
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                withContext(NonCancellable) {
+                    val result = deleteUnusedImportedAudio(
+                        storage = storage,
+                        library = library,
+                        queueTracks = { playback.state.value.queue.entries.map { it.track } },
+                    )
+                    summary = result.summary
+                    deleteMessage = when {
+                        result.failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
+                        result.unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
+                        else -> "${result.unusedCount} file yang tidak dipakai dihapus."
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                deleteMessage = "Sebagian file audio impor tidak dapat dihapus."
+                summary = storage.readImportedAudioSummary()
+            } finally {
+                deleting = false
+            }
+        }
     }
 
     Text(
@@ -143,34 +178,7 @@ private fun ImportedAudioStorageControls(
         enabled = !reading && !deleting,
         shape = CircleShape,
         modifier = Modifier.minTouchTarget(),
-        onClick = {
-            deleting = true
-            deleteMessage = null
-            scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                try {
-                    withContext(NonCancellable) {
-                        val result = deleteUnusedImportedAudio(
-                            storage = storage,
-                            library = library,
-                            queueTracks = { playback.state.value.queue.entries.map { it.track } },
-                        )
-                        summary = result.summary
-                        deleteMessage = when {
-                            result.failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
-                            result.unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
-                            else -> "${result.unusedCount} file yang tidak dipakai dihapus."
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    deleteMessage = "Sebagian file audio impor tidak dapat dihapus."
-                    summary = storage.readImportedAudioSummary()
-                } finally {
-                    deleting = false
-                }
-            }
-        },
+        onClick = { confirmingDelete = true },
     ) { Text(if (deleting) "Menghapus…" else "Hapus file yang tidak dipakai") }
     deleteMessage?.let {
         Text(
@@ -178,6 +186,35 @@ private fun ImportedAudioStorageControls(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text("Hapus file yang tidak dipakai?", modifier = Modifier.semantics { heading() }) },
+            text = {
+                Text(
+                    "File audio impor yang tidak ada di antrean, favorit, playlist, riwayat, atau hitungan putar " +
+                        "akan dihapus dari ponsel, termasuk file yang belum pernah diputar. File ini juga hilang " +
+                        "dari Library › File impor dan harus diimpor ulang untuk diputar lagi.",
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmingDelete = false
+                        deleteUnusedFiles()
+                    },
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text("Hapus") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { confirmingDelete = false },
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text("Batal") }
+            },
         )
     }
 }
