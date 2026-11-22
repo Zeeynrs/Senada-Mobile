@@ -46,6 +46,11 @@ data class Playlist(
     val entries: List<PlaylistEntry>,
     /** Jumlah seluruh entri di playlist, termasuk yang belum dimuat. */
     val entryCount: Int = entries.size,
+    /** Total durasi seluruh lagu yang durasinya diketahui, atau null bila tidak ada. */
+    val totalDurationMs: Long? = entries
+        .mapNotNull { it.track.durationMs?.takeIf { ms -> ms > 0L } }
+        .sum()
+        .takeIf { it > 0L },
 )
 
 /** Album/playlist katalog yang disimpan; [metadata] JSON dipertahankan utuh untuk backup desktop. */
@@ -143,6 +148,12 @@ class LibraryRepository internal constructor(
 
     val favoriteTotal: Flow<Int> = queries.favoriteTotal().asFlow().mapToOne(dispatcher).map { it.toInt() }
 
+    /** Total durasi favorit yang durasinya diketahui dalam milidetik, atau null bila tidak ada. */
+    val favoriteDurationMs: Flow<Long?> = queries.favoriteDurationSummary { _, totalMs ->
+        @Suppress("USELESS_CAST")
+        (totalMs as Long?)?.takeIf { it > 0L } ?: 0L
+    }.asFlow().mapToOne(dispatcher).map { it.takeIf { ms -> ms > 0L } }
+
     /** ID lagu favorit untuk penanda ♥, tanpa memuat data lagunya. */
     val favoriteIds: Flow<Set<String>> = queries.favoriteIds().asFlow().mapToList(dispatcher).map { it.toSet() }
 
@@ -187,7 +198,17 @@ class LibraryRepository internal constructor(
             }.asFlow().mapToOneOrNull(dispatcher),
             entries.asFlow().mapToList(dispatcher),
             queries.playlistItemCount(id).asFlow().mapToOne(dispatcher),
-        ) { playlist, loaded, count -> playlist?.copy(entries = loaded, entryCount = count.toInt()) }
+            queries.playlistDurationSummary(id) { _, totalMs ->
+                @Suppress("USELESS_CAST")
+                (totalMs as Long?)?.takeIf { it > 0L } ?: 0L
+            }.asFlow().mapToOne(dispatcher),
+        ) { playlist, loaded, count, totalMs ->
+            playlist?.copy(
+                entries = loaded,
+                entryCount = count.toInt(),
+                totalDurationMs = totalMs.takeIf { it > 0L },
+            )
+        }
     }
 
     /** Semua lagu playlist sesuai urutan, misalnya untuk Putar semua. */

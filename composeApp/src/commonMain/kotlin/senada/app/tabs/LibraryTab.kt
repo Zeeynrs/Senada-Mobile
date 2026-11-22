@@ -62,15 +62,18 @@ internal fun LazyListScope.libraryTab(
     onOpenPlaylist: (String?) -> Unit,
     onLoadMoreFavorites: () -> Unit,
     onLoadMorePlaylist: () -> Unit,
+    reorderingPlaylist: Boolean = false,
+    onToggleReorderPlaylist: () -> Unit = {},
 ) {
-    item(key = "library-filters") {
-        LibraryFilterChips(
-            selected = section,
-            onSelect = { next ->
-                if (openedPlaylist != null && next != LibraryFilter.Playlists) onOpenPlaylist(null)
-                onSection(next)
-            },
-        )
+    if (openedPlaylist == null) {
+        item(key = "library-filters") {
+            LibraryFilterChips(
+                selected = section,
+                onSelect = { next ->
+                    onSection(next)
+                },
+            )
+        }
     }
     when (section) {
         LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites)
@@ -80,6 +83,8 @@ internal fun LazyListScope.libraryTab(
             actions = actions,
             onOpen = onOpenPlaylist,
             onLoadMore = onLoadMorePlaylist,
+            reordering = reorderingPlaylist,
+            onToggleReorder = onToggleReorderPlaylist,
         )
         LibraryFilter.History -> historyTab(library, actions)
         LibraryFilter.Imported -> importedTracksTab(library, actions)
