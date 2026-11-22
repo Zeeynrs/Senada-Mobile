@@ -358,7 +358,6 @@ private fun arrayOrEmpty(element: JsonElement): List<JsonElement> =
 
 private const val DEFAULT_PLAYLIST_NAME = "Playlist YouTube Music"
 private const val SEPARATOR = " • "
-private const val ARTWORK_SIZE = 544
 private val RUN_SEPARATORS = setOf("•", ",", "&", "dan", "and")
 private val TYPE_LABELS = setOf(
     "lagu", "song", "video", "episode", "episode podcast", "single", "album", "ep", "playlist", "artis", "artist",
