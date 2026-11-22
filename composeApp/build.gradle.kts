@@ -70,7 +70,7 @@ compose.resources {
 
 android {
     namespace = "senada.platform"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.zeeynrs.senada"
