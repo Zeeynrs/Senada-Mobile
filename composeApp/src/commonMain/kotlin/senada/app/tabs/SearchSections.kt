@@ -1,13 +1,10 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -15,7 +12,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -97,23 +93,23 @@ internal fun LazyListScope.searchResults(
         }
     }
     items(search.tracks, key = { "result-${it.id}" }) { track ->
-        TrackRow(track, favorite = track.id in library.favoriteIds) {
-            FilledTonalButton(
-                onClick = {
+        TrackRow(
+            track = track,
+            favorite = track.id in library.favoriteIds,
+            onClick = {
+                onResultUsed()
+                actions.playAll(listOf(track))
+            },
+        ) {
+            TrackMenu(
+                track = track,
+                library = library,
+                actions = actions,
+                onEnqueue = {
                     onResultUsed()
                     actions.enqueue(track)
                 },
-                shape = CircleShape,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                modifier = Modifier.minTouchTarget().semantics {
-                    contentDescription = "Tambah ${track.title} ke antrean"
-                },
-            ) { Text("Tambah") }
-            TrackMenu(track, library, actions)
+            )
         }
     }
     if (search.nextPageToken != null && search.error == null) {

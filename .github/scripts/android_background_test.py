@@ -19,6 +19,7 @@ ACTIVITY = f"{PKG}/senada.platform.MainActivity"
 APK = "composeApp/build/outputs/apk/debug/composeApp-debug.apk"
 FIRST = "Selepas Hujan"
 SECOND = "Sebelum Pagi"
+QUEUE_ACTION = "Tambah ke antrean"
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "build/android-e2e")
 STATES = {"0": "NONE", "1": "STOPPED", "2": "PAUSED", "3": "PLAYING", "6": "BUFFERING", "7": "ERROR"}
 
@@ -412,6 +413,15 @@ def min_touch_px() -> int:
     return int(48 * screen_density() / 160) - 1
 
 
+def queue_menu_targets(menu_label: str) -> list[tuple[tuple[int, int, int, int], ET.Element]]:
+    if not tap_desc(menu_label):
+        return []
+    try:
+        return wait_for(lambda: find_interactive(QUEUE_ACTION), 5)
+    finally:
+        shell("input keyevent KEYCODE_BACK")
+
+
 def check_initial_accessibility() -> None:
     root = ui_tree(save_as="01-ui.xml")
     menu_label = f"Buka menu {FIRST}"
@@ -420,21 +430,16 @@ def check_initial_accessibility() -> None:
 
     min_px = min_touch_px()
     targets = [
-        ("Tambah", "text", True),
-        (menu_label, "content-desc", True),
-        ("Beranda", "content-desc", True),
-        ("Cari", "content-desc", True),
-        ("Library", "content-desc", True),
-        ("Pengaturan", "content-desc", True),
+        (label, find_interactive(label, attribute="content-desc", root=root))
+        for label in (menu_label, "Beranda", "Cari", "Library", "Pengaturan")
     ]
+    targets.append((QUEUE_ACTION, queue_menu_targets(menu_label)))
     missing = []
     undersized = []
     checked = 0
-    for label, attr, required in targets:
-        matches = find_interactive(label, attribute=attr, root=root)
+    for label, matches in targets:
         if not matches:
-            if required:
-                missing.append(label)
+            missing.append(label)
             continue
         checked += 1
         x1, y1, x2, y2 = matches[0][0]
@@ -543,11 +548,11 @@ def check_large_font_accessibility() -> None:
     menu_label = f"Buka menu {FIRST}"
     open_tab("Cari")
     scroll_to_top(3)
-    cari_targets = [
-        (menu_label, "content-desc"),
-        ("Tambah", "text"),
-    ]
+    cari_targets = [(menu_label, "content-desc")]
     cari_found = collect_while_scrolling(cari_targets, scrolls=7, save_first="06-large-font-ui.xml")
+    queue_targets = queue_menu_targets(menu_label) if menu_label in cari_found else []
+    if queue_targets:
+        cari_found[QUEUE_ACTION] = queue_targets[0]
     player_targets = [
         (label, "content-desc")
         for label in ("Tutup", "Sebelumnya", "Berikutnya", "Acak: mati", "Ulangi: mati", "Timer tidur")
@@ -556,7 +561,7 @@ def check_large_font_accessibility() -> None:
     shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
     found = {**cari_found, **player_found}
-    targets = cari_targets + player_targets
+    targets = cari_targets + [(QUEUE_ACTION, "text")] + player_targets
     cari_missing = [label for label, _ in targets if label not in found]
     cari_clipped = [
         f"{label}={box}"
@@ -656,7 +661,10 @@ def scenario() -> None:
     screenshot("01-app")
     check_initial_accessibility()
 
-    added = tap_text("Tambah", 0) and tap_text("Tambah", 1)
+    added = all(
+        tap_desc(f"Buka menu {title}") and tap_text(QUEUE_ACTION, scrolls=0)
+        for title in (FIRST, SECOND)
+    )
     if added:
         check_search_keyboard()
     started = added and tap_desc("Putar")

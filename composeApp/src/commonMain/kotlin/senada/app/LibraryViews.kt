@@ -6,19 +6,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -164,12 +160,13 @@ internal class LibraryActions(
     }
 }
 
-/** Menu ⋯ pada lagu: favorit dan tambah ke playlist, ditambah aksi khusus daftar lewat [extra]. */
+/** Menu ⋯ untuk antrean, favorit, artis, playlist, dan aksi khusus daftar lewat [extra]. */
 @Composable
 internal fun TrackMenu(
     track: Track,
     library: LibraryState,
     actions: LibraryActions,
+    onEnqueue: () -> Unit = { actions.enqueue(track) },
     extra: @Composable ColumnScope.(close: () -> Unit) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
@@ -191,6 +188,14 @@ internal fun TrackMenu(
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Tambah ke antrean") },
+                onClick = {
+                    open = false
+                    onEnqueue()
+                },
+                modifier = Modifier.minTouchTarget(),
+            )
             DropdownMenuItem(text = { Text(if (favorite) "Hapus dari favorit" else "Tambah ke favorit") }, onClick = {
                 open = false
                 actions.toggleFavorite(track)
@@ -286,7 +291,7 @@ private fun SectionHeader(title: String, onPlayAll: (() -> Unit)?) {
     )
 }
 
-/** Satu daftar lagu library dengan tombol tambah ke antrean dan menu ⋯. */
+/** Satu daftar lagu library dengan menu ⋯. */
 private fun LazyListScope.trackList(
     keyPrefix: String,
     tracks: List<Track>,
@@ -294,19 +299,11 @@ private fun LazyListScope.trackList(
     actions: LibraryActions,
 ) {
     items(tracks, key = { "$keyPrefix-${it.id}" }) { track ->
-        TrackRow(track, favorite = track.id in library.favoriteIds) {
-            FilledTonalButton(
-                onClick = { actions.enqueue(track) },
-                shape = CircleShape,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                modifier = Modifier.minTouchTarget().semantics {
-                    contentDescription = "Tambah ${track.title} ke antrean"
-                },
-            ) { Text("Tambah") }
+        TrackRow(
+            track = track,
+            favorite = track.id in library.favoriteIds,
+            onClick = { actions.playAll(listOf(track)) },
+        ) {
             TrackMenu(track, library, actions)
         }
     }
@@ -422,19 +419,11 @@ internal fun LazyListScope.playlistsTab(
         }
     }
     itemsIndexed(opened.entries, key = { _, entry -> "playlist-item-${entry.itemId}" }) { index, entry ->
-        TrackRow(entry.track, favorite = entry.track.id in library.favoriteIds) {
-            FilledTonalButton(
-                onClick = { actions.enqueue(entry.track) },
-                shape = CircleShape,
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                modifier = Modifier.minTouchTarget().semantics {
-                    contentDescription = "Tambah ${entry.track.title} ke antrean"
-                },
-            ) { Text("Tambah") }
+        TrackRow(
+            track = entry.track,
+            favorite = entry.track.id in library.favoriteIds,
+            onClick = { actions.playAll(listOf(entry.track), PlaySource.Playlist(opened.name)) },
+        ) {
             TrackMenu(entry.track, library, actions) { close ->
                 if (index > 0) {
                     DropdownMenuItem(text = { Text("Pindah ke atas") }, onClick = {
