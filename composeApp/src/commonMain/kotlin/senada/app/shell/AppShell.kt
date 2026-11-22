@@ -30,6 +30,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.heading
@@ -204,6 +206,7 @@ internal fun AppShell(
 
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
+    val nowPlayingPanel = rememberNowPlayingPanel(navigator)
     val miniPlayerVisible = showsMiniPlayer(state)
     val imeInsets = WindowInsets.ime
     val density = LocalDensity.current
@@ -215,7 +218,7 @@ internal fun AppShell(
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().onSizeChanged { nowPlayingPanel.updateHeight(it.height) }.clipToBounds()) {
             LazyColumn(
                 state = key(navigator.destination, navigator.mostPlayedOpen, currentCatalogRoute, navigator.listeningStatsOpen) {
                     rememberLazyListState()
@@ -375,6 +378,7 @@ internal fun AppShell(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
+                            .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -385,6 +389,7 @@ internal fun AppShell(
                                 onOpen = navigator::openNowPlaying,
                                 onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
                                 onNext = playback::next,
+                                modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
                             )
                         }
                         FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
@@ -392,7 +397,7 @@ internal fun AppShell(
                 }
             }
 
-            if (navigator.nowPlayingOpen) {
+            if (nowPlayingPanel.visible) {
                 NowPlayingScreen(
                     state = state,
                     playback = playback,
@@ -400,6 +405,9 @@ internal fun AppShell(
                     actions = actions,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
+                    panel = nowPlayingPanel,
+                    immersive = navigator.nowPlayingOpen,
+                    modifier = Modifier.graphicsLayer { translationY = (1f - nowPlayingPanel.progress) * size.height },
                 )
             }
 

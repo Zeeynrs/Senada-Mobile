@@ -252,6 +252,33 @@ def open_now_playing() -> bool:
     return tap_desc("Buka Sedang diputar") and bool(wait_for(lambda: find_interactive("Tutup", attribute="content-desc"), 5))
 
 
+def now_playing_closed() -> bool:
+    tree = ui_tree()
+    return tree is not None and not find_interactive("Tutup", attribute="content-desc", root=tree) and bool(
+        find_interactive("Buka Sedang diputar", attribute="content-desc", root=tree)
+    )
+
+
+def check_now_playing_swipes() -> None:
+    name = "Geser mini player ke atas membuka Sedang diputar dan geser header ke bawah menutupnya"
+    mini_player = desc_point("Buka Sedang diputar")
+    if mini_player is None:
+        check(False, name, "Mini player tidak ditemukan")
+        return
+
+    width, height = screen_size()
+    x, y = mini_player
+    shell(f"input swipe {x} {y} {x} {y - height * 2 // 5} 1000")
+    close = wait_for(lambda: desc_point("Tutup"), 5)
+    if close is None:
+        check(False, name, "Sedang diputar tidak terbuka setelah digeser")
+        return
+
+    _, header_y = close
+    shell(f"input swipe {width // 2} {header_y} {width // 2} {header_y + height * 2 // 5} 1000")
+    check(wait_for(now_playing_closed, 5), name)
+
+
 def dismiss_system_dialogs() -> bool:
     """Tutup dialog "isn't responding" milik aplikasi sistem emulator (mis. Pixel Launcher) yang menutupi layar."""
     root = ui_tree()
@@ -912,6 +939,7 @@ def scenario() -> None:
 
     # Bekukan lagu contoh yang hanya 12 detik sebelum uiautomator mencari mini player dan tombol tutup.
     ready = pause_for_setup(FIRST)
+    check_now_playing_swipes()
     if not check(open_now_playing(), "Mini player membuka Sedang diputar"):
         screenshot("02-ui")
         return
@@ -964,11 +992,7 @@ def scenario() -> None:
 
     # Tombol kembali Android menutup Sedang diputar tanpa keluar dari aplikasi.
     shell("input keyevent KEYCODE_BACK")
-    back_closed = wait_for(
-        lambda: not find_interactive("Tutup", attribute="content-desc")
-        and find_interactive("Buka Sedang diputar", attribute="content-desc"),
-        5,
-    )
+    back_closed = wait_for(now_playing_closed, 5)
     check(back_closed, "Tombol kembali menutup Sedang diputar dan mini player tetap terlihat")
 
     shell("input keyevent KEYCODE_HOME")

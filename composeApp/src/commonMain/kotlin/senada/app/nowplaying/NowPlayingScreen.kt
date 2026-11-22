@@ -3,7 +3,6 @@ package senada.app.nowplaying
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,7 +60,9 @@ import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.minTouchTarget
+import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.SenadaIcons
+import senada.app.shell.nowPlayingSwipe
 import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
@@ -78,6 +79,9 @@ internal fun NowPlayingScreen(
     actions: LibraryActions,
     screenVisible: Boolean,
     onClose: () -> Unit,
+    panel: NowPlayingPanelState,
+    immersive: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val source by PlaySourceState.current.collectAsState()
     val timer by playback.sleepTimerState.collectAsState()
@@ -88,11 +92,14 @@ internal fun NowPlayingScreen(
     val artistChoices = remember(track, actions.canOpenArtists) {
         if (track != null && actions.canOpenArtists && canOpenArtist(track)) artistChoicesFor(track) else emptyList()
     }
-    NowPlayingSystemBars()
+    val listState = rememberLazyListState()
+    val headerSwipe = Modifier.nowPlayingSwipe(panel, opening = false)
+    val contentSwipe = Modifier.nowPlayingSwipe(panel, opening = false) { !listState.canScrollBackward }
+    if (immersive) NowPlayingSystemBars()
     MaterialTheme(colorScheme = nowPlayingColorScheme(accent)) {
         val colors = MaterialTheme.colorScheme
         val wash = (accent ?: colors.primary).copy(alpha = 0.24f).compositeOver(colors.background)
-        Surface(Modifier.fillMaxSize(), color = colors.background) {
+        Surface(modifier.fillMaxSize(), color = colors.background) {
             BoxWithConstraints(
                 Modifier.fillMaxSize()
                     .background(Brush.verticalGradient(listOf(wash, colors.background, colors.background)))
@@ -104,17 +111,21 @@ internal fun NowPlayingScreen(
                         sourceLabel = source.label().takeIf { track != null },
                         timerStatus = timer.statusText("mnt"),
                         onClose = onClose,
+                        modifier = headerSwipe,
                         timerButton = { SleepTimerButton(timer, state.audio.canStopAfterTrack, playback) },
                         menu = {
                             if (track != null) TrackMenu(track, library, actions)
                             else PlayerIcon(SenadaIcons.More, "Menu lagu", enabled = false) {}
                         },
                     )
-                    LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-                        item("cover") { Cover(track?.artworkUrl, coverSize) }
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                    ) {
+                        item("cover") { Cover(track?.artworkUrl, coverSize, contentSwipe) }
                         item("track") {
                             Row(
-                                Modifier.fillMaxWidth().padding(top = 16.dp),
+                                contentSwipe.fillMaxWidth().padding(top = 16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -263,18 +274,12 @@ private fun PlayerHeader(
     sourceLabel: String?,
     timerStatus: String?,
     onClose: () -> Unit,
+    modifier: Modifier,
     timerButton: @Composable () -> Unit,
     menu: @Composable () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().pointerInput(onClose) {
-            var distance = 0f
-            detectVerticalDragGestures(
-                onDragStart = { distance = 0f },
-                onVerticalDrag = { _, dy -> distance += dy },
-                onDragEnd = { if (distance >= 48.dp.toPx()) onClose() },
-            )
-        }.padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlayerIcon(SenadaIcons.ChevronDown, "Tutup", onClick = onClose)
@@ -301,9 +306,9 @@ private fun PlayerHeader(
 }
 
 @Composable
-private fun Cover(url: String?, size: Dp) {
+private fun Cover(url: String?, size: Dp, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             Modifier.size(size).clip(RoundedCornerShape(20.dp))
                 .background(Brush.linearGradient(listOf(colors.primaryContainer, colors.surfaceContainerHigh))),
