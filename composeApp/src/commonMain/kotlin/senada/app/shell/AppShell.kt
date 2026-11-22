@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +36,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -185,6 +188,8 @@ internal fun AppShell(
     // dan baris terakhir tetap harus bisa digulir ke atasnya.
     var overlayHeight by remember { mutableStateOf(0.dp) }
     val bottomPadding = if (imeVisible) BelowContentGap else overlayHeight + BelowContentGap
+    // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
+    val glassState = remember { HazeState() }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
@@ -193,6 +198,7 @@ internal fun AppShell(
                 },
                 modifier = Modifier
                     .fillMaxSize()
+                    .hazeSource(glassState)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     .windowInsetsPadding(imeInsets),
                 contentPadding = PaddingValues(
@@ -335,24 +341,26 @@ internal fun AppShell(
                 }
             }
 
-            if (!imeVisible) {
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (miniPlayerVisible) {
-                        MiniPlayer(
-                            state = state,
-                            onOpen = navigator::openNowPlaying,
-                            onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
-                            onNext = playback::next,
-                        )
+            CompositionLocalProvider(LocalGlassState provides glassState) {
+                if (!imeVisible) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (miniPlayerVisible) {
+                            MiniPlayer(
+                                state = state,
+                                onOpen = navigator::openNowPlaying,
+                                onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
+                                onNext = playback::next,
+                            )
+                        }
+                        FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
                     }
-                    FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
                 }
             }
 

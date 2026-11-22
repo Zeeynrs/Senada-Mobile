@@ -7,6 +7,8 @@ lifecycle = "2.9.6"
 media3 = "1.7.1"
 coroutines = "1.10.2"
 datetime = "0.7.1"
+# Haze 1.7.1 adalah versi terakhir untuk Kotlin 2.2.21 dan Compose 1.9.3.
+haze = "1.7.1"
 ktor = "3.3.3"
 serialization = "1.9.0"
 # Coil 3.4+ membutuhkan Kotlin 2.3.
@@ -21,6 +23,7 @@ media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = 
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

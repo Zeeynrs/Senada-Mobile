@@ -1,41 +1,39 @@
 package senada.app.shell
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-/** Pil navigasi yang mengambang di bawah layar; tujuan aktif ditandai pil berisi aksen. */
+/** Tinggi bersama pil navigasi dan mini player agar keduanya tampak satu set. */
+internal val FloatingBarHeight = 64.dp
+
+/** Pil navigasi kaca yang mengambang di bawah layar; tujuan aktif ditandai pil kecil berisi aksen. */
 @Composable
 internal fun FloatingNavBar(current: AppDestination, onSelect: (AppDestination) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth().height(64.dp),
-    ) {
+    GlassSurface(shape = CircleShape, modifier = Modifier.fillMaxWidth().height(FloatingBarHeight)) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp).selectableGroup(),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp).selectableGroup(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             for (destination in AppDestination.entries) {
@@ -43,16 +41,16 @@ internal fun FloatingNavBar(current: AppDestination, onSelect: (AppDestination) 
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(64.dp)
+                        .fillMaxHeight()
                         .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(destination) })
                         .semantics { contentDescription = destination.label },
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = if (selected) 64.dp else 48.dp, height = 44.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh),
+                            .size(width = 56.dp, height = 40.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
