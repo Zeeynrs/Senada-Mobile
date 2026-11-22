@@ -11,7 +11,6 @@ import senada.catalog.ArtistPage
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
-import senada.catalog.ReleaseSection
 import senada.model.Track
 
 internal const val PAGE_TYPE_ARTIST = "MUSIC_PAGE_TYPE_ARTIST"
@@ -31,6 +30,12 @@ private val TYPE_LABELS = setOf(
 private val SEPARATORS = setOf("•", ",", "&", "dan", "and")
 private val YEAR = Regex("^\\d{4}$")
 private val COUNT_HINT = Regex("(x|jt|rb\\.?|views|plays|pemutaran|ditonton|pendengar|audiens|subscriber)")
+internal const val POPULAR_ALBUMS_MIN_COUNT = 4
+private val ALBUM_SHELF_TITLES = setOf("album", "albums")
+private val SINGLE_SHELF_TITLE = Regex("""\b(singles?|eps?)\b""", RegexOption.IGNORE_CASE)
+private val SINGLE_SUBTITLE_TYPES = setOf("single", "ep")
+
+private enum class ArtistCarouselKind { Albums, Singles, Other }
 
 /** Membaca halaman pertama pencarian artis atau halaman lanjutannya. */
 internal fun parseArtistSearchPage(response: JsonObject): ArtistPage {
@@ -54,7 +59,7 @@ internal fun parseAlbumSearchPage(response: JsonObject): AlbumPage {
     return AlbumPage(albums.distinctBy { it.id }, nextContinuation(shelves))
 }
 
-/** Membaca halaman artis: nama, foto, lagu teratas, serta rak album/single. */
+/** Membaca halaman artis: nama, foto, lagu terpopuler beserta tautan albumnya, serta album terpopuler & terbaru. */
 internal fun parseArtistPage(
     channelId: String,
     response: JsonObject,
@@ -68,7 +73,10 @@ internal fun parseArtistPage(
     val fallbackArtists = listOfNotNull(name.takeIf { it.isNotEmpty() })
 
     var topSongs = emptyList<Track>()
-    val releases = mutableListOf<ReleaseSection>()
+    var topSongsPlaylistId: String? = null
+    val topSongAlbums = linkedMapOf<String, AlbumSummary>()
+    val albumsShelf = mutableListOf<AlbumSummary>()
+    val singlesShelf = mutableListOf<AlbumSummary>()
 
     for (section in sectionListContents(response)) {
         val shelf = section.at("musicShelfRenderer")
@@ -76,10 +84,20 @@ internal fun parseArtistPage(
             topSongs = shelf.array("contents")
                 .mapNotNull {
                     it.at("musicResponsiveListItemRenderer")?.let { row ->
-                        parseBrowseTrack(row, fallbackArtists, onArtistId = onArtistId)
+                        parseBrowseTrack(
+                            row,
+                            fallbackArtists,
+                            onArtistId = onArtistId,
+                            onAlbum = { trackId, album ->
+                                if (trackId !in topSongAlbums) topSongAlbums[trackId] = album
+                            },
+                        )
                     }
                 }
                 .distinctBy { it.id }
+            if (topSongs.isNotEmpty()) {
+                topSongsPlaylistId = parseTopSongsPlaylistId(shelf)
+            }
             if (name.isNotEmpty()) {
                 topSongs.forEach { song -> onArtistId(song.id, name, channelId) }
             }
@@ -89,13 +107,20 @@ internal fun parseArtistPage(
         val cards = carousel.array("contents")
             .mapNotNull { it.at("musicTwoRowItemRenderer")?.let(::parseAlbumCard) }
             .distinctBy { it.id }
-        if (cards.isNotEmpty()) {
-            val sectionTitle = shelfTitle(carousel).ifEmpty { "Album & Single" }
-            releases += ReleaseSection(title = sectionTitle, items = cards)
+        if (cards.isEmpty()) continue
+        when (classifyArtistCarousel(shelfTitle(carousel), cards)) {
+            ArtistCarouselKind.Albums -> albumsShelf += cards
+            ArtistCarouselKind.Singles -> singlesShelf += cards
+            ArtistCarouselKind.Other -> Unit
         }
     }
 
-    if (name.isEmpty() && topSongs.isEmpty() && releases.isEmpty()) {
+    val uniqueAlbums = albumsShelf.distinctBy { it.id }
+    val uniqueSingles = singlesShelf.distinctBy { it.id }
+    val popularAlbums = buildPopularAlbums(topSongs, topSongAlbums, uniqueAlbums, uniqueSingles)
+    val newestAlbums = buildNewestAlbums(uniqueAlbums, uniqueSingles)
+
+    if (name.isEmpty() && topSongs.isEmpty() && popularAlbums.isEmpty() && newestAlbums.isEmpty()) {
         throw CatalogException(Kind.Unreadable, "Halaman artis tidak memuat data yang dapat dibaca")
     }
     return ArtistDetail(
@@ -104,8 +129,124 @@ internal fun parseArtistPage(
         artworkUrl = artworkUrl,
         monthlyListeners = monthlyListeners,
         topSongs = topSongs,
-        releases = releases,
+        topSongsPlaylistId = topSongsPlaylistId,
+        topSongAlbums = topSongAlbums,
+        popularAlbums = popularAlbums,
+        newestAlbums = newestAlbums,
     )
+}
+
+/**
+ * Menyusun daftar "Album terpopuler": album yang memuat lagu terpopuler diurutkan menurut peringkat
+ * lagu terbaiknya, dicocokkan ke rak album untuk sampul/judul lengkap (atau memakai info baris lagu
+ * bila tidak ada di rak). Bila hasilnya kurang dari [minCount], dilengkapi sisa rak album sesuai
+ * urutan YouTube Music. Single & EP hanya dipakai jika artis tidak memiliki album penuh.
+ */
+internal fun buildPopularAlbums(
+    topSongs: List<Track>,
+    topSongAlbums: Map<String, AlbumSummary>,
+    albumsShelf: List<AlbumSummary>,
+    singlesShelf: List<AlbumSummary>,
+    minCount: Int = POPULAR_ALBUMS_MIN_COUNT,
+): List<AlbumSummary> {
+    val hasProperAlbums = albumsShelf.isNotEmpty()
+    val baseShelf = if (hasProperAlbums) albumsShelf else singlesShelf
+    val shelfById = baseShelf.associateBy { it.id }
+    val excludedSingleIds = if (hasProperAlbums) singlesShelf.mapTo(HashSet()) { it.id } else emptySet()
+
+    val result = mutableListOf<AlbumSummary>()
+    val seen = HashSet<String>()
+
+    for (song in topSongs) {
+        val fromSong = topSongAlbums[song.id] ?: continue
+        if (fromSong.id in seen) continue
+        val fromShelf = shelfById[fromSong.id]
+        if (fromShelf != null) {
+            seen += fromShelf.id
+            result += fromShelf
+        } else if (fromSong.id !in excludedSingleIds) {
+            seen += fromSong.id
+            result += fromSong
+        }
+    }
+
+    if (result.size < minCount) {
+        for (album in baseShelf) {
+            if (result.size >= minCount) break
+            if (seen.add(album.id)) {
+                result += album
+            }
+        }
+    }
+    return result
+}
+
+/**
+ * Menyusun daftar "Album terbaru": rak album (atau Single & EP bila rak album kosong) diurutkan
+ * menurut tahun terbaru ke terlama, tahun tak diketahui di akhir, dan urutan rak dipertahankan bila
+ * tahunnya sama.
+ */
+internal fun buildNewestAlbums(
+    albumsShelf: List<AlbumSummary>,
+    singlesShelf: List<AlbumSummary>,
+): List<AlbumSummary> = sortNewestAlbums(albumsShelf.ifEmpty { singlesShelf })
+
+internal fun sortNewestAlbums(albums: List<AlbumSummary>): List<AlbumSummary> =
+    albums.sortedWith(
+        Comparator { a, b ->
+            val yearA = a.year?.trim()?.toIntOrNull()
+            val yearB = b.year?.trim()?.toIntOrNull()
+            when {
+                yearA == yearB -> 0
+                yearA == null -> 1
+                yearB == null -> -1
+                else -> yearB.compareTo(yearA)
+            }
+        },
+    )
+
+private fun classifyArtistCarousel(title: String, cards: List<AlbumSummary>): ArtistCarouselKind {
+    val normalized = title.trim().lowercase()
+    return when {
+        normalized in ALBUM_SHELF_TITLES -> ArtistCarouselKind.Albums
+        SINGLE_SHELF_TITLE.containsMatchIn(normalized) -> ArtistCarouselKind.Singles
+        normalized.isEmpty() -> {
+            val allSingles = cards.all { card ->
+                val head = card.subtitle?.split("•", "·")?.firstOrNull()?.trim()?.lowercase()
+                head in SINGLE_SUBTITLE_TYPES
+            }
+            if (allSingles) ArtistCarouselKind.Singles else ArtistCarouselKind.Albums
+        }
+        else -> ArtistCarouselKind.Other
+    }
+}
+
+private fun parseTopSongsPlaylistId(shelf: JsonElement): String? {
+    val endpoints = buildList {
+        shelf.at("bottomEndpoint")?.let(::add)
+        shelf.array("title", "runs").mapNotNullTo(this) { it.at("navigationEndpoint") }
+    }
+    for (endpoint in endpoints) {
+        val target = browseTarget(endpoint)
+        if (target != null) {
+            if (target.first == KIND_PLAYLIST) {
+                return target.second.trim().removePrefix("VL").takeIf { it.isNotEmpty() }
+            }
+            continue
+        }
+        val browse = endpoint.at("browseEndpoint") ?: continue
+        val explicitPageType = browse.string(
+            "browseEndpointContextSupportedConfigs",
+            "browseEndpointContextMusicConfig",
+            "pageType",
+        )
+        if (explicitPageType != null && explicitPageType != PAGE_TYPE_PLAYLIST) continue
+        val rawId = browse.string("browseId")?.trim().orEmpty()
+        if (rawId.startsWith("VL")) {
+            return rawId.removePrefix("VL").takeIf { it.isNotEmpty() }
+        }
+    }
+    return null
 }
 
 /** Membaca halaman album: sampul, judul, artis, tahun (bila ada), dan daftar lagu berurutan. */
@@ -213,12 +354,14 @@ internal fun parseAlbumCard(item: JsonElement): AlbumSummary? {
     if (target.first != KIND_ALBUM) return null
     val title = textOf(item.at("title"))
     if (title.isEmpty()) return null
-    val subRuns = item.array("subtitle", "runs")
+    val subtitleObj = item.at("subtitle")
+    val subRuns = subtitleObj.array("runs")
+    val year = findYear(subRuns) ?: findYearInText(subtitleObj.string("simpleText"))
     return AlbumSummary(
         id = target.second,
         title = title,
-        subtitle = textOf(item.at("subtitle")).takeIf { it.isNotEmpty() },
-        year = findYear(subRuns),
+        subtitle = textOf(subtitleObj).takeIf { it.isNotEmpty() },
+        year = year,
         artworkUrl = bestArtwork(item),
     )
 }
@@ -228,6 +371,7 @@ internal fun parseBrowseTrack(
     fallbackArtists: List<String> = emptyList(),
     fallbackArtworkUrl: String? = null,
     onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit = { _, _, _ -> },
+    onAlbum: (trackId: String, album: AlbumSummary) -> Unit = { _, _ -> },
 ): Track? {
     val titleRuns = columnRuns(item, 0)
     val videoId = item.string("playlistItemData", "videoId")
@@ -277,12 +421,29 @@ internal fun parseBrowseTrack(
         .lastOrNull { parseDuration(it) != null }
         ?.let(::parseDuration)
 
+    val resolvedArtworkUrl = bestArtwork(item) ?: fallbackArtworkUrl
+    val albumRun = allMetaRuns.firstOrNull { pageType(it) == PAGE_TYPE_ALBUM }
+    if (albumRun != null) {
+        val albumId = albumRun.string("navigationEndpoint", "browseEndpoint", "browseId")?.trim().orEmpty()
+        val albumTitle = albumRun.string("text")?.trim().orEmpty()
+        if (albumId.isNotEmpty() && albumTitle.isNotEmpty()) {
+            onAlbum(
+                trackId,
+                AlbumSummary(
+                    id = albumId,
+                    title = albumTitle,
+                    artworkUrl = resolvedArtworkUrl,
+                ),
+            )
+        }
+    }
+
     return Track(
         id = trackId,
         title = title,
         artists = artists,
         durationMs = durationMs,
-        artworkUrl = bestArtwork(item) ?: fallbackArtworkUrl,
+        artworkUrl = resolvedArtworkUrl,
         source = YOUTUBE_MUSIC_SOURCE,
     )
 }
@@ -367,7 +528,10 @@ internal fun browseTarget(element: JsonElement?): Pair<String, String>? {
 }
 
 internal fun findYear(runs: List<JsonElement>): String? =
-    runs.mapNotNull { it.string("text")?.trim() }.firstOrNull { YEAR.matches(it) }
+    runs.firstNotNullOfOrNull { findYearInText(it.string("text")) }
+
+private fun findYearInText(text: String?): String? =
+    text?.split("•", "·")?.map(String::trim)?.firstOrNull { YEAR.matches(it) }
 
 internal fun runsText(runs: List<JsonElement>): String =
     runs.joinToString("") { it.string("text").orEmpty() }.trim()
