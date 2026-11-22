@@ -317,6 +317,40 @@ def check_app_navigation() -> None:
     )
 
 
+def check_sleep_timer() -> None:
+    shell("input keyevent KEYCODE_WAKEUP")
+    shell("wm dismiss-keyguard")
+    shell(f"am start -W -n {ACTIVITY}")
+    shell("cmd media_session dispatch play")
+    if not check(wait_session("PLAYING", SECOND, 8, max_ms=2_000), "Entri terakhir diputar ulang untuk uji timer"):
+        return
+    shell("cmd media_session dispatch previous")
+    paused = pause_for_setup(FIRST)
+    if paused:
+        shell("cmd media_session dispatch previous")
+        paused = wait_session("PAUSED", FIRST, 5, max_ms=1_000)
+    if not check(paused and open_now_playing(), "Sedang diputar dibuka pada entri pertama untuk uji timer"):
+        return
+
+    timed = tap_desc("Timer tidur") and tap_text("15 menit", scrolls=0)
+    check(
+        timed and tap_desc("Timer tidur. Berhenti dalam 15 menit") and tap_text("Matikan", scrolls=1),
+        "Pilihan 15 menit menampilkan sisa waktu dan dapat dimatikan",
+    )
+    armed = tap_desc("Timer tidur") and tap_text("Akhir lagu ini", scrolls=1)
+    if not check(armed and desc_point("Timer tidur. Berhenti di akhir lagu"), "Timer akhir lagu diaktifkan"):
+        return
+
+    shell("input keyevent KEYCODE_HOME")
+    shell("cmd media_session dispatch play")
+    shell("input keyevent KEYCODE_SLEEP")
+    stopped = wait_session("PAUSED", FIRST, 20, min_ms=11_500)
+    if check(stopped and wakefulness() != "Awake", "Timer menjeda di akhir lagu tanpa maju saat layar mati", stopped):
+        shell("cmd media_session dispatch play")
+        resumed = wait_session("PLAYING", SECOND, 5)
+        check(resumed, "Putar melanjutkan ke entri kedua setelah timer habis", resumed or session())
+
+
 def check_https() -> None:
     name = "Tombol 'Putar HTTPS' memutar sampel internet (PLAYING)"
     shell("input keyevent KEYCODE_WAKEUP")
@@ -488,7 +522,8 @@ def check_large_font_accessibility() -> None:
     ]
     cari_found = collect_while_scrolling(cari_targets, scrolls=7, save_first="06-large-font-ui.xml")
     player_targets = [
-        (label, "content-desc") for label in ("Tutup", "Sebelumnya", "Berikutnya", "Acak: mati", "Ulangi: mati")
+        (label, "content-desc")
+        for label in ("Tutup", "Sebelumnya", "Berikutnya", "Acak: mati", "Ulangi: mati", "Timer tidur")
     ]
     player_found = collect_while_scrolling(player_targets, scrolls=4) if open_now_playing() else {}
     shell("input keyevent KEYCODE_BACK")
@@ -700,6 +735,8 @@ def scenario() -> None:
 
     ended = wait_for(finished, 25)
     check(ended, "Berhenti setelah entri terakhir selesai", ended or session())
+    if ended:
+        check_sleep_timer()
     check_https()
     check_large_font_accessibility()
 

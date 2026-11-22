@@ -6,6 +6,8 @@ internal class FakeAudioOutput : SampleAudioOutput {
     val startPositions = mutableListOf<Long>()
     val seeks = mutableListOf<Long>()
     var pauseCount = 0
+    override var volume = 1f
+    val volumesAtPause = mutableListOf<Float>()
     var emitEventOnPlay = false
     override var status = SampleAudioStatus.Playing
     override var positionMs = 0L
@@ -24,6 +26,7 @@ internal class FakeAudioOutput : SampleAudioOutput {
 
     override fun pause() {
         pauseCount++
+        volumesAtPause += volume
         status = SampleAudioStatus.Paused
     }
 

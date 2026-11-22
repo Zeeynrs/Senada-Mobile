@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -71,6 +72,7 @@ internal fun NowPlayingScreen(
     onClose: () -> Unit,
 ) {
     val source by PlaySourceState.current.collectAsState()
+    val timer by playback.sleepTimerState.collectAsState()
     val track = if (state.audio.selection == null) state.queue.entries.firstOrNull()?.track else state.currentEntry?.track
     val accent = LocalArtworkAccent.current
     var lyricsSelected by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +90,9 @@ internal fun NowPlayingScreen(
                 Column(Modifier.fillMaxSize()) {
                     PlayerHeader(
                         sourceLabel = source.label().takeIf { track != null },
+                        timerStatus = timer.statusText("mnt"),
                         onClose = onClose,
+                        timerButton = { SleepTimerButton(timer, state.audio.canStopAfterTrack, playback) },
                         menu = {
                             if (track != null) TrackMenu(track, library, actions)
                             else PlayerIcon(SenadaIcons.More, "Menu lagu", enabled = false) {}
@@ -195,7 +199,13 @@ private fun panelBody(last: Boolean): Modifier {
 }
 
 @Composable
-private fun PlayerHeader(sourceLabel: String?, onClose: () -> Unit, menu: @Composable () -> Unit) {
+private fun PlayerHeader(
+    sourceLabel: String?,
+    timerStatus: String?,
+    onClose: () -> Unit,
+    timerButton: @Composable () -> Unit,
+    menu: @Composable () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().pointerInput(onClose) {
             var distance = 0f
@@ -208,12 +218,24 @@ private fun PlayerHeader(sourceLabel: String?, onClose: () -> Unit, menu: @Compo
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlayerIcon(SenadaIcons.ChevronDown, "Tutup", onClick = onClose)
-        Text(
-            sourceLabel ?: "Sedang diputar",
-            style = MaterialTheme.typography.titleSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                sourceLabel ?: "Sedang diputar",
+                style = MaterialTheme.typography.titleSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { heading() },
+            )
+            if (timerStatus != null) {
+                Text(
+                    timerStatus,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.clearAndSetSemantics {},
+                )
+            }
+        }
+        timerButton()
         menu()
     }
 }
