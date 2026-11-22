@@ -71,8 +71,8 @@ class YouTubeMusicPlaylistSearchTest {
     @Test
     fun parsesPlaylistSearchContinuationPage() = runTest {
         val cat = catalog { request ->
-            val body = request.jsonBody()
-            assertEquals("SEARCH_CONT_2", body.string("continuation"))
+            assertEquals("SEARCH_CONT_2", request.url.parameters["continuation"])
+            assertEquals("next", request.url.parameters["type"])
             json(SEARCH_CONTINUATION_JSON)
         }
 
