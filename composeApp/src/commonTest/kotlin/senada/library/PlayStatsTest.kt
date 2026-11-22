@@ -3,7 +3,6 @@ package senada.library
 import app.cash.sqldelight.db.QueryResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -156,13 +155,14 @@ class PlayStatsTest {
     fun aVersionThreeDatabaseGainsPlayStats() = runTest {
         driver.execute(null, "DROP TABLE play_event", 0)
         driver.execute(null, "DROP TABLE playlist_play", 0)
+        driver.execute(null, "DROP TABLE imported_track", 0)
         val library = library()
         library.setFavorite(first, true)
 
-        SenadaDatabase.Schema.migrate(driver, 3, 4)
+        SenadaDatabase.Schema.migrate(driver, 3, SenadaDatabase.Schema.version)
         library.recordTrackPlay(second)
 
-        assertTrue(SenadaDatabase.Schema.version >= 4L)
+        assertEquals(5L, SenadaDatabase.Schema.version)
         assertEquals(listOf(first), library.favorites.first())
         assertEquals(HomeHero.FromTrack(second, 1), library.homeHero().first())
     }
