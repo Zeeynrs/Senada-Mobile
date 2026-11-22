@@ -50,8 +50,8 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     val context = LocalPlatformContext.current
     val preferences = remember(context) { AppearancePreferences(appearanceStore(context)) }
     LaunchedEffect(preferences) { preferences.restore() }
-    val settings = preferences.settings
-    val dark = when (settings?.mode) {
+    val settings = preferences.settings ?: Appearance()
+    val dark = when (settings.mode) {
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
         else -> isSystemInDarkTheme()
@@ -61,7 +61,7 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     LaunchedEffect(url, visible) {
         if (url != null && visible) cover = artworkColors.get(url) { loadArtworkAccent(context, url) }
     }
-    val source = (settings?.accent ?: AccentChoice.Senada).source(cover)
+    val source = settings.accent.source(cover)
     val colors = remember(dark, source) { senadaColorScheme(dark, source) }
     CompositionLocalProvider(LocalArtworkAccent provides cover) {
         MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
