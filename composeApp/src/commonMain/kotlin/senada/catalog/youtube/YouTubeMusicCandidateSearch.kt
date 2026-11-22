@@ -98,4 +98,3 @@ private fun candidatePageType(run: JsonElement): String? = run.string(
 )
 
 private const val SEPARATOR = " • "
-private const val ARTWORK_SIZE = 544
