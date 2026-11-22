@@ -45,56 +45,121 @@ import kotlinx.coroutines.launch
 import senada.app.ImportAudioButton
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.SenadaSources
 import senada.app.minTouchTarget
 import senada.app.searchHistoryItems
 import senada.app.shell.SenadaIcons
+import senada.catalog.AlbumSummary
+import senada.catalog.ArtistSummary
+import senada.catalog.CatalogBrowser
 import senada.model.Track
 
-/** Kueri dan hasil tab Cari; hasil terbaru menang, mengetik lagi membatalkan pencarian sebelumnya. */
-internal class SearchTabState(queryState: MutableState<String>, private val scope: CoroutineScope) {
+/** Kueri, filter, dan hasil tab Cari; hasil terbaru menang, mengetik lagi membatalkan pencarian sebelumnya. */
+internal class SearchTabState(
+    queryState: MutableState<String>,
+    filterState: MutableState<SearchFilter>,
+    private val scope: CoroutineScope,
+    private val catalog: CatalogBrowser = SenadaSources.youTubeMusic,
+    private val debounceMs: Long = SEARCH_DEBOUNCE_MS,
+) {
     var query by queryState
+    var filter by filterState
     var search by mutableStateOf(SearchState())
+        private set
+    var artistSearch by mutableStateOf(ArtistSearchState())
+        private set
+    var albumSearch by mutableStateOf(AlbumSearchState())
         private set
     var attempt by mutableStateOf(0)
         private set
     private var moreJob: Job? = null
+    private var lastRefreshedQuery: String = ""
+    private var lastAttempt: Int = 0
 
     fun loadMore() {
         moreJob?.cancel()
+        val currentFilter = filter
         moreJob = scope.launch {
-            search = search.copy(loading = true, error = null)
-            search = loadSearchPage(search)
+            when (currentFilter) {
+                SearchFilter.Songs -> {
+                    search = search.copy(loading = true, error = null)
+                    search = loadSearchPage(search, catalog)
+                }
+                SearchFilter.Artists -> {
+                    artistSearch = artistSearch.copy(loading = true, error = null)
+                    artistSearch = loadArtistSearchPage(artistSearch, catalog)
+                }
+                SearchFilter.Albums -> {
+                    albumSearch = albumSearch.copy(loading = true, error = null)
+                    albumSearch = loadAlbumSearchPage(albumSearch, catalog)
+                }
+            }
         }
     }
 
     /** Saat gagal: lanjutkan halaman berikutnya bila ada, selain itu ulangi pencarian. */
     fun retry() {
-        if (search.nextPageToken != null) loadMore() else attempt++
+        val hasNext = when (filter) {
+            SearchFilter.Songs -> search.nextPageToken != null
+            SearchFilter.Artists -> artistSearch.nextPageToken != null
+            SearchFilter.Albums -> albumSearch.nextPageToken != null
+        }
+        if (hasNext) loadMore() else attempt++
     }
 
     suspend fun refresh() {
         moreJob?.cancel()
         val trimmed = query.trim()
+        val queryChanged = trimmed != lastRefreshedQuery
+        val retried = attempt != lastAttempt
+        lastRefreshedQuery = trimmed
+        lastAttempt = attempt
+
         if (trimmed.isEmpty()) {
             search = SearchState()
+            artistSearch = ArtistSearchState()
+            albumSearch = AlbumSearchState()
             return
         }
-        search = SearchState(query = trimmed, tracks = emptyList(), loading = true)
-        delay(SEARCH_DEBOUNCE_MS)
-        search = loadSearchPage(search)
+        if (queryChanged) {
+            if (search.query != trimmed) search = SearchState(query = "", tracks = emptyList())
+            if (artistSearch.query != trimmed) artistSearch = ArtistSearchState()
+            if (albumSearch.query != trimmed) albumSearch = AlbumSearchState()
+        }
+        when (filter) {
+            SearchFilter.Songs -> {
+                if (!queryChanged && !retried && search.query == trimmed && search.error == null && !search.loading) return
+                search = SearchState(query = trimmed, tracks = emptyList(), loading = true)
+                if (queryChanged && debounceMs > 0) delay(debounceMs)
+                search = loadSearchPage(search, catalog)
+            }
+            SearchFilter.Artists -> {
+                if (!queryChanged && !retried && artistSearch.query == trimmed && artistSearch.error == null && !artistSearch.loading) return
+                artistSearch = ArtistSearchState(query = trimmed, loading = true)
+                if (queryChanged && debounceMs > 0) delay(debounceMs)
+                artistSearch = loadArtistSearchPage(artistSearch, catalog)
+            }
+            SearchFilter.Albums -> {
+                if (!queryChanged && !retried && albumSearch.query == trimmed && albumSearch.error == null && !albumSearch.loading) return
+                albumSearch = AlbumSearchState(query = trimmed, loading = true)
+                if (queryChanged && debounceMs > 0) delay(debounceMs)
+                albumSearch = loadAlbumSearchPage(albumSearch, catalog)
+            }
+        }
     }
 }
 
 @Composable
 internal fun rememberSearchTabState(): SearchTabState {
     val query = rememberSaveable { mutableStateOf("") }
+    val filter = rememberSaveable { mutableStateOf(SearchFilter.Songs) }
     val scope = rememberCoroutineScope()
-    val state = remember(query, scope) { SearchTabState(query, scope) }
-    LaunchedEffect(state.query, state.attempt) { state.refresh() }
+    val state = remember(query, filter, scope) { SearchTabState(query, filter, scope) }
+    LaunchedEffect(state.query, state.filter, state.attempt) { state.refresh() }
     return state
 }
 
-/** Tab Cari: kolom cari pil 52 dp, baris aksi impor audio, riwayat pencarian saat kosong, lalu hasil. */
+/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album, impor audio, riwayat saat kosong, lalu hasil. */
 internal fun LazyListScope.searchTab(
     tab: SearchTabState,
     searchHistory: List<String>,
@@ -104,6 +169,8 @@ internal fun LazyListScope.searchTab(
     onRecordSearch: () -> Unit,
     onRemoveSearch: (String) -> Unit,
     onClearSearches: () -> Unit,
+    onOpenArtist: (ArtistSummary) -> Unit,
+    onOpenAlbum: (AlbumSummary) -> Unit,
 ) {
     item(key = "search-field") {
         val focusManager = LocalFocusManager.current
@@ -116,6 +183,9 @@ internal fun LazyListScope.searchTab(
             },
         )
     }
+    item(key = "search-filters") {
+        SearchFilterChips(selected = tab.filter, onSelect = { tab.filter = it })
+    }
     item(key = "import-audio") { ImportAudioButton(onImported = onImported) }
     if (tab.query.isBlank()) {
         searchHistoryItems(
@@ -125,14 +195,30 @@ internal fun LazyListScope.searchTab(
             onClear = onClearSearches,
         )
     }
-    searchResults(
-        search = tab.search,
-        library = library,
-        actions = actions,
-        onRetry = tab::retry,
-        onLoadMore = tab::loadMore,
-        onResultUsed = onRecordSearch,
-    )
+    when (tab.filter) {
+        SearchFilter.Songs -> searchResults(
+            search = tab.search,
+            library = library,
+            actions = actions,
+            onRetry = tab::retry,
+            onLoadMore = tab::loadMore,
+            onResultUsed = onRecordSearch,
+        )
+        SearchFilter.Artists -> artistSearchResults(
+            state = tab.artistSearch,
+            onOpenArtist = onOpenArtist,
+            onRetry = tab::retry,
+            onLoadMore = tab::loadMore,
+            onResultUsed = onRecordSearch,
+        )
+        SearchFilter.Albums -> albumSearchResults(
+            state = tab.albumSearch,
+            onOpenAlbum = onOpenAlbum,
+            onRetry = tab::retry,
+            onLoadMore = tab::loadMore,
+            onResultUsed = onRecordSearch,
+        )
+    }
 }
 
 /** Kolom cari berbentuk pil setinggi minimal 52 dp yang tetap meluas saat teks diperbesar. */

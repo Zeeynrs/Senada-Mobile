@@ -47,10 +47,13 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
+import senada.app.tabs.CatalogDetailStore
 import senada.app.tabs.LibraryFilter
+import senada.app.tabs.catalogDetailScreen
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
 import senada.app.tabs.mostPlayedScreen
+import senada.app.tabs.rememberCatalogPageState
 import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
@@ -120,6 +123,9 @@ internal fun AppShell(
     var librarySection by rememberSaveable { mutableStateOf(LibraryFilter.Favorites) }
 
     val search = rememberSearchTabState()
+    val catalogStore = remember { CatalogDetailStore() }
+    val currentCatalogRoute = navigator.currentCatalogRoute
+    val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
     // Dicatat saat pengguna menekan cari atau memakai hasilnya, bukan setiap ketikan yang sempat dicari.
     val recordSearch: () -> Unit = {
@@ -140,7 +146,7 @@ internal fun AppShell(
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
-                state = key(navigator.destination, navigator.mostPlayedOpen) { rememberLazyListState() },
+                state = key(navigator.destination, navigator.mostPlayedOpen, currentCatalogRoute) { rememberLazyListState() },
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
@@ -155,6 +161,21 @@ internal fun AppShell(
             ) {
                 if (navigator.mostPlayedOpen) {
                     mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
+                    return@LazyColumn
+                }
+                if (currentCatalogRoute != null) {
+                    catalogDetailScreen(
+                        route = currentCatalogRoute,
+                        state = catalogPage,
+                        store = catalogStore,
+                        previousLabel = navigator.previousCatalogLabel(),
+                        library = libraryState,
+                        actions = actions,
+                        onBack = { navigator.back() },
+                        onOpenAlbum = { album ->
+                            navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
+                        },
+                    )
                     return@LazyColumn
                 }
                 if (navigator.destination != AppDestination.Home) {
@@ -202,6 +223,12 @@ internal fun AppShell(
                         onRecordSearch = recordSearch,
                         onRemoveSearch = { uiScope.launch { library.removeSearch(it) } },
                         onClearSearches = { uiScope.launch { library.clearSearchHistory() } },
+                        onOpenArtist = { artist ->
+                            navigator.openArtist(artist.id, artist.name, artist.artworkUrl)
+                        },
+                        onOpenAlbum = { album ->
+                            navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
+                        },
                     )
                     AppDestination.Library -> libraryTab(
                         section = librarySection,

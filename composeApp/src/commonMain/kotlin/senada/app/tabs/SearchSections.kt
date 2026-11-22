@@ -29,6 +29,7 @@ import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.minTouchTarget
 import senada.catalog.CatalogException
+import senada.catalog.CatalogRepository
 import senada.catalog.DemoCatalog
 import senada.model.Track
 
@@ -141,8 +142,11 @@ internal data class SearchState(
 )
 
 /** Memuat halaman berikutnya (atau pertama); saat gagal, hasil dan token tetap ada untuk dicoba lagi. */
-internal suspend fun loadSearchPage(current: SearchState): SearchState = try {
-    val page = SenadaSources.youTubeMusic.search(current.query, current.nextPageToken)
+internal suspend fun loadSearchPage(
+    current: SearchState,
+    catalog: CatalogRepository = SenadaSources.youTubeMusic,
+): SearchState = try {
+    val page = catalog.search(current.query, current.nextPageToken)
     current.copy(
         tracks = (current.tracks + page.items).distinctBy { it.id },
         nextPageToken = page.nextPageToken,

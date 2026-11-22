@@ -103,6 +103,10 @@ internal class LibraryActions(
 
     fun enqueue(track: Track) = playback.add(track)
 
+    fun enqueueAll(tracks: List<Track>) {
+        tracks.forEach(playback::add)
+    }
+
     /** Seluruh favorit, bukan hanya halaman yang sudah dimuat. */
     fun playAllFavorites() {
         scope.launch { playAll(library.allFavorites(), PlaySource.Favorites) }
@@ -123,13 +127,14 @@ internal class LibraryActions(
         playAll(tracks, PlaySource.MostPlayed)
     }
 
-    /** Menambahkan semua lagu ke akhir antrean lalu memutar yang pertama. */
-    fun playAll(tracks: List<Track>, source: PlaySource? = null) {
+    /** Menambahkan semua lagu ke akhir antrean lalu memutar mulai dari indeks [startIndex]. */
+    fun playAll(tracks: List<Track>, source: PlaySource? = null, startIndex: Int = 0) {
         if (tracks.isEmpty()) return
         val firstNew = playback.state.value.queue.entries.size
         tracks.forEach(playback::add)
         PlaySourceState.current.value = source
-        playback.state.value.queue.entries.getOrNull(firstNew)?.let { playback.playEntry(it.id) }
+        val target = firstNew + startIndex.coerceIn(0, tracks.lastIndex)
+        playback.state.value.queue.entries.getOrNull(target)?.let { playback.playEntry(it.id) }
     }
 
     private fun write(block: suspend () -> Unit) {
