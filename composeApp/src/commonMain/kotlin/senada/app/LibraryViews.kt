@@ -114,9 +114,13 @@ internal class LibraryActions(
         tracks.forEach(playback::add)
     }
 
-    /** Seluruh favorit, bukan hanya halaman yang sudah dimuat. */
-    fun playAllFavorites() {
-        scope.launch { playAll(library.allFavorites(), PlaySource.Favorites) }
+    /** Memutar seluruh favorit dari lagu yang dipilih atau dari awal daftar. */
+    fun playAllFavorites(startTrackId: String? = null) {
+        scope.launch {
+            val tracks = library.allFavorites()
+            val startIndex = if (startTrackId == null) 0 else tracks.indexOfFirst { it.id == startTrackId }
+            if (startIndex >= 0) playAll(tracks, PlaySource.Favorites, startIndex = startIndex)
+        }
     }
 
     /** Seluruh isi playlist, bukan hanya halaman yang sudah dimuat. */
@@ -297,12 +301,13 @@ private fun LazyListScope.trackList(
     tracks: List<Track>,
     library: LibraryState,
     actions: LibraryActions,
+    onPlay: (index: Int) -> Unit,
 ) {
-    items(tracks, key = { "$keyPrefix-${it.id}" }) { track ->
+    itemsIndexed(tracks, key = { _, track -> "$keyPrefix-${track.id}" }) { index, track ->
         TrackRow(
             track = track,
             favorite = track.id in library.favoriteIds,
-            onClick = { actions.playAll(listOf(track)) },
+            onClick = { onPlay(index) },
         ) {
             TrackMenu(track, library, actions)
         }
@@ -312,7 +317,7 @@ private fun LazyListScope.trackList(
 internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryActions, onLoadMore: () -> Unit) {
     val favorites = library.favorites
     val title = if (library.favoriteTotal > 0) "Favorit (${library.favoriteTotal})" else "Favorit"
-    item { SectionHeader(title, onPlayAll = actions::playAllFavorites.takeIf { library.favoriteTotal > 0 }) }
+    item { SectionHeader(title, onPlayAll = { actions.playAllFavorites() }.takeIf { library.favoriteTotal > 0 }) }
     if (library.favoriteTotal == 0) {
         item {
             Text(
@@ -322,7 +327,9 @@ internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryA
             )
         }
     }
-    trackList("favorite", favorites, library, actions)
+    trackList("favorite", favorites, library, actions) { index ->
+        actions.playAllFavorites(startTrackId = favorites[index].id)
+    }
     loadMoreItem("favorite-more", loaded = favorites.size, total = library.favoriteTotal, onLoadMore)
 }
 
@@ -346,7 +353,9 @@ internal fun LazyListScope.historyTab(library: LibraryState, actions: LibraryAct
             )
         }
     }
-    trackList("history", library.history, library, actions)
+    trackList("history", library.history, library, actions) { index ->
+        actions.playAll(library.history, startIndex = index)
+    }
 }
 
 /** Daftar playlist, atau isi satu playlist bila [opened] tidak null. */
@@ -422,7 +431,9 @@ internal fun LazyListScope.playlistsTab(
         TrackRow(
             track = entry.track,
             favorite = entry.track.id in library.favoriteIds,
-            onClick = { actions.playAll(listOf(entry.track), PlaySource.Playlist(opened.name)) },
+            onClick = {
+                actions.playAll(opened.entries.map { it.track }, PlaySource.Playlist(opened.name), startIndex = index)
+            },
         ) {
             TrackMenu(entry.track, library, actions) { close ->
                 if (index > 0) {
