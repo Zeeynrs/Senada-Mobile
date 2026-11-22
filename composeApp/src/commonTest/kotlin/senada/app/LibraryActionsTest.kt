@@ -1,9 +1,14 @@
 package senada.app
 
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import senada.app.nowplaying.PlaySource
@@ -48,5 +53,103 @@ class LibraryActionsTest {
             PlaySourceState.current.value = previousSource
             driver.close()
         }
+    }
+
+    private fun track(n: Int) = Track(
+        id = "yt:track:v$n",
+        title = "Lagu $n",
+        artists = listOf("Artis $n"),
+        durationMs = 180_000L,
+        source = "ytmusic",
+    )
+
+    private fun TestScope.harness(): Triple<LibraryRepository, PlaybackController, LibraryActions> {
+        var now = 1_000L
+        var seq = 0
+        val library = LibraryRepository(
+            database = SenadaDatabase(testLibraryDriver()),
+            dispatcher = StandardTestDispatcher(testScheduler),
+            now = { now++ },
+            newPlaylistId = { "local-${++seq}" },
+        )
+        val output = FakeAudioOutput()
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            SampleAudioSelection(entry.track.title, SampleAudioSource.Local, "file:///${entry.id}.m4a", entry.id)
+        }
+        val actions = LibraryActions(library, playback, backgroundScope)
+        return Triple(library, playback, actions)
+    }
+
+    @Test
+    fun playShuffledEnablesShuffleAndPlayAllWithResetShuffleRestoresOrder() = runTest {
+        val (_, playback, actions) = harness()
+        val tracks = (1..5).map(::track)
+
+        actions.playShuffled(tracks, PlaySource.Album("Manusia"), Random(7))
+
+        val afterShuffle = playback.state.value
+        assertTrue(afterShuffle.queue.shuffleEnabled)
+        assertEquals(tracks, afterShuffle.queue.entries.map { it.track })
+        assertEquals(afterShuffle.queue.playOrder.first().id, afterShuffle.currentEntry?.id)
+        assertEquals(PlaySource.Album("Manusia"), PlaySourceState.current.value)
+
+        // Memutar ulang secara berurutan harus mematikan mode acak agar urutan lagu tetap terjaga.
+        val nextCollection = (10..12).map(::track)
+        actions.playAll(nextCollection, PlaySource.Playlist("Pagi"), resetShuffle = true)
+
+        val afterOrdered = playback.state.value
+        assertFalse(afterOrdered.queue.shuffleEnabled)
+        assertEquals(nextCollection.first(), afterOrdered.currentEntry?.track)
+        assertEquals(PlaySource.Playlist("Pagi"), PlaySourceState.current.value)
+    }
+
+    @Test
+    fun playShuffledOverExistingQueueSelectsTrackFromNewCollection() = runTest {
+        val (_, playback, actions) = harness()
+        val old = track(99)
+        playback.add(old)
+        playback.playEntry(playback.state.value.queue.entries.first().id)
+        playback.setShuffleEnabled(true)
+
+        val collection = (1..4).map(::track)
+        actions.playShuffled(collection, PlaySource.Favorites, Random(3))
+
+        val state = playback.state.value
+        assertTrue(state.queue.shuffleEnabled)
+        assertTrue(state.currentEntry?.track in collection)
+        assertEquals(state.currentEntry?.id, state.queue.playOrder.first().id)
+    }
+
+    @Test
+    fun shuffleAndEnqueueFavoritesLoadAllFavorites() = runTest {
+        val (library, playback, actions) = harness()
+        val favorites = (1..3).map(::track)
+        favorites.forEach { library.setFavorite(it, true) }
+
+        actions.enqueueAllFavorites()
+        advanceUntilIdle()
+        assertEquals(3, playback.state.value.queue.entries.size)
+
+        actions.shuffleFavorites()
+        advanceUntilIdle()
+        val state = playback.state.value
+        assertTrue(state.queue.shuffleEnabled)
+        assertEquals(PlaySource.Favorites, PlaySourceState.current.value)
+        assertTrue(state.currentEntry?.track in favorites)
+    }
+
+    @Test
+    fun shufflePlaylistLoadsPlaylistAndStartsShuffled() = runTest {
+        val (library, playback, actions) = harness()
+        val songs = (1..3).map(::track)
+        val playlistId = library.createPlaylist("Santai", songs)
+
+        actions.shufflePlaylist(playlistId)
+        advanceUntilIdle()
+
+        val state = playback.state.value
+        assertTrue(state.queue.shuffleEnabled)
+        assertEquals(PlaySource.Playlist("Santai"), PlaySourceState.current.value)
+        assertTrue(state.currentEntry?.track in songs)
     }
 }

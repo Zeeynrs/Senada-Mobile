@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,12 +30,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -43,13 +46,14 @@ import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
+import senada.app.tabs.CatalogPlaylistSaveOutcome
+import senada.app.tabs.saveCatalogPlaylist
+import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistImporter
-import senada.app.tabs.CatalogPlaylistSaveOutcome
-import senada.app.tabs.saveCatalogPlaylist
 import senada.library.PlaylistSummary
 import senada.library.recordPlaylistPlay
 import senada.local.ImportedAudioStorage
@@ -70,6 +74,7 @@ internal data class LibraryState(
     val favoriteIds: Set<String> = emptySet(),
     val playlists: List<PlaylistSummary> = emptyList(),
     val history: List<Track> = emptyList(),
+    val favoriteDurationMs: Long? = null,
 )
 
 /** Perintah library dan antrean dari layar. Penulisan database berjalan di latar dan tidak menahan UI. */
@@ -125,13 +130,28 @@ internal class LibraryActions(
         tracks.forEach(playback::add)
     }
 
-    /** Memutar seluruh favorit dari lagu yang dipilih atau dari awal daftar. */
+    /** Menambahkan semua favorit ke antrean tanpa memutarnya. */
+    fun enqueueAllFavorites() {
+        scope.launch { enqueueAll(library.allFavorites()) }
+    }
+
+    /**
+     * Memutar seluruh favorit, bukan hanya halaman yang sudah dimuat. Tanpa [startTrackId] (tombol Putar)
+     * mode acak dimatikan; mengetuk lagu memulai dari lagu itu dan mempertahankan mode acak.
+     */
     fun playAllFavorites(startTrackId: String? = null) {
         scope.launch {
             val tracks = library.allFavorites()
             val startIndex = if (startTrackId == null) 0 else tracks.indexOfFirst { it.id == startTrackId }
-            if (startIndex >= 0) playAll(tracks, PlaySource.Favorites, startIndex = startIndex)
+            if (startIndex >= 0) {
+                playAll(tracks, PlaySource.Favorites, startIndex = startIndex, resetShuffle = startTrackId == null)
+            }
         }
+    }
+
+    /** Memutar seluruh favorit dalam urutan acak. */
+    fun shuffleFavorites() {
+        scope.launch { playShuffled(library.allFavorites(), PlaySource.Favorites) }
     }
 
     /** Seluruh isi playlist, bukan hanya halaman yang sudah dimuat. */
@@ -140,7 +160,18 @@ internal class LibraryActions(
             val playlist = library.playlist(playlistId).first() ?: return@launch
             val tracks = playlist.entries.map { it.track }
             if (tracks.isEmpty()) return@launch
-            playAll(tracks, PlaySource.Playlist(playlist.name))
+            playAll(tracks, PlaySource.Playlist(playlist.name), resetShuffle = true)
+            runCatching { library.recordPlaylistPlay(playlistId) }
+        }
+    }
+
+    /** Memutar seluruh isi playlist dalam urutan acak. */
+    fun shufflePlaylist(playlistId: String) {
+        scope.launch {
+            val playlist = library.playlist(playlistId).first() ?: return@launch
+            val tracks = playlist.entries.map { it.track }
+            if (tracks.isEmpty()) return@launch
+            playShuffled(tracks, PlaySource.Playlist(playlist.name))
             runCatching { library.recordPlaylistPlay(playlistId) }
         }
     }
@@ -150,13 +181,46 @@ internal class LibraryActions(
     }
 
     /** Menambahkan semua lagu ke akhir antrean lalu memutar mulai dari indeks [startIndex]. */
-    fun playAll(tracks: List<Track>, source: PlaySource? = null, startIndex: Int = 0) {
+    fun playAll(
+        tracks: List<Track>,
+        source: PlaySource? = null,
+        startIndex: Int = 0,
+        resetShuffle: Boolean = false,
+    ) {
         if (tracks.isEmpty()) return
+        if (resetShuffle) playback.setShuffleEnabled(false)
         val firstNew = playback.state.value.queue.entries.size
         tracks.forEach(playback::add)
         PlaySourceState.current.value = source
         val target = firstNew + startIndex.coerceIn(0, tracks.lastIndex)
         playback.state.value.queue.entries.getOrNull(target)?.let { playback.playEntry(it.id) }
+    }
+
+    /**
+     * Menambahkan semua lagu ke antrean lalu memutar acak menggunakan mode acak [PlaybackController]
+     * tanpa mengubah implementasi controller.
+     */
+    fun playShuffled(tracks: List<Track>, source: PlaySource? = null, random: Random = Random.Default) {
+        if (tracks.isEmpty()) return
+        val queueBefore = playback.state.value.queue
+        if (queueBefore.entries.isEmpty()) {
+            playback.setShuffleEnabled(true)
+            tracks.forEach(playback::add)
+            val first = playback.state.value.queue.playOrder.firstOrNull() ?: return
+            PlaySourceState.current.value = source
+            playback.playEntry(first.id)
+            return
+        }
+        val firstNew = queueBefore.entries.size
+        tracks.forEach(playback::add)
+        val newEntries = playback.state.value.queue.entries.drop(firstNew)
+        val picked = newEntries.randomOrNull(random) ?: return
+        PlaySourceState.current.value = source
+        playback.playEntry(picked.id)
+        if (playback.state.value.queue.shuffleEnabled) {
+            playback.setShuffleEnabled(false)
+        }
+        playback.setShuffleEnabled(true)
     }
 
     fun createPlaylistImporter(): PlaylistImporter = PlaylistImporter(
@@ -327,8 +391,32 @@ private fun LazyListScope.trackList(
 
 internal fun LazyListScope.favoritesTab(library: LibraryState, actions: LibraryActions, onLoadMore: () -> Unit) {
     val favorites = library.favorites
-    val title = if (library.favoriteTotal > 0) "Favorit (${library.favoriteTotal})" else "Favorit"
-    item { SectionHeader(title, onPlayAll = { actions.playAllFavorites() }.takeIf { library.favoriteTotal > 0 }) }
+    item(key = "favorites-header") {
+        val accent = SenadaPalette.Favorite
+        val containerColor = accent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
+        val totalDurationMs = library.favoriteDurationMs
+            ?: sumKnownDurationMs(favorites).takeIf { favorites.size == library.favoriteTotal }
+        val meta = favoritesCollectionMeta(trackCount = library.favoriteTotal, totalDurationMs = totalDurationMs)
+        val menuItems = remember(library.favoriteTotal) {
+            collectionMenuItems(CollectionKind.Favorites, hasTracks = library.favoriteTotal > 0)
+        }
+        CollectionHeader(
+            title = "Favorit",
+            meta = meta,
+            cover = CollectionCover(
+                fallbackIcon = SenadaIcons.HeartFilled,
+                containerColor = containerColor,
+                iconColor = accessibleAccent(accent, containerColor),
+            ),
+            menuItems = menuItems,
+            onMenuAction = { action ->
+                if (action == CollectionMenuAction.EnqueueAll) actions.enqueueAllFavorites()
+            },
+            canPlay = library.favoriteTotal > 0,
+            onPlay = { actions.playAllFavorites() },
+            onShuffle = { actions.shuffleFavorites() },
+        )
+    }
     if (library.favoriteTotal == 0) {
         item {
             Text(
@@ -376,6 +464,8 @@ internal fun LazyListScope.playlistsTab(
     actions: LibraryActions,
     onOpen: (String?) -> Unit,
     onLoadMore: () -> Unit,
+    reordering: Boolean = false,
+    onToggleReorder: () -> Unit = {},
 ) {
     if (opened == null) {
         item { PlaylistListHeader(actions, onOpen = { id -> onOpen(id) }) }
@@ -428,7 +518,15 @@ internal fun LazyListScope.playlistsTab(
         return
     }
 
-    item(key = "playlist-header-${opened.id}") { PlaylistHeader(opened, actions, onClose = { onOpen(null) }) }
+    item(key = "playlist-header-${opened.id}") {
+        PlaylistHeader(
+            playlist = opened,
+            actions = actions,
+            reordering = reordering,
+            onToggleReorder = onToggleReorder,
+            onClose = { onOpen(null) },
+        )
+    }
     if (opened.entryCount == 0) {
         item {
             Text(
@@ -446,24 +544,45 @@ internal fun LazyListScope.playlistsTab(
                 actions.playAll(opened.entries.map { it.track }, PlaySource.Playlist(opened.name), startIndex = index)
             },
         ) {
-            TrackMenu(entry.track, library, actions) { close ->
-                if (index > 0) {
-                    DropdownMenuItem(text = { Text("Pindah ke atas") }, onClick = {
+            if (reordering) {
+                IconButton(
+                    onClick = { actions.moveInPlaylist(opened.id, index, index - 1) },
+                    enabled = index > 0,
+                    modifier = Modifier.minTouchTarget().semantics {
+                        contentDescription = "Pindah ${entry.track.title} ke atas"
+                    },
+                ) {
+                    Icon(imageVector = SenadaIcons.ChevronUp, contentDescription = null)
+                }
+                IconButton(
+                    onClick = { actions.moveInPlaylist(opened.id, index, index + 1) },
+                    enabled = index < opened.entryCount - 1,
+                    modifier = Modifier.minTouchTarget().semantics {
+                        contentDescription = "Pindah ${entry.track.title} ke bawah"
+                    },
+                ) {
+                    Icon(imageVector = SenadaIcons.ChevronDown, contentDescription = null)
+                }
+            } else {
+                TrackMenu(entry.track, library, actions) { close ->
+                    if (index > 0) {
+                        DropdownMenuItem(text = { Text("Pindah ke atas") }, onClick = {
+                            close()
+                            actions.moveInPlaylist(opened.id, index, index - 1)
+                        })
+                    }
+                    // Urutan memakai indeks di seluruh playlist; halaman yang dimuat selalu awal playlist.
+                    if (index < opened.entryCount - 1) {
+                        DropdownMenuItem(text = { Text("Pindah ke bawah") }, onClick = {
+                            close()
+                            actions.moveInPlaylist(opened.id, index, index + 1)
+                        })
+                    }
+                    DropdownMenuItem(text = { Text("Hapus dari playlist") }, onClick = {
                         close()
-                        actions.moveInPlaylist(opened.id, index, index - 1)
+                        actions.removeFromPlaylist(opened.id, entry.itemId)
                     })
                 }
-                // Urutan memakai indeks di seluruh playlist; halaman yang dimuat selalu awal playlist.
-                if (index < opened.entryCount - 1) {
-                    DropdownMenuItem(text = { Text("Pindah ke bawah") }, onClick = {
-                        close()
-                        actions.moveInPlaylist(opened.id, index, index + 1)
-                    })
-                }
-                DropdownMenuItem(text = { Text("Hapus dari playlist") }, onClick = {
-                    close()
-                    actions.removeFromPlaylist(opened.id, entry.itemId)
-                })
             }
         }
     }
@@ -513,36 +632,56 @@ private fun PlaylistListHeader(actions: LibraryActions, onOpen: (String) -> Unit
 }
 
 @Composable
-private fun PlaylistHeader(playlist: Playlist, actions: LibraryActions, onClose: () -> Unit) {
+private fun PlaylistHeader(
+    playlist: Playlist,
+    actions: LibraryActions,
+    reordering: Boolean,
+    onToggleReorder: () -> Unit,
+    onClose: () -> Unit,
+) {
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        TextButton(
-            onClick = onClose,
-            modifier = Modifier.minTouchTarget().semantics { contentDescription = "Kembali ke semua playlist" },
-        ) { Text("‹ Semua playlist", modifier = Modifier.clearAndSetSemantics {}) }
-        Text(
-            playlist.name,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.semantics { heading() },
-        )
-        Text("${playlist.entryCount} lagu", style = MaterialTheme.typography.bodyMedium)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            TextButton(
-                onClick = { actions.playAllOf(playlist.id) },
-                enabled = playlist.entryCount > 0,
-                modifier = Modifier.minTouchTarget(),
-            ) { Text("Putar semua") }
-            TextButton(onClick = { renaming = true }, modifier = Modifier.minTouchTarget()) { Text("Ganti nama") }
-            TextButton(onClick = { deleting = true }, modifier = Modifier.minTouchTarget()) { Text("Hapus playlist") }
-        }
+    LaunchedEffect(playlist.id, playlist.entryCount <= 1) {
+        if (reordering && playlist.entryCount <= 1) onToggleReorder()
     }
+    val menuItems = remember(playlist.entryCount) {
+        collectionMenuItems(CollectionKind.LibraryPlaylist, hasTracks = playlist.entryCount > 0)
+    }
+    val coverArtwork = playlist.entries.firstOrNull()?.track?.artworkUrl?.takeIf { it.isNotBlank() }
+    CollectionHeader(
+        title = playlist.name,
+        meta = playlistCollectionMeta(trackCount = playlist.entryCount, totalDurationMs = playlist.totalDurationMs),
+        cover = CollectionCover(
+            artworkUrl = coverArtwork,
+            fallbackIcon = SenadaIcons.Library,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            iconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+        menuItems = menuItems,
+        onMenuAction = { action ->
+            when (action) {
+                CollectionMenuAction.RenamePlaylist -> renaming = true
+                CollectionMenuAction.DeletePlaylist -> deleting = true
+                else -> Unit
+            }
+        },
+        canPlay = playlist.entryCount > 0,
+        onPlay = { actions.playAllOf(playlist.id) },
+        onShuffle = { actions.shufflePlaylist(playlist.id) },
+        backLabel = "semua playlist",
+        onBack = onClose,
+        chips = {
+            FilterChip(
+                selected = reordering,
+                onClick = onToggleReorder,
+                enabled = playlist.entryCount > 1,
+                label = { Text("Urutkan") },
+                modifier = Modifier.minTouchTarget().semantics {
+                    stateDescription = if (reordering) "Sedang mengurutkan" else "Tidak aktif"
+                },
+            )
+        },
+    )
     if (renaming) {
         NameDialog(title = "Ganti nama", initial = playlist.name, confirmLabel = "Simpan", onDismiss = { renaming = false }) { name ->
             renaming = false

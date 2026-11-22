@@ -325,5 +325,24 @@ class LibraryRepositoryTest {
         assertEquals(emptyList(), decodeArtists("bukan json"))
     }
 
+    @Test
+    fun totalDurationSumsKnownPositiveTracksAcrossPages() = runTest {
+        val library = library()
+        val first = track(1).copy(durationMs = 120_000L)
+        val second = track(2).copy(durationMs = 180_000L)
+        val unknown = duet.copy(durationMs = null)
+
+        library.setFavorite(first, true)
+        library.setFavorite(unknown, true)
+        library.setFavorite(second, true)
+        assertEquals(300_000L, library.favoriteDurationMs.first())
+
+        val playlistId = library.createPlaylist("Durasi", listOf(first, unknown, second))
+        assertEquals(300_000L, library.playlist(playlistId, limit = 1).first()?.totalDurationMs)
+
+        val unknownPlaylistId = library.createPlaylist("Tanpa durasi", listOf(unknown))
+        assertNull(library.playlist(unknownPlaylistId).first()?.totalDurationMs)
+    }
+
     private fun titlesOf(playlist: Playlist) = playlist.entries.map { it.track.title.removePrefix("Lagu ").toInt() }
 }
