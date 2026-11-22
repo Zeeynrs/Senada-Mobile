@@ -246,6 +246,7 @@ internal fun TrackMenu(
     library: LibraryState,
     actions: LibraryActions,
     onEnqueue: () -> Unit = { actions.enqueue(track) },
+    onRemoveFromQueue: (() -> Unit)? = null,
     extra: @Composable ColumnScope.(close: () -> Unit) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
@@ -267,6 +268,16 @@ internal fun TrackMenu(
             )
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (onRemoveFromQueue != null) {
+                DropdownMenuItem(
+                    text = { Text("Hapus dari antrean") },
+                    onClick = {
+                        open = false
+                        onRemoveFromQueue()
+                    },
+                    modifier = Modifier.minTouchTarget(),
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Tambah ke antrean") },
                 onClick = {
