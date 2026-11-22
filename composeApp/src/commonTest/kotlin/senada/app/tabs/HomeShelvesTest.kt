@@ -207,8 +207,9 @@ class HomeShelvesTest {
 
     @Test
     fun controllerHandlesFailureAndPartialFailureWithoutDroppingCachedShelves() = runTest {
+        val networkError = CatalogException(CatalogException.Kind.Network, "offline")
         val catalog = FakeHomeCatalog().apply {
-            failHome = CatalogException(CatalogException.Kind.Network, "Jaringan terputus.")
+            failHome = networkError
         }
         var now = 0L
         val controller = HomeShelvesController(
@@ -222,7 +223,7 @@ class HomeShelvesTest {
         // Kegagalan awal menampilkan pesan error tanpa crash.
         controller.refreshIfNeeded(saveData = false)
         advanceUntilIdle()
-        assertEquals("Jaringan terputus.", controller.state.error)
+        assertEquals(networkError.userMessage, controller.state.error)
         assertNull(controller.state.feed)
         assertFalse(controller.state.loading)
 
@@ -248,10 +249,11 @@ class HomeShelvesTest {
 
         // Kegagalan saat menyegarkan ulang tetap mempertahankan rak yang sudah tampil sebelumnya.
         now += HOME_SHELVES_TTL_MS + 10L
-        catalog.failHome = CatalogException(CatalogException.Kind.Network, "Gagal menyegarkan.")
+        val rateLimited = CatalogException(CatalogException.Kind.RateLimited, "429")
+        catalog.failHome = rateLimited
         controller.refresh(saveData = false)
         advanceUntilIdle()
-        assertEquals("Gagal menyegarkan.", controller.state.error)
+        assertEquals(rateLimited.userMessage, controller.state.error)
         assertEquals(listOf("Pilihan cepat"), controller.state.feed?.shelves?.map { it.title })
     }
 
@@ -535,12 +537,13 @@ class HomeShelvesTest {
         assertEquals(listOf("Playlist Fokus"), loadedFocus.data?.map { it.title })
         assertEquals(listOf(chill, focus), fakeHome.moodCalls)
 
-        fakeHome.failMood = CatalogException(CatalogException.Kind.Network, "Mood gagal dimuat.")
+        val moodError = CatalogException(CatalogException.Kind.Network, "offline")
+        fakeHome.failMood = moodError
         val failed = store.loadMood(
             MoodChip("Olahraga", "FEmusic_moods_and_genres_category", "params_workout"),
             "FEmusic_moods_and_genres_category|params_workout",
         )
-        assertEquals("Mood gagal dimuat.", failed.error)
+        assertEquals(moodError.userMessage, failed.error)
         assertNull(failed.data)
         assertNull(store.cachedMood("FEmusic_moods_and_genres_category|params_workout"))
     }
