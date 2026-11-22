@@ -55,7 +55,11 @@ internal fun parseAlbumSearchPage(response: JsonObject): AlbumPage {
 }
 
 /** Membaca halaman artis: nama, foto, lagu teratas, serta rak album/single. */
-internal fun parseArtistPage(channelId: String, response: JsonObject): ArtistDetail {
+internal fun parseArtistPage(
+    channelId: String,
+    response: JsonObject,
+    onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit = { _, _, _ -> },
+): ArtistDetail {
     val header = response.at("header", "musicImmersiveHeaderRenderer")
         ?: response.at("header", "musicVisualHeaderRenderer")
     val name = textOf(header.at("title"))
@@ -70,8 +74,15 @@ internal fun parseArtistPage(channelId: String, response: JsonObject): ArtistDet
         val shelf = section.at("musicShelfRenderer")
         if (shelf != null && topSongs.isEmpty()) {
             topSongs = shelf.array("contents")
-                .mapNotNull { it.at("musicResponsiveListItemRenderer")?.let { row -> parseBrowseTrack(row, fallbackArtists) } }
+                .mapNotNull {
+                    it.at("musicResponsiveListItemRenderer")?.let { row ->
+                        parseBrowseTrack(row, fallbackArtists, onArtistId = onArtistId)
+                    }
+                }
                 .distinctBy { it.id }
+            if (name.isNotEmpty()) {
+                topSongs.forEach { song -> onArtistId(song.id, name, channelId) }
+            }
             continue
         }
         val carousel = section.at("musicCarouselShelfRenderer") ?: continue
@@ -98,7 +109,11 @@ internal fun parseArtistPage(channelId: String, response: JsonObject): ArtistDet
 }
 
 /** Membaca halaman album: sampul, judul, artis, tahun (bila ada), dan daftar lagu berurutan. */
-internal fun parseAlbumPage(browseId: String, response: JsonObject): AlbumDetail {
+internal fun parseAlbumPage(
+    browseId: String,
+    response: JsonObject,
+    onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit = { _, _, _ -> },
+): AlbumDetail {
     val header = responsiveHeader(response)
     val title = textOf(header.at("title"))
     val headerArtwork = bestArtwork(header)
@@ -111,13 +126,15 @@ internal fun parseAlbumPage(browseId: String, response: JsonObject): AlbumDetail
     val typeLabel = subtitleParts.firstOrNull { !YEAR.matches(it) }
 
     val artistRuns = header.array("straplineTextOne", "runs").ifEmpty { subtitleRuns }
-    val linkedArtists = artistRuns
+    val headerArtistLinks = artistRuns
         .filter { pageType(it) == PAGE_TYPE_ARTIST }
-        .mapNotNull { it.string("text")?.trim()?.takeIf(String::isNotEmpty) }
-    val artistId = artistRuns.firstNotNullOfOrNull { run ->
-        run.string("navigationEndpoint", "browseEndpoint", "browseId")
-            ?.takeIf { it.isNotBlank() && pageType(run) == PAGE_TYPE_ARTIST }
-    }
+        .mapNotNull { run ->
+            val artistName = run.string("text")?.trim()?.takeIf(String::isNotEmpty) ?: return@mapNotNull null
+            val id = run.string("navigationEndpoint", "browseEndpoint", "browseId")?.trim()?.takeIf(String::isNotEmpty)
+            artistName to id
+        }
+    val linkedArtists = headerArtistLinks.map { it.first }
+    val artistId = headerArtistLinks.firstNotNullOfOrNull { it.second }
     val artists = linkedArtists.ifEmpty { unlinkedHeaderArtists(artistRuns) }
 
     val trackSections = secondarySectionContents(response).ifEmpty { sectionListContents(response) }
@@ -129,10 +146,21 @@ internal fun parseAlbumPage(browseId: String, response: JsonObject): AlbumDetail
         .orEmpty()
         .mapNotNull { item ->
             item.at("musicResponsiveListItemRenderer")?.let { row ->
-                parseBrowseTrack(row, fallbackArtists = artists, fallbackArtworkUrl = headerArtwork)
+                parseBrowseTrack(
+                    row,
+                    fallbackArtists = artists,
+                    fallbackArtworkUrl = headerArtwork,
+                    onArtistId = onArtistId,
+                )
             }
         }
         .distinctBy { it.id }
+
+    for ((artistName, id) in headerArtistLinks) {
+        if (id != null) {
+            tracks.forEach { track -> onArtistId(track.id, artistName, id) }
+        }
+    }
 
     if (title.isEmpty() && tracks.isEmpty()) {
         throw CatalogException(Kind.Unreadable, "Halaman album tidak memuat data yang dapat dibaca")
@@ -199,6 +227,7 @@ private fun parseBrowseTrack(
     item: JsonElement,
     fallbackArtists: List<String> = emptyList(),
     fallbackArtworkUrl: String? = null,
+    onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit = { _, _, _ -> },
 ): Track? {
     val titleRuns = columnRuns(item, 0)
     val videoId = item.string("playlistItemData", "videoId")
@@ -211,6 +240,7 @@ private fun parseBrowseTrack(
     val title = runsText(titleRuns)
     if (title.isEmpty()) return null
 
+    val trackId = youTubeTrackId(videoId)
     val detailColumns = item.array("flexColumns").drop(1).map {
         it.array("musicResponsiveListItemFlexColumnRenderer", "text", "runs")
     }
@@ -219,9 +249,15 @@ private fun parseBrowseTrack(
     }
     val allMetaRuns = detailColumns.flatten() + fixedRuns
 
-    val linkedArtists = allMetaRuns
-        .filter { pageType(it) == PAGE_TYPE_ARTIST }
-        .mapNotNull { it.string("text")?.trim()?.takeIf(String::isNotEmpty) }
+    val linkedArtistRuns = allMetaRuns.filter { pageType(it) == PAGE_TYPE_ARTIST }
+    for (run in linkedArtistRuns) {
+        val artistName = run.string("text")?.trim().orEmpty()
+        val channelId = run.string("navigationEndpoint", "browseEndpoint", "browseId")?.trim().orEmpty()
+        if (artistName.isNotEmpty() && channelId.isNotEmpty()) {
+            onArtistId(trackId, artistName, channelId)
+        }
+    }
+    val linkedArtists = linkedArtistRuns.mapNotNull { it.string("text")?.trim()?.takeIf(String::isNotEmpty) }
 
     val channelArtists = linkedArtists.ifEmpty {
         allMetaRuns
@@ -242,7 +278,7 @@ private fun parseBrowseTrack(
         ?.let(::parseDuration)
 
     return Track(
-        id = youTubeTrackId(videoId),
+        id = trackId,
         title = title,
         artists = artists,
         durationMs = durationMs,

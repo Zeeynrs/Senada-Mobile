@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonObject
 import senada.catalog.AlbumDetail
 import senada.catalog.AlbumPage
 import senada.catalog.ArtistDetail
+import senada.catalog.ArtistIdIndex
 import senada.catalog.ArtistPage
 import senada.catalog.CatalogBrowser
 import senada.catalog.PlaylistDetail
@@ -20,12 +21,15 @@ internal fun youTubeTrackId(videoId: String) = "$TRACK_ID_PREFIX$videoId"
 
 internal fun videoIdOf(track: Track): String? = track.id.removePrefix(TRACK_ID_PREFIX).takeIf { it != track.id }
 
-internal class YouTubeMusicCatalog(private val innertube: InnertubeClient) : CatalogBrowser {
+internal class YouTubeMusicCatalog(
+    private val innertube: InnertubeClient,
+    internal val artistIds: ArtistIdIndex = ArtistIdIndex(),
+) : CatalogBrowser {
     override suspend fun search(query: String, pageToken: String?): TrackPage {
-        if (pageToken != null) return parseSearchPage(innertube.searchContinuation(pageToken))
+        if (pageToken != null) return parseSearchPage(innertube.searchContinuation(pageToken), artistIds::record)
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return TrackPage(emptyList())
-        return parseSearchPage(innertube.search(trimmed))
+        return parseSearchPage(innertube.search(trimmed), artistIds::record)
     }
 
     override suspend fun searchArtists(query: String, pageToken: String?): ArtistPage {
@@ -46,17 +50,20 @@ internal class YouTubeMusicCatalog(private val innertube: InnertubeClient) : Cat
         searchYouTubePlaylists(innertube, query, pageToken)
 
     override suspend fun artist(id: String): ArtistDetail =
-        parseArtistPage(id, innertube.browse(id))
+        parseArtistPage(id, innertube.browse(id), artistIds::record)
 
     override suspend fun album(id: String): AlbumDetail =
-        parseAlbumPage(id, innertube.browse(id))
+        parseAlbumPage(id, innertube.browse(id), artistIds::record)
 
     override suspend fun playlist(id: String): PlaylistDetail =
         YouTubeMusicPlaylists(innertube).fetchPlaylistDetail(id)
 }
 
 /** Membaca halaman pertama pencarian lagu atau halaman lanjutannya. */
-internal fun parseSearchPage(response: JsonObject): TrackPage {
+internal fun parseSearchPage(
+    response: JsonObject,
+    onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit = { _, _, _ -> },
+): TrackPage {
     val shelves = response.at("continuationContents", "musicShelfContinuation")?.let(::listOf)
         ?: response.array(
             "contents", "tabbedSearchResultsRenderer", "tabs", 0, "tabRenderer", "content",
@@ -64,13 +71,18 @@ internal fun parseSearchPage(response: JsonObject): TrackPage {
         ).mapNotNull { it.at("musicShelfRenderer") }
 
     val tracks = shelves.flatMap { shelf ->
-        shelf.array("contents").mapNotNull { item -> item.at("musicResponsiveListItemRenderer")?.let(::parseTrack) }
+        shelf.array("contents").mapNotNull { item ->
+            item.at("musicResponsiveListItemRenderer")?.let { parseTrack(it, onArtistId) }
+        }
     }
     val next = shelves.firstNotNullOfOrNull { it.string("continuations", 0, "nextContinuationData", "continuation") }
     return TrackPage(tracks.distinctBy { it.id }, next)
 }
 
-private fun parseTrack(item: JsonElement): Track? {
+private fun parseTrack(
+    item: JsonElement,
+    onArtistId: (trackId: String, artistName: String, channelId: String) -> Unit,
+): Track? {
     val titleRuns = columnRuns(item, 0)
     val videoId = item.string("playlistItemData", "videoId")
         ?: titleRuns.firstNotNullOfOrNull { it.string("navigationEndpoint", "watchEndpoint", "videoId") }
@@ -78,9 +90,18 @@ private fun parseTrack(item: JsonElement): Track? {
     val title = titleRuns.joinToString("") { it.string("text").orEmpty() }.trim()
     if (title.isEmpty()) return null
 
+    val trackId = youTubeTrackId(videoId)
     val details = columnRuns(item, 1)
     val texts = details.map { it.string("text").orEmpty() }
-    val artists = details.filter { pageType(it) == "MUSIC_PAGE_TYPE_ARTIST" }.map { it.string("text").orEmpty() }
+    val linkedArtistRuns = details.filter { pageType(it) == "MUSIC_PAGE_TYPE_ARTIST" }
+    for (run in linkedArtistRuns) {
+        val artistName = run.string("text")?.trim().orEmpty()
+        val channelId = run.string("navigationEndpoint", "browseEndpoint", "browseId")?.trim().orEmpty()
+        if (artistName.isNotEmpty() && channelId.isNotEmpty()) {
+            onArtistId(trackId, artistName, channelId)
+        }
+    }
+    val artists = linkedArtistRuns.map { it.string("text").orEmpty() }
         .ifEmpty {
             // Artis tanpa tautan, misalnya "Various Artists": ambil teks sebelum pemisah pertama.
             texts.takeWhile { it != SEPARATOR }.joinToString("").split(", ", " & ").map(String::trim)
@@ -88,7 +109,7 @@ private fun parseTrack(item: JsonElement): Track? {
         .filter { it.isNotEmpty() }
 
     return Track(
-        id = youTubeTrackId(videoId),
+        id = trackId,
         title = title,
         artists = artists,
         durationMs = texts.lastOrNull { DURATION.matches(it.trim()) }?.let(::parseDuration),

@@ -42,9 +42,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import senada.app.AppearancePreferences
+import senada.app.ArtistOpenBanner
+import senada.app.ArtistOpenController
 import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.SenadaSources
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
@@ -91,7 +94,12 @@ internal fun AppShell(
         if (playback.state.value.queue.entries.isEmpty()) PlaySourceState.current.value = null
     }
     val uiScope = rememberCoroutineScope()
-    val actions = remember(library, playback, uiScope) { LibraryActions(library, playback, uiScope) }
+    val artistOpener = remember(navigator, uiScope) {
+        ArtistOpenController(SenadaSources.artistResolver, navigator, uiScope)
+    }
+    val actions = remember(library, playback, uiScope, artistOpener) {
+        LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open)
+    }
     val platformContext = LocalPlatformContext.current
     val importedStorage = remember(platformContext) { importedAudioStorage(platformContext) }
     LaunchedEffect(actions, importedStorage) {
@@ -172,10 +180,6 @@ internal fun AppShell(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (navigator.mostPlayedOpen) {
-                    mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
-                    return@LazyColumn
-                }
                 if (currentCatalogRoute != null) {
                     catalogDetailScreen(
                         route = currentCatalogRoute,
@@ -220,6 +224,10 @@ internal fun AppShell(
                     listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions, { listenPeriod = it }) {
                         navigator.back()
                     }
+                    return@LazyColumn
+                }
+                if (navigator.mostPlayedOpen) {
+                    mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
                     return@LazyColumn
                 }
                 if (navigator.destination != AppDestination.Home) {
@@ -326,6 +334,17 @@ internal fun AppShell(
                     actions = actions,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
+                )
+            }
+
+            artistOpener.message?.let { notice ->
+                ArtistOpenBanner(
+                    message = notice,
+                    onDismiss = artistOpener::dismissMessage,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
         }

@@ -162,7 +162,9 @@ class AppNavigatorTest {
         navigator.openCatalogPlaylist("   ", "Kosong")
         assertTrue(navigator.catalogStack.isEmpty())
 
+        navigator.openNowPlaying()
         navigator.openCatalogPlaylist("VLPL_sore", "Chill Sore", "Pemilik · 10 lagu", "https://example.invalid/pl")
+        assertFalse(navigator.nowPlayingOpen)
         navigator.openCatalogPlaylist("PL_sore", "Chill Sore")
         assertEquals(1, navigator.catalogStack.size)
         assertEquals(
@@ -212,5 +214,57 @@ class AppNavigatorTest {
             restored.currentCatalogRoute,
         )
         assertFalse(restored.listeningStatsOpen)
+    }
+
+    @Test
+    fun openArtistFromNowPlayingClosesNowPlayingAndPushesRoute() {
+        val navigator = AppNavigator()
+        navigator.select(AppDestination.Library)
+        navigator.openPlaylist("p1")
+        navigator.openNowPlaying()
+
+        navigator.openArtist("UC_tulus", "Tulus")
+
+        assertFalse(navigator.nowPlayingOpen)
+        assertEquals(CatalogRoute.Artist("UC_tulus", "Tulus"), navigator.currentCatalogRoute)
+        assertEquals("Library", navigator.previousCatalogLabel())
+
+        assertTrue(navigator.back())
+        assertNull(navigator.currentCatalogRoute)
+        assertEquals("p1", navigator.openedPlaylistId)
+    }
+
+    @Test
+    fun openArtistFromNowPlayingOverMostPlayedReturnsToMostPlayedOnBack() {
+        val navigator = AppNavigator()
+        navigator.openMostPlayed()
+        navigator.openNowPlaying()
+
+        navigator.openArtist("UC_tulus", "Tulus")
+
+        assertFalse(navigator.nowPlayingOpen)
+        assertEquals("Paling sering diputar", navigator.previousCatalogLabel())
+        assertTrue(navigator.back())
+        assertNull(navigator.currentCatalogRoute)
+        assertTrue(navigator.mostPlayedOpen)
+        assertTrue(navigator.back())
+        assertFalse(navigator.mostPlayedOpen)
+    }
+
+    @Test
+    fun openArtistFromNowPlayingOverListeningStatsReturnsToStatsOnBack() {
+        val navigator = AppNavigator()
+        navigator.openListeningStats()
+        navigator.openNowPlaying()
+
+        navigator.openArtist("UC_tulus", "Tulus")
+
+        assertFalse(navigator.nowPlayingOpen)
+        assertEquals("Statistik dengar", navigator.previousCatalogLabel())
+        assertTrue(navigator.back())
+        assertNull(navigator.currentCatalogRoute)
+        assertTrue(navigator.listeningStatsOpen)
+        assertTrue(navigator.back())
+        assertFalse(navigator.listeningStatsOpen)
     }
 }
