@@ -103,12 +103,19 @@ private fun validateYouTubePlaylistId(rawId: String): PlaylistLinkParseResult {
                 "Salin lagu ke playlist publik atau tidak terdaftar, lalu impor tautannya.",
         )
     }
-    if (normalized.startsWith("RD", ignoreCase = true) && !normalized.startsWith("RDCLAK", ignoreCase = true)) {
+    if (isYouTubeMixPlaylist(normalized)) {
         return PlaylistLinkParseResult.Invalid(
             "Mix YouTube tidak dapat diimpor karena berubah untuk setiap pendengar. Simpan sebagai playlist terlebih dahulu.",
         )
     }
     return PlaylistLinkParseResult.Valid(PlaylistLink.YouTubeMusic(normalized))
+}
+
+/** Mix/radio pribadi YouTube (`RD…` selain playlist editorial `RDCLAK…`) berubah per pendengar. */
+internal fun isYouTubeMixPlaylist(playlistId: String): Boolean {
+    val cleanId = playlistId.trim().removePrefix("VL")
+    return cleanId.startsWith("RD", ignoreCase = true) &&
+        !cleanId.startsWith("RDCLAK", ignoreCase = true)
 }
 
 private fun parseQueryParams(query: String): Map<String, String> {

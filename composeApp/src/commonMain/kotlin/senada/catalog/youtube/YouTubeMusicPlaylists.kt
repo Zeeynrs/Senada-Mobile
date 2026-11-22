@@ -6,7 +6,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
+import senada.catalog.PlaylistDetail
 import senada.catalog.PlaylistImportException
+import senada.catalog.isYouTubeMixPlaylist
 import senada.model.Track
 
 /** Hasil pembacaan playlist YouTube Music beserta judul lagu yang tidak tersedia. */
@@ -16,6 +18,9 @@ internal data class YouTubeMusicPlaylist(
     val tracks: List<Track>,
     val skippedTitles: List<String> = emptyList(),
     val truncated: Boolean = false,
+    val owner: String? = null,
+    val songCountText: String? = null,
+    val artworkUrl: String? = null,
 )
 
 internal interface YouTubePlaylistSource {
@@ -25,23 +30,60 @@ internal interface YouTubePlaylistSource {
     ): YouTubeMusicPlaylist
 }
 
-/** Membaca playlist publik atau tidak terdaftar dari Innertube `browse` (`VL<playlistId>`). */
+/** Membaca playlist publik atau tidak terdaftar dari Innertube `browse` (`VL<playlistId>`) maupun mix via `next`. */
 internal class YouTubeMusicPlaylists(
     private val innertube: InnertubeClient,
 ) : YouTubePlaylistSource {
-    override suspend fun fetchPlaylist(playlistId: String, limit: Int): YouTubeMusicPlaylist {
+    override suspend fun fetchPlaylist(playlistId: String, limit: Int): YouTubeMusicPlaylist =
+        fetchInternal(playlistId = playlistId, limit = limit, allowMixFallback = false)
+
+    /** Membuka isi halaman playlist beserta metadata pemilik, jumlah lagu, dan dukungan mix/radio. */
+    suspend fun fetchPlaylistDetail(
+        playlistId: String,
+        limit: Int = DEFAULT_PLAYLIST_LIMIT,
+    ): PlaylistDetail {
+        val result = fetchInternal(playlistId = playlistId, limit = limit, allowMixFallback = true)
+        return PlaylistDetail(
+            id = result.id,
+            title = result.name,
+            owner = result.owner,
+            songCountText = result.songCountText,
+            artworkUrl = result.artworkUrl ?: result.tracks.firstOrNull()?.artworkUrl,
+            tracks = result.tracks,
+            truncated = result.truncated,
+        )
+    }
+
+    private suspend fun fetchInternal(
+        playlistId: String,
+        limit: Int,
+        allowMixFallback: Boolean,
+    ): YouTubeMusicPlaylist {
         val cleanId = playlistId.removePrefix("VL").ifBlank { playlistId }
         val browseId = "VL$cleanId"
+        val isMix = allowMixFallback && isYouTubeMixPlaylist(cleanId)
+
+        var browseError: PlaylistImportException? = null
         val firstResponse = try {
             innertube.browse(browseId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: CatalogException) {
-            throw mapBrowseError(e)
+            val mapped = mapBrowseError(e)
+            if (isMix && e.kind != Kind.RateLimited) {
+                browseError = mapped
+                null
+            } else {
+                throw mapped
+            }
         }
 
-        if (firstResponse.at("error") != null) {
-            throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+        if (firstResponse == null || firstResponse.at("error") != null) {
+            if (isMix) {
+                return fetchMixFromNext(cleanId, headerMeta = null, limit = limit)
+                    ?: throw (browseError ?: PlaylistImportException(UNREACHABLE_PLAYLIST))
+            }
+            throw (browseError ?: PlaylistImportException(UNREACHABLE_PLAYLIST))
         }
 
         val firstPage = parsePlaylistFirstPage(cleanId, firstResponse)
@@ -91,7 +133,13 @@ internal class YouTubeMusicPlaylists(
         val hasMoreRemaining = (modernToken != null || legacyToken != null) || tracks.size > limit
         val finalTracks = if (tracks.size > limit) tracks.take(limit) else tracks
         if (finalTracks.isEmpty()) {
-            throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+            if (isMix) {
+                return fetchMixFromNext(cleanId, headerMeta = firstPage, limit = limit)
+                    ?: throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+            }
+            if (!allowMixFallback || !firstPage.hasHeader) {
+                throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+            }
         }
 
         return YouTubeMusicPlaylist(
@@ -100,6 +148,34 @@ internal class YouTubeMusicPlaylists(
             tracks = finalTracks,
             skippedTitles = skippedTitles,
             truncated = truncated || hasMoreRemaining,
+            owner = firstPage.owner,
+            songCountText = firstPage.songCountText,
+            artworkUrl = firstPage.artworkUrl ?: finalTracks.firstOrNull()?.artworkUrl,
+        )
+    }
+
+    private suspend fun fetchMixFromNext(
+        playlistId: String,
+        headerMeta: ParsedPlaylistFirstPage?,
+        limit: Int,
+    ): YouTubeMusicPlaylist? {
+        val nextResponse = try {
+            innertube.nextPlaylist(playlistId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: CatalogException) {
+            throw mapBrowseError(e)
+        }
+        val parsed = parseMixNextResponse(playlistId, nextResponse) ?: return null
+        val boundedTracks = if (parsed.tracks.size > limit) parsed.tracks.take(limit) else parsed.tracks
+        val title = headerMeta?.takeIf { it.hasHeader && it.name != DEFAULT_PLAYLIST_NAME }?.name ?: parsed.name
+        return parsed.copy(
+            name = title,
+            owner = headerMeta?.owner ?: parsed.owner,
+            songCountText = headerMeta?.songCountText ?: parsed.songCountText,
+            artworkUrl = headerMeta?.artworkUrl ?: boundedTracks.firstOrNull()?.artworkUrl,
+            tracks = boundedTracks,
+            truncated = parsed.tracks.size > limit,
         )
     }
 
@@ -132,6 +208,10 @@ internal data class ParsedPlaylistFirstPage(
     val skippedTitles: List<String>,
     val modernContinuationToken: String?,
     val legacyContinuationToken: String?,
+    val owner: String? = null,
+    val songCountText: String? = null,
+    val artworkUrl: String? = null,
+    val hasHeader: Boolean = false,
 )
 
 internal data class ParsedPlaylistContinuation(
@@ -149,6 +229,9 @@ private sealed interface ParsedPlaylistItem {
 internal fun parsePlaylistFirstPage(playlistId: String, response: JsonObject): ParsedPlaylistFirstPage {
     val header = findPlaylistHeader(response)
     val name = extractText(header.at("title")).trim().ifEmpty { DEFAULT_PLAYLIST_NAME }
+    val owner = extractHeaderOwner(header)
+    val songCountText = extractHeaderSongCount(header)
+    val headerArt = headerArtwork(header)
 
     val candidateSections = response.array(
         "contents", "twoColumnBrowseResultsRenderer", "secondaryContents",
@@ -169,6 +252,10 @@ internal fun parsePlaylistFirstPage(playlistId: String, response: JsonObject): P
         skippedTitles = skipped,
         modernContinuationToken = itemContinuation,
         legacyContinuationToken = if (itemContinuation == null) legacyContinuation else null,
+        owner = owner,
+        songCountText = songCountText,
+        artworkUrl = headerArt ?: tracks.firstOrNull()?.artworkUrl,
+        hasHeader = header != null,
     )
 }
 
@@ -326,6 +413,127 @@ private fun findPlaylistHeader(response: JsonObject): JsonElement? {
         ?: response.at("header", "musicResponsiveHeaderRenderer")
 }
 
+private fun extractHeaderOwner(header: JsonElement?): String? {
+    if (header == null) return null
+    header.string("facepile", "avatarStackViewModel", "text", "content")
+        ?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    extractText(header.at("straplineTextOne")).trim().takeIf { it.isNotEmpty() }?.let { return it }
+    for (run in header.at("subtitle").array("runs")) {
+        if (run.at("navigationEndpoint", "browseEndpoint") != null) {
+            run.string("text")?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        }
+    }
+    return null
+}
+
+private fun extractHeaderSongCount(header: JsonElement?): String? {
+    if (header == null) return null
+    val secondSubtitle = header.at("secondSubtitle") ?: return null
+    for (run in secondSubtitle.array("runs")) {
+        val text = run.string("text")?.trim().orEmpty()
+        if (text.isNotEmpty() && SONG_COUNT_REGEX.containsMatchIn(text)) {
+            return text
+        }
+    }
+    val full = extractText(secondSubtitle).trim()
+    if (full.isNotEmpty()) {
+        full.split(SEPARATOR).map(String::trim)
+            .firstOrNull { SONG_COUNT_REGEX.containsMatchIn(it) }
+            ?.let { return it }
+    }
+    return null
+}
+
+private fun headerArtwork(header: JsonElement?): String? {
+    if (header == null) return null
+    val thumbnails = header.array("thumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails")
+        .ifEmpty { header.array("thumbnail", "croppedSquareThumbnailRenderer", "thumbnail", "thumbnails") }
+    val rawUrl = thumbnails.lastOrNull()?.string("url") ?: return null
+    val url = if (rawUrl.startsWith("//")) "https:$rawUrl" else rawUrl
+    return resizeGoogleArtwork(url, ARTWORK_SIZE)
+}
+
+internal fun parseMixNextResponse(playlistId: String, response: JsonObject): YouTubeMusicPlaylist? {
+    val tabs = response.array(
+        "contents", "singleColumnMusicWatchNextResultsRenderer", "tabbedRenderer",
+        "watchNextTabbedResultsRenderer", "tabs",
+    )
+    val panel = tabs.firstNotNullOfOrNull { tab ->
+        tab.at("tabRenderer", "content", "musicQueueRenderer", "content", "playlistPanelRenderer")
+    } ?: return null
+
+    val tracks = mutableListOf<Track>()
+    for (item in panel.array("contents")) {
+        val renderer = item.at("playlistPanelVideoRenderer") ?: continue
+        parseMixPanelTrack(renderer)?.let { tracks += it }
+    }
+    if (tracks.isEmpty()) return null
+
+    val title = panel.string("title")?.trim()?.takeIf { it.isNotEmpty() }
+        ?: extractText(panel.at("title")).trim().takeIf { it.isNotEmpty() }
+        ?: DEFAULT_MIX_NAME
+
+    return YouTubeMusicPlaylist(
+        id = playlistId,
+        name = title,
+        tracks = tracks,
+        songCountText = "${tracks.size} lagu",
+        artworkUrl = tracks.firstOrNull()?.artworkUrl,
+    )
+}
+
+private fun parseMixPanelTrack(renderer: JsonElement): Track? {
+    val videoId = renderer.string("videoId")?.takeIf { it.isNotBlank() }
+        ?: renderer.string("navigationEndpoint", "watchEndpoint", "videoId")?.takeIf { it.isNotBlank() }
+        ?: return null
+    val title = extractText(renderer.at("title")).trim()
+    if (title.isEmpty()) return null
+
+    val longRuns = renderer.array("longBylineText", "runs")
+    val linkedArtists = longRuns.mapNotNull { run ->
+        val text = run.string("text")?.trim().orEmpty()
+        if (text.isEmpty() || text in RUN_SEPARATORS) return@mapNotNull null
+        if (playlistPageType(run) == "MUSIC_PAGE_TYPE_ARTIST") text else null
+    }.distinct()
+
+    val artists = linkedArtists.ifEmpty {
+        val shortNames = renderer.array("shortBylineText", "runs").mapNotNull { run ->
+            val text = run.string("text")?.trim().orEmpty()
+            if (text.isEmpty() || text in RUN_SEPARATORS) null else text
+        }.distinct()
+        if (shortNames.isNotEmpty()) {
+            shortNames
+        } else {
+            extractText(renderer.at("longBylineText"))
+                .substringBefore(SEPARATOR)
+                .split(", ", " & ", " dan ", " and ")
+                .map(String::trim)
+                .filter { it.isNotEmpty() }
+        }
+    }
+
+    val rawLength = extractText(renderer.at("lengthText")).trim()
+    val normalizedLength = if (':' !in rawLength && DOT_DURATION_REGEX.matches(rawLength)) {
+        rawLength.replace('.', ':')
+    } else {
+        rawLength
+    }
+    val durationMs = parseDuration(normalizedLength)
+
+    val rawArt = renderer.array("thumbnail", "thumbnails").lastOrNull()?.string("url")
+    val artUrl = rawArt?.let { if (it.startsWith("//")) "https:$it" else it }
+        ?.let { resizeGoogleArtwork(it, ARTWORK_SIZE) }
+
+    return Track(
+        id = youTubeTrackId(videoId),
+        title = title,
+        artists = artists,
+        durationMs = durationMs,
+        artworkUrl = artUrl,
+        source = YOUTUBE_MUSIC_SOURCE,
+    )
+}
+
 private fun sectionListContents(response: JsonObject): List<JsonElement> {
     val tabContent = response.at(
         "contents", "singleColumnBrowseResultsRenderer", "tabs", 0, "tabRenderer", "content",
@@ -357,7 +565,10 @@ private fun arrayOrEmpty(element: JsonElement): List<JsonElement> =
     element as? JsonArray ?: emptyList()
 
 private const val DEFAULT_PLAYLIST_NAME = "Playlist YouTube Music"
+private const val DEFAULT_MIX_NAME = "Mix YouTube Music"
 private const val SEPARATOR = " • "
+private val SONG_COUNT_REGEX = Regex("""\b(?:lagu|songs?|tracks?)\b""", RegexOption.IGNORE_CASE)
+private val DOT_DURATION_REGEX = Regex("""^\d+\.\d{2}(?:\.\d{2})?$""")
 private val RUN_SEPARATORS = setOf("•", ",", "&", "dan", "and")
 private val TYPE_LABELS = setOf(
     "lagu", "song", "video", "episode", "episode podcast", "single", "album", "ep", "playlist", "artis", "artist",
