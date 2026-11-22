@@ -169,11 +169,11 @@ private fun ImportedTracksContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            for (track in tracks) {
+            for ((index, track) in tracks.withIndex()) {
                 TrackRow(
                     track = track,
                     favorite = track.id in library.favoriteIds,
-                    onClick = { actions.playAll(listOf(track)) },
+                    onClick = { actions.playAll(tracks, startIndex = index) },
                 ) {
                     TrackMenu(track, library, actions)
                 }
