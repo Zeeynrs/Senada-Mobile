@@ -304,9 +304,9 @@ Seluruh rencana selesai dan masuk `main` lewat rebase merge. Diuji di emulator A
 
 Skrip emulator kini menyembunyikan dan menutup dialog ANR aplikasi sistem (Pixel Launcher di emulator CI sempat menutupi layar pertama).
 
-## Lanjutan yang belum dikerjakan
+## Lanjutan (2026-11-22)
 
-- [ ] **File impor di Library**: chip "File impor" hanya menampilkan lagu lokal yang tercatat di tabel `track` (pernah diputar, difavoritkan, atau masuk playlist). File yang baru diimpor ke antrean belum muncul. Pertimbangkan membaca daftar dari penyimpanan file impor (`LocalAudioFiles`) atau mencatat lagu saat diimpor.
-- [ ] **Keyboard di tab Cari**: navigasi mengambang dan mini player ikut naik di atas keyboard saat mengetik. Pertimbangkan menyembunyikannya saat IME terbuka (Android dan iOS).
-- [ ] **Pembersihan**: hapus cabang `docs/ui-rework-design` di GitHub (isinya sudah di `main`) bila pemilik setuju.
-
+- [x] **File impor di Library** — [PR #41](https://github.com/Zeeynrs/Senada-Mobile/pull/41), Neon. Tabel baru `imported_track` (skema versi 5) mencatat lagu saat diimpor; migrasi memindahkan lagu lokal yang sudah ada. Daftar diselaraskan dengan folder penyimpanan saat aplikasi dan chip dibuka, jadi file yang dihapus ikut hilang. "Hapus file yang tidak dipakai" tetap menghapus file yang tidak ada di antrean, favorit, playlist, riwayat, atau hitungan putar (keputusan pemilik), kini dengan dialog konfirmasi.
+- [x] **Keyboard di tab Cari** — [PR #40](https://github.com/Zeeynrs/Senada-Mobile/pull/40), Sol. Navigasi mengambang dan mini player disembunyikan selama papan ketik tampil; jarak bawah daftar ikut mengecil. Android memakai `windowSoftInputMode="stateUnchanged|adjustResize"`; uji emulator memeriksa papan ketik terbuka dan tombol kembali memulihkan kedua bilah.
+- [x] **Pembersihan** — cabang `docs/ui-rework-design` dihapus dari GitHub.
+- [ ] **Uji iPhone fisik** untuk PR #40 dan #41 (IPA belum dibuat; tunggu pemilik minta build): kedua bilah hilang saat mengetik di Cari dan kembali saat papan ketik ditutup; file baru langsung muncul di Library › File impor dan tetap ada setelah aplikasi dibuka ulang; dialog di Pengaturan › Penyimpanan — "Batal" tidak menghapus, "Hapus" membuang file dari File impor.
