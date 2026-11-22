@@ -2,7 +2,11 @@ package senada.catalog.youtube
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import senada.catalog.CatalogRepository
+import senada.catalog.AlbumDetail
+import senada.catalog.AlbumPage
+import senada.catalog.ArtistDetail
+import senada.catalog.ArtistPage
+import senada.catalog.CatalogBrowser
 import senada.catalog.TrackPage
 import senada.model.Track
 
@@ -14,13 +18,33 @@ internal fun youTubeTrackId(videoId: String) = "$TRACK_ID_PREFIX$videoId"
 
 internal fun videoIdOf(track: Track): String? = track.id.removePrefix(TRACK_ID_PREFIX).takeIf { it != track.id }
 
-internal class YouTubeMusicCatalog(private val innertube: InnertubeClient) : CatalogRepository {
+internal class YouTubeMusicCatalog(private val innertube: InnertubeClient) : CatalogBrowser {
     override suspend fun search(query: String, pageToken: String?): TrackPage {
         if (pageToken != null) return parseSearchPage(innertube.searchContinuation(pageToken))
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return TrackPage(emptyList())
         return parseSearchPage(innertube.search(trimmed))
     }
+
+    override suspend fun searchArtists(query: String, pageToken: String?): ArtistPage {
+        if (pageToken != null) return parseArtistSearchPage(innertube.searchContinuation(pageToken))
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return ArtistPage(emptyList())
+        return parseArtistSearchPage(innertube.search(trimmed, InnertubeClient.ARTISTS_FILTER))
+    }
+
+    override suspend fun searchAlbums(query: String, pageToken: String?): AlbumPage {
+        if (pageToken != null) return parseAlbumSearchPage(innertube.searchContinuation(pageToken))
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return AlbumPage(emptyList())
+        return parseAlbumSearchPage(innertube.search(trimmed, InnertubeClient.ALBUMS_FILTER))
+    }
+
+    override suspend fun artist(id: String): ArtistDetail =
+        parseArtistPage(id, innertube.browse(id))
+
+    override suspend fun album(id: String): AlbumDetail =
+        parseAlbumPage(id, innertube.browse(id))
 }
 
 /** Membaca halaman pertama pencarian lagu atau halaman lanjutannya. */
@@ -65,10 +89,10 @@ private fun parseTrack(item: JsonElement): Track? {
     )
 }
 
-private fun columnRuns(item: JsonElement, column: Int): List<JsonElement> =
+internal fun columnRuns(item: JsonElement, column: Int): List<JsonElement> =
     item.array("flexColumns", column, "musicResponsiveListItemFlexColumnRenderer", "text", "runs")
 
-private fun pageType(run: JsonElement): String? = run.string(
+internal fun pageType(run: JsonElement): String? = run.string(
     "navigationEndpoint", "browseEndpoint", "browseEndpointContextSupportedConfigs",
     "browseEndpointContextMusicConfig", "pageType",
 )
@@ -100,7 +124,7 @@ internal fun resizeGoogleArtwork(url: String, size: Int): String {
 }
 
 private const val SEPARATOR = " • "
-private const val ARTWORK_SIZE = 544
+internal const val ARTWORK_SIZE = 544
 
 // Bahasa Indonesia memakai titik ("3.33"), bahasa lain titik dua ("3:33").
 private val DURATION = Regex("^(\\d+)[:.](\\d{2})(?:[:.](\\d{2}))?$")
