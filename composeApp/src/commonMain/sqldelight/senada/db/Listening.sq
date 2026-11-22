@@ -1,0 +1,23 @@
+-- Metadata disalin agar statistik tetap terbaca setelah data lagu dibersihkan.
+CREATE TABLE listen_event (
+    id TEXT NOT NULL PRIMARY KEY,
+    track_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    artists TEXT NOT NULL,
+    duration_ms INTEGER,
+    artwork_url TEXT,
+    source TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    listened_ms INTEGER NOT NULL
+);
+
+CREATE INDEX listen_event_started_at ON listen_event(started_at);
+
+saveListenEvent:
+INSERT OR REPLACE INTO listen_event(id, track_id, title, artists, duration_ms, artwork_url, source, started_at, listened_ms)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listenEvents:
+SELECT id, track_id, title, artists, duration_ms, artwork_url, source, started_at, listened_ms
+FROM listen_event
+WHERE started_at >= :cutoff AND started_at <= :latest;

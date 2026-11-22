@@ -7,6 +7,7 @@ import kotlinx.coroutines.MainScope
 import senada.db.SenadaDatabase
 import senada.library.LibraryRepository
 import senada.library.recordHistoryTo
+import senada.library.recordListeningTo
 
 /** Library hidup selama proses aplikasi, sama seperti pemutar. */
 internal object AndroidLibrary {
@@ -16,7 +17,10 @@ internal object AndroidLibrary {
 
     private fun create(context: Context): LibraryRepository {
         val library = LibraryRepository(libraryDriver(context))
-        AndroidPlayback.get(context).controller.recordHistoryTo(library, MainScope())
+        val playback = AndroidPlayback.get(context)
+        val scope = MainScope()
+        playback.controller.recordHistoryTo(library, scope)
+        playback.controller.recordListeningTo(library, scope, playback.position)
         return library
     }
 }

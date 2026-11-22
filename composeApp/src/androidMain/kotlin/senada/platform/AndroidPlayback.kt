@@ -27,7 +27,11 @@ import senada.playback.SampleAudioStatus
 
 /** Pemutar dan controller hidup selama proses aplikasi, terpisah dari Activity. */
 internal object AndroidPlayback {
-    class Components(val controller: PlaybackController, val sessionPlayer: SessionPlayer)
+    class Components(
+        val controller: PlaybackController,
+        val sessionPlayer: SessionPlayer,
+        val position: () -> Long,
+    )
 
     private var components: Components? = null
 
@@ -36,9 +40,10 @@ internal object AndroidPlayback {
     private fun create(context: Context): Components {
         val output = ExoAudioOutput(context)
         val controller = createPlaybackController(output, AndroidQueueStore(context), AndroidLocalAudioFiles(context), context)
-        val sessionPlayer = SessionPlayer(controller) { output.positionMs }
+        val position = { output.positionMs }
+        val sessionPlayer = SessionPlayer(controller, position)
         controller.addListener { sessionPlayer.refresh() }
-        return Components(controller, sessionPlayer)
+        return Components(controller, sessionPlayer, position)
     }
 }
 

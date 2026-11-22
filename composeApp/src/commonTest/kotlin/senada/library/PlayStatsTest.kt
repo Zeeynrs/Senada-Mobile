@@ -156,13 +156,14 @@ class PlayStatsTest {
         driver.execute(null, "DROP TABLE play_event", 0)
         driver.execute(null, "DROP TABLE playlist_play", 0)
         driver.execute(null, "DROP TABLE imported_track", 0)
+        driver.execute(null, "DROP TABLE listen_event", 0)
         val library = library()
         library.setFavorite(first, true)
 
         SenadaDatabase.Schema.migrate(driver, 3, SenadaDatabase.Schema.version)
         library.recordTrackPlay(second)
 
-        assertEquals(5L, SenadaDatabase.Schema.version)
+        assertEquals(6L, SenadaDatabase.Schema.version)
         assertEquals(listOf(first), library.favorites.first())
         assertEquals(HomeHero.FromTrack(second, 1), library.homeHero().first())
     }
