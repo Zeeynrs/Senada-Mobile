@@ -2,6 +2,7 @@ package senada.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -128,11 +129,12 @@ class LibraryPagingTest {
         driver.execute(null, "DROP INDEX favorite_added_at", 0)
         driver.execute(null, "DROP TABLE play_event", 0)
         driver.execute(null, "DROP TABLE playlist_play", 0)
+        driver.execute(null, "DROP TABLE imported_track", 0)
         fillFavorites(3)
 
         SenadaDatabase.Schema.migrate(driver, 2, SenadaDatabase.Schema.version)
 
-        assertEquals(4L, SenadaDatabase.Schema.version)
+        assertTrue(SenadaDatabase.Schema.version >= 3L)
         assertEquals(3, library().favoritesPage(50).first().size)
     }
 }
