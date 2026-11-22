@@ -47,8 +47,8 @@ internal object SenadaPalette {
 }
 
 /**
- * Skema Material 3 Senada. [accent] dari sampul (bila "Warna mengikuti sampul" menyala) dibuat cukup kontras
- * terhadap latar; tanpa aksen, teal Senada dipakai.
+ * Skema Material 3 Senada. [accent] disesuaikan agar kontras terhadap latar.
+ * Jika tidak ada warna aksen, teal Senada dipakai.
  */
 internal fun senadaColorScheme(dark: Boolean, accent: Color?): ColorScheme {
     val p = SenadaPalette

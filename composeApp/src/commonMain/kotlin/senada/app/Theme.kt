@@ -14,13 +14,14 @@ import androidx.compose.ui.graphics.Color
 import coil3.compose.LocalPlatformContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import senada.app.theme.AccentChoice
 import senada.app.theme.SenadaShapes
 import senada.app.theme.senadaColorScheme
 import senada.app.theme.senadaTypography
 
 private val artworkColors = ArtworkAccentCache()
 
-/** Aksen sampul asli agar layar gelap dapat menghitung kontrasnya sendiri di tema terang. */
+/** Aksen sampul asli untuk Sedang diputar, terlepas dari pilihan aksen aplikasi. */
 internal val LocalArtworkAccent = compositionLocalOf<Color?> { null }
 
 internal class AppearancePreferences(private val store: AppearanceStore) {
@@ -32,7 +33,7 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
     }
 
     fun selectMode(mode: ThemeMode) = update { it.copy(mode = mode) }
-    fun followCover(enabled: Boolean) = update { it.copy(followCover = enabled) }
+    fun selectAccent(accent: AccentChoice) = update { it.copy(accent = accent) }
     fun saveMobileData(enabled: Boolean) = update { it.copy(saveMobileData = enabled) }
 
     private fun update(change: (Appearance) -> Appearance) {
@@ -55,13 +56,14 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
         ThemeMode.Dark -> true
         else -> isSystemInDarkTheme()
     }
-    val url = artworkUrl?.takeIf { settings?.followCover == true && it.isNotBlank() }
-    var source by remember(url) { mutableStateOf<Color?>(null) }
+    val url = artworkUrl?.takeIf { it.isNotBlank() }
+    var cover by remember(url) { mutableStateOf<Color?>(null) }
     LaunchedEffect(url, visible) {
-        if (url != null && visible) source = artworkColors.get(url) { loadArtworkAccent(context, url) }
+        if (url != null && visible) cover = artworkColors.get(url) { loadArtworkAccent(context, url) }
     }
+    val source = (settings?.accent ?: AccentChoice.Senada).source(cover)
     val colors = remember(dark, source) { senadaColorScheme(dark, source) }
-    CompositionLocalProvider(LocalArtworkAccent provides source) {
+    CompositionLocalProvider(LocalArtworkAccent provides cover) {
         MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
     }
 }
