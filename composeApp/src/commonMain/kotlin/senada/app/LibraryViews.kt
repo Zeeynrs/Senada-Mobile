@@ -49,6 +49,7 @@ import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
 import senada.library.LibraryRepository
 import senada.library.Playlist
+import senada.library.PlaylistImporter
 import senada.library.PlaylistSummary
 import senada.library.recordPlaylistPlay
 import senada.local.ImportedAudioStorage
@@ -136,6 +137,13 @@ internal class LibraryActions(
         val target = firstNew + startIndex.coerceIn(0, tracks.lastIndex)
         playback.state.value.queue.entries.getOrNull(target)?.let { playback.playEntry(it.id) }
     }
+
+    fun createPlaylistImporter(): PlaylistImporter = PlaylistImporter(
+        library = library,
+        youTubePlaylists = SenadaSources.youTubePlaylists,
+        spotifyPlaylists = SenadaSources.spotifyPlaylists,
+        candidateSearcher = SenadaSources.candidateSearcher,
+    )
 
     private fun write(block: suspend () -> Unit) {
         scope.launch { runCatching { block() } }
@@ -315,7 +323,7 @@ internal fun LazyListScope.playlistsTab(
     onLoadMore: () -> Unit,
 ) {
     if (opened == null) {
-        item { PlaylistListHeader(actions) }
+        item { PlaylistListHeader(actions, onOpen = { id -> onOpen(id) }) }
         if (library.playlists.isEmpty()) {
             item {
                 Text(
@@ -414,8 +422,9 @@ internal fun LazyListScope.playlistsTab(
 }
 
 @Composable
-private fun PlaylistListHeader(actions: LibraryActions) {
+private fun PlaylistListHeader(actions: LibraryActions, onOpen: (String) -> Unit) {
     var naming by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf(false) }
     AdaptiveRow(
         modifier = Modifier.fillMaxWidth(),
         minPrimaryWidth = 140.dp,
@@ -423,7 +432,17 @@ private fun PlaylistListHeader(actions: LibraryActions) {
             Text("Playlist", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
         },
         trailing = {
-            TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) { Text("Playlist baru") }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                TextButton(onClick = { importing = true }, modifier = Modifier.minTouchTarget()) {
+                    Text("Impor playlist")
+                }
+                TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) {
+                    Text("Playlist baru")
+                }
+            }
         },
     )
     if (naming) {
@@ -431,6 +450,16 @@ private fun PlaylistListHeader(actions: LibraryActions) {
             naming = false
             actions.createPlaylist(name)
         }
+    }
+    if (importing) {
+        PlaylistImportDialog(
+            importer = remember(actions) { actions.createPlaylistImporter() },
+            onDismiss = { importing = false },
+            onOpenPlaylist = { playlistId ->
+                importing = false
+                onOpen(playlistId)
+            },
+        )
     }
 }
 
