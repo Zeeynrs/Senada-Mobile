@@ -383,21 +383,6 @@ internal fun parseHomeFeed(response: JsonObject): DiscoverFeed {
     )
 }
 
-private fun parseArtistCard(item: JsonElement): ArtistSummary? {
-    val target = browseTarget(item)
-        ?: item.array("title", "runs").firstNotNullOfOrNull(::browseTarget)
-        ?: return null
-    if (target.first != KIND_ARTIST) return null
-    val name = textOf(item.at("title"))
-    if (name.isEmpty()) return null
-    return ArtistSummary(
-        id = target.second,
-        name = name,
-        subtitle = textOf(item.at("subtitle")).takeIf { it.isNotEmpty() },
-        artworkUrl = bestArtwork(item),
-    )
-}
-
 private fun parseTwoRowTrack(item: JsonElement): Track? {
     val videoId = item.string("navigationEndpoint", "watchEndpoint", "videoId")
         ?.takeIf { it.isNotBlank() } ?: return null

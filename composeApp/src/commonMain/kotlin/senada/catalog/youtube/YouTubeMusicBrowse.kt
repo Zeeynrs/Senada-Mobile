@@ -16,11 +16,11 @@ import senada.model.Track
 internal const val PAGE_TYPE_ARTIST = "MUSIC_PAGE_TYPE_ARTIST"
 internal const val PAGE_TYPE_ALBUM = "MUSIC_PAGE_TYPE_ALBUM"
 private const val PAGE_TYPE_AUDIOBOOK = "MUSIC_PAGE_TYPE_AUDIOBOOK"
-private const val PAGE_TYPE_PLAYLIST = "MUSIC_PAGE_TYPE_PLAYLIST"
+internal const val PAGE_TYPE_PLAYLIST = "MUSIC_PAGE_TYPE_PLAYLIST"
 
 internal const val KIND_ARTIST = "artist"
 internal const val KIND_ALBUM = "album"
-private const val KIND_PLAYLIST = "playlist"
+internal const val KIND_PLAYLIST = "playlist"
 
 private val NON_ARTIST_PAGE_TYPES = setOf(PAGE_TYPE_ALBUM, PAGE_TYPE_AUDIOBOOK, PAGE_TYPE_PLAYLIST)
 private val TYPE_LABELS = setOf(
@@ -366,6 +366,21 @@ internal fun parseAlbumCard(item: JsonElement): AlbumSummary? {
     )
 }
 
+internal fun parseArtistCard(item: JsonElement): ArtistSummary? {
+    val target = browseTarget(item)
+        ?: item.array("title", "runs").firstNotNullOfOrNull(::browseTarget)
+        ?: return null
+    if (target.first != KIND_ARTIST) return null
+    val name = textOf(item.at("title"))
+    if (name.isEmpty()) return null
+    return ArtistSummary(
+        id = target.second,
+        name = name,
+        subtitle = textOf(item.at("subtitle")).takeIf { it.isNotEmpty() },
+        artworkUrl = bestArtwork(item),
+    )
+}
+
 internal fun parseBrowseTrack(
     item: JsonElement,
     fallbackArtists: List<String> = emptyList(),
@@ -376,6 +391,7 @@ internal fun parseBrowseTrack(
     val titleRuns = columnRuns(item, 0)
     val videoId = item.string("playlistItemData", "videoId")
         ?: titleRuns.firstNotNullOfOrNull { it.string("navigationEndpoint", "watchEndpoint", "videoId") }
+        ?: item.string("navigationEndpoint", "watchEndpoint", "videoId")
         ?: item.string(
             "overlay", "musicItemThumbnailOverlayRenderer", "content",
             "musicPlayButtonRenderer", "playNavigationEndpoint", "watchEndpoint", "videoId",
@@ -504,10 +520,10 @@ private fun responsiveHeader(response: JsonObject): JsonElement? {
     return response.at("header", "musicDetailHeaderRenderer")
 }
 
-private fun shelfTitle(shelf: JsonElement): String =
-    textOf(shelf.at("title")).ifEmpty {
-        textOf(shelf.at("header", "musicCarouselShelfBasicHeaderRenderer", "title"))
-    }
+internal fun shelfTitle(shelf: JsonElement): String =
+    textOf(shelf.at("title"))
+        .ifEmpty { textOf(shelf.at("header", "musicCarouselShelfBasicHeaderRenderer", "title")) }
+        .ifEmpty { textOf(shelf.at("header", "gridHeaderRenderer", "title")) }
 
 internal fun browseTarget(element: JsonElement?): Pair<String, String>? {
     val endpoint = element.at("navigationEndpoint") ?: element

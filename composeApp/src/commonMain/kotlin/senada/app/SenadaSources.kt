@@ -5,6 +5,7 @@ import io.ktor.client.plugins.HttpTimeout
 import senada.catalog.ArtistIdIndex
 import senada.catalog.ArtistResolver
 import senada.catalog.CatalogBrowser
+import senada.catalog.HomeCatalog
 import senada.catalog.StreamResolver
 import senada.catalog.spotify.SpotifyPlaylistReader
 import senada.catalog.spotify.SpotifyPlaylistSource
@@ -14,6 +15,7 @@ import senada.catalog.youtube.InnertubeCandidateSearcher
 import senada.catalog.youtube.InnertubeClient
 import senada.catalog.youtube.YouTubeMusicCatalog
 import senada.catalog.youtube.YouTubeMusicDiscoverSource
+import senada.catalog.youtube.YouTubeMusicHome
 import senada.catalog.youtube.YouTubeMusicPlaylists
 import senada.catalog.youtube.YouTubeMusicResolver
 import senada.catalog.youtube.YouTubePlaylistSource
@@ -38,6 +40,7 @@ internal object SenadaSources {
     val youTubeMusic: CatalogBrowser get() = catalog
     val artistResolver by lazy { ArtistResolver(youTubeMusic, artistIds) }
     val discover: DiscoverSource by lazy { YouTubeMusicDiscoverSource(innertube) }
+    val homeCatalog: HomeCatalog by lazy { YouTubeMusicHome(innertube) }
     val youTubePlaylists: YouTubePlaylistSource by lazy { YouTubeMusicPlaylists(innertube) }
     val spotifyPlaylists: SpotifyPlaylistSource by lazy { SpotifyPlaylistReader(http) }
     val candidateSearcher: CandidateSearcher by lazy { InnertubeCandidateSearcher(innertube) }
