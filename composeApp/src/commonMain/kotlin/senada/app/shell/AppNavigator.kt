@@ -7,6 +7,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import senada.catalog.MoodChip
 
 /** Empat tujuan di navigasi bawah. */
 internal enum class AppDestination(val label: String) {
@@ -16,7 +17,7 @@ internal enum class AppDestination(val label: String) {
     Settings("Pengaturan"),
 }
 
-/** Rute halaman katalog di atas tab (artis, album, atau playlist), disusun sebagai tumpukan kembali. */
+/** Rute halaman katalog di atas tab (artis, album, playlist, atau mood), disusun sebagai tumpukan kembali. */
 internal sealed interface CatalogRoute {
     val id: String
     val label: String
@@ -46,6 +47,20 @@ internal sealed interface CatalogRoute {
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
         override val label: String get() = title.ifBlank { "Playlist" }
+    }
+
+    data class Mood(
+        override val id: String,
+        val title: String,
+        val params: String? = null,
+        override val artworkUrl: String? = null,
+    ) : CatalogRoute {
+        override val label: String get() = title.ifBlank { "Mood & genre" }
+
+        /** Kunci cache unik karena beberapa kategori mood berbagi browseId yang sama dan dibedakan oleh [params]. */
+        fun cacheKey(): String = if (params.isNullOrBlank()) id else "$id|$params"
+
+        fun toMoodChip(): MoodChip = MoodChip(title = label, browseId = id, params = params)
     }
 }
 
@@ -143,6 +158,18 @@ internal class AppNavigator(
         catalogStack = catalogStack + CatalogRoute.Playlist(cleanId, title, subtitle, artworkUrl)
     }
 
+    fun openMood(chip: MoodChip) = openMood(browseId = chip.browseId, title = chip.title, params = chip.params)
+
+    fun openMood(browseId: String, title: String, params: String? = null) {
+        val cleanId = browseId.trim()
+        if (cleanId.isEmpty()) return
+        val cleanParams = params?.trim()?.takeIf { it.isNotEmpty() }
+        nowPlayingOpen = false
+        val top = catalogStack.lastOrNull()
+        if (top is CatalogRoute.Mood && top.id == cleanId && top.params == cleanParams) return
+        catalogStack = catalogStack + CatalogRoute.Mood(cleanId, title, cleanParams)
+    }
+
     fun openListeningStats() {
         mostPlayedOpen = false
         listeningStatsOpen = true
@@ -196,6 +223,13 @@ internal class AppNavigator(
                                 add(route.subtitle)
                                 add(route.artworkUrl)
                             }
+                            is CatalogRoute.Mood -> {
+                                add("mood")
+                                add(route.id)
+                                add(route.title)
+                                add(route.params)
+                                add(route.artworkUrl)
+                            }
                         }
                     }
                     // Simpan penanda setelah blok rute agar susunan rute lama tetap bisa dipulihkan.
@@ -216,6 +250,7 @@ internal class AppNavigator(
                                 "artist" -> add(CatalogRoute.Artist(id, label, artwork))
                                 "album" -> add(CatalogRoute.Album(id, label, subtitle, artwork))
                                 "playlist" -> add(CatalogRoute.Playlist(id, label, subtitle, artwork))
+                                "mood" -> add(CatalogRoute.Mood(id, label, params = subtitle, artworkUrl = artwork))
                             }
                         }
                         i += ROUTE_FIELDS

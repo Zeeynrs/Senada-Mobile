@@ -60,6 +60,7 @@ import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
 import senada.app.tabs.CatalogPlaylistSaveOutcome
 import senada.app.tabs.DiscoverController
+import senada.app.tabs.HomeShelvesController
 import senada.app.tabs.LibraryFilter
 import senada.app.tabs.PlaylistSaveStatus
 import senada.app.tabs.catalogDetailScreen
@@ -72,6 +73,7 @@ import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
 import senada.app.tabs.shouldRefreshDiscover
+import senada.app.tabs.shouldRefreshHomeShelves
 import senada.catalog.youtube.DiscoverSeeds
 import senada.library.HomeHero
 import senada.library.LibraryRepository
@@ -169,8 +171,12 @@ internal fun AppShell(
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
     val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(null)
     val discoverController = remember(uiScope) { DiscoverController(SenadaSources.discover, uiScope) }
+    val homeShelvesController = remember(uiScope) { HomeShelvesController(SenadaSources.homeCatalog, uiScope) }
     val refreshDiscover: () -> Unit = {
         discoverController.refreshIfNeeded(discoverSeeds ?: DiscoverSeeds(), saveData = saveData, force = true)
+    }
+    val refreshHomeShelves: () -> Unit = {
+        homeShelvesController.refresh(saveData = saveData)
     }
     LaunchedEffect(
         navigator.destination,
@@ -195,6 +201,26 @@ internal fun AppShell(
             )
         ) {
             discoverController.refreshIfNeeded(seeds, saveData = saveData)
+        }
+    }
+    LaunchedEffect(
+        navigator.destination,
+        navigator.mostPlayedOpen,
+        navigator.listeningStatsOpen,
+        currentCatalogRoute,
+        saveData,
+        screenVisible,
+    ) {
+        if (
+            shouldRefreshHomeShelves(
+                screenVisible = screenVisible,
+                destination = navigator.destination,
+                hasCatalogRoute = currentCatalogRoute != null,
+                mostPlayedOpen = navigator.mostPlayedOpen,
+                listeningStatsOpen = navigator.listeningStatsOpen,
+            )
+        ) {
+            homeShelvesController.refreshIfNeeded(saveData = saveData)
         }
     }
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
@@ -313,6 +339,7 @@ internal fun AppShell(
                         hero = hero,
                         recentItems = recentHome,
                         discover = discoverController.state,
+                        homeShelves = homeShelvesController.state,
                         screenVisible = screenVisible,
                         onSearch = { navigator.select(AppDestination.Search) },
                         onOpenPlaylist = { id ->
@@ -323,12 +350,22 @@ internal fun AppShell(
                         onOpenMostPlayed = navigator::openMostPlayed,
                         onOpenListeningStats = navigator::openListeningStats,
                         onRefreshDiscover = refreshDiscover,
+                        onRefreshHomeShelves = refreshHomeShelves,
                         onOpenArtist = { artist ->
                             navigator.openArtist(artist.id, artist.name, artist.artworkUrl)
                         },
                         onOpenAlbum = { album ->
                             navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
                         },
+                        onOpenCatalogPlaylist = { playlist ->
+                            navigator.openCatalogPlaylist(
+                                playlist.id,
+                                playlist.title,
+                                playlist.subtitle,
+                                playlist.artworkUrl,
+                            )
+                        },
+                        onOpenMood = navigator::openMood,
                     )
                     AppDestination.Search -> searchTab(
                         tab = search,

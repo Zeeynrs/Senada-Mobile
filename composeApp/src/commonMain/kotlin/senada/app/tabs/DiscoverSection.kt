@@ -1,21 +1,12 @@
 package senada.app.tabs
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -23,26 +14,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -53,8 +31,6 @@ import kotlinx.coroutines.withContext
 import senada.app.AdaptiveRow
 import senada.app.LibraryActions
 import senada.app.LibraryState
-import senada.app.TrackMenu
-import senada.app.TrackRow
 import senada.app.minTouchTarget
 import senada.app.shell.AppDestination
 import senada.app.shell.SenadaIcons
@@ -65,7 +41,6 @@ import senada.catalog.youtube.DiscoverResult
 import senada.catalog.youtube.DiscoverSeeds
 import senada.catalog.youtube.DiscoverSource
 import senada.catalog.youtube.buildDiscoverRecommendations
-import senada.catalog.youtube.resizeGoogleArtwork
 import senada.epochMillis
 
 internal const val DISCOVER_TTL_MS = 10L * 60 * 1_000
@@ -164,30 +139,15 @@ internal fun LazyListScope.discoverSection(
     val personal = result?.personal == true
 
     item(key = "discover-header") {
-        AdaptiveRow(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            minPrimaryWidth = 160.dp,
-            primary = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        "Untuk kamu",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.semantics { heading() },
-                    )
-                    Text(
-                        if (personal) {
-                            "Berdasarkan lagu yang kamu putar dan sukai."
-                        } else {
-                            "Populer saat ini di YouTube Music."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        ShelfTitle(
+            title = "Untuk kamu",
+            subtitle = if (personal) {
+                "Berdasarkan lagu yang kamu putar dan sukai."
+            } else {
+                "Populer saat ini di YouTube Music."
             },
-            trailing = {
-                if (!state.deferredByDataSaver) {
+            trailing = if (!state.deferredByDataSaver) {
+                {
                     TextButton(
                         onClick = onRefresh,
                         enabled = !state.loading,
@@ -198,6 +158,8 @@ internal fun LazyListScope.discoverSection(
                         Text(if (state.loading) "Memuat…" else "Segarkan")
                     }
                 }
+            } else {
+                null
             },
         )
     }
@@ -216,12 +178,7 @@ internal fun LazyListScope.discoverSection(
 
     if (state.loading && result == null) {
         item(key = "discover-loading") {
-            Text(
-                "Memuat rekomendasi…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
+            ShelfSkeletonRow(statusLabel = "Memuat rekomendasi…")
         }
     }
 
@@ -241,27 +198,35 @@ internal fun LazyListScope.discoverSection(
 
     if (result.tracks.isNotEmpty()) {
         item(key = "discover-tracks-title") {
-            DiscoverShelfTitle(if (personal) "Lagu untuk kamu" else "Lagu populer")
+            ShelfTitle(
+                title = if (personal) "Lagu untuk kamu" else "Lagu populer",
+                emphasized = false,
+            )
         }
-        itemsIndexed(result.tracks, key = { _, track -> "discover-track-${track.id}" }) { index, track ->
-            TrackRow(
-                track = track,
-                favorite = track.id in library.favoriteIds,
-                onClick = { actions.playAll(result.tracks, startIndex = index) },
-            ) {
-                TrackMenu(track, library, actions)
-            }
+        item(key = "discover-tracks-quickpicks") {
+            QuickPicksShelf(
+                tracks = result.tracks,
+                library = library,
+                actions = actions,
+                onPlayTrack = { index -> actions.playAll(result.tracks, startIndex = index) },
+            )
         }
     }
 
     if (result.artists.isNotEmpty()) {
         item(key = "discover-artists-title") {
-            DiscoverShelfTitle(if (personal) "Artis yang mungkin kamu suka" else "Artis populer")
+            ShelfTitle(
+                title = if (personal) "Artis yang mungkin kamu suka" else "Artis populer",
+                emphasized = false,
+            )
         }
         item(key = "discover-artists-row") {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(result.artists, key = { "discover-artist-${it.id}" }) { artist ->
-                    DiscoverArtistCard(artist, onClick = { onOpenArtist(artist) })
+                itemsIndexed(
+                    items = result.artists,
+                    key = { index, artist -> "discover-artist-$index-${artist.id}" },
+                ) { _, artist ->
+                    ShelfArtistCard(artist = artist, onClick = { onOpenArtist(artist) })
                 }
             }
         }
@@ -269,72 +234,25 @@ internal fun LazyListScope.discoverSection(
 
     if (result.albums.isNotEmpty()) {
         item(key = "discover-albums-title") {
-            DiscoverShelfTitle(if (personal) "Album untuk kamu" else "Album populer")
+            ShelfTitle(
+                title = if (personal) "Album untuk kamu" else "Album populer",
+                emphasized = false,
+            )
         }
         item(key = "discover-albums-row") {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(result.albums, key = { "discover-album-${it.id}" }) { album ->
-                    DiscoverAlbumCard(album, onClick = { onOpenAlbum(album) })
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscoverShelfTitle(title: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(top = 4.dp).semantics { heading() },
-    )
-}
-
-@Composable
-private fun DiscoverArtistCard(artist: ArtistSummary, onClick: () -> Unit) {
-    val label = listOfNotNull("Buka artis ${artist.name}", artist.subtitle).joinToString(", ")
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.width(148.dp).minTouchTarget().semantics {
-            contentDescription = label
-            role = Role.Button
-        },
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            DiscoverArtwork(
-                artworkUrl = artist.artworkUrl,
-                shape = CircleShape,
-                fallbackIcon = SenadaIcons.Person,
-                modifier = Modifier.size(104.dp),
-            )
-            Column(
-                modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    artist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                artist.subtitle?.takeIf { it.isNotBlank() }?.let { detail ->
-                    Text(
-                        detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                itemsIndexed(
+                    items = result.albums,
+                    key = { index, album -> "discover-album-$index-${album.id}" },
+                ) { _, album ->
+                    val detail = album.subtitle?.takeIf { it.isNotBlank() } ?: album.year
+                    ShelfSquareCard(
+                        title = album.title,
+                        subtitle = detail,
+                        artworkUrl = album.artworkUrl,
+                        fallbackIcon = SenadaIcons.Album,
+                        accessibilityLabel = albumCardAccessibilityLabel(album),
+                        onClick = { onOpenAlbum(album) },
                     )
                 }
             }
@@ -343,80 +261,7 @@ private fun DiscoverArtistCard(artist: ArtistSummary, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DiscoverAlbumCard(album: AlbumSummary, onClick: () -> Unit) {
-    val detail = album.subtitle?.takeIf { it.isNotBlank() } ?: album.year
-    val label = listOfNotNull("Buka album ${album.title}", detail).joinToString(", ")
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.width(156.dp).minTouchTarget().semantics {
-            contentDescription = label
-            role = Role.Button
-        },
-    ) {
-        Column {
-            DiscoverArtwork(
-                artworkUrl = album.artworkUrl,
-                shape = MaterialTheme.shapes.medium,
-                fallbackIcon = SenadaIcons.Album,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-            )
-            Column(
-                modifier = Modifier.padding(12.dp).clearAndSetSemantics {},
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    album.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                detail?.let { text ->
-                    Text(
-                        text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscoverArtwork(
-    artworkUrl: String?,
-    shape: Shape,
-    fallbackIcon: ImageVector,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = fallbackIcon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-            modifier = Modifier.size(28.dp),
-        )
-        artworkUrl?.takeIf { it.isNotBlank() }?.let { url ->
-            AsyncImage(
-                model = remember(url) { resizeGoogleArtwork(url, 320) },
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuietNoticeCard(
+internal fun QuietNoticeCard(
     message: String,
     actionLabel: String,
     actionDescription: String,

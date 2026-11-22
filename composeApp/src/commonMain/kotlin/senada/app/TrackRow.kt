@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +42,7 @@ internal fun TrackRow(
     track: Track,
     favorite: Boolean = false,
     trackNumber: Int? = null,
+    showArtworkWithNumber: Boolean = false,
     onClick: (() -> Unit)? = null,
     playing: Boolean = false,
     action: @Composable () -> Unit,
@@ -74,6 +76,8 @@ internal fun TrackRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                val showArtwork = trackNumber == null ||
+                    (showArtworkWithNumber && LocalDensity.current.fontScale < 1.75f)
                 if (trackNumber != null) {
                     Box(
                         modifier = Modifier.widthIn(min = 28.dp).clearAndSetSemantics {},
@@ -86,7 +90,8 @@ internal fun TrackRow(
                             maxLines = 1,
                         )
                     }
-                } else {
+                }
+                if (showArtwork) {
                     // Kotak sampul 48 dp radius 8 dp tetap ada tanpa gambar agar daftar sejajar; murni dekoratif.
                     Box(
                         modifier = Modifier.size(48.dp)
