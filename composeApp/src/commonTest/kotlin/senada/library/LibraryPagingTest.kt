@@ -2,7 +2,6 @@ package senada.library
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -134,7 +133,7 @@ class LibraryPagingTest {
 
         SenadaDatabase.Schema.migrate(driver, 2, SenadaDatabase.Schema.version)
 
-        assertTrue(SenadaDatabase.Schema.version >= 3L)
+        assertEquals(5L, SenadaDatabase.Schema.version)
         assertEquals(3, library().favoritesPage(50).first().size)
     }
 }
