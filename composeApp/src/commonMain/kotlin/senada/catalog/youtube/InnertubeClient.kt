@@ -58,12 +58,26 @@ internal class InnertubeClient(
     suspend fun searchContinuation(token: String): JsonObject =
         post("$MUSIC_API/search", WEB_REMIX, JsonObject(emptyMap()), continuation = token)
 
+    suspend fun searchVideos(query: String): JsonObject = post(
+        "$MUSIC_API/search",
+        WEB_REMIX,
+        buildJsonObject {
+            put("query", query)
+            put("params", VIDEOS_FILTER)
+        },
+    )
+
     suspend fun browse(browseId: String): JsonObject = post(
         "$MUSIC_API/browse",
         WEB_REMIX,
         buildJsonObject { put("browseId", browseId) },
     )
 
+    suspend fun browseContinuation(token: String): JsonObject = post(
+        "$MUSIC_API/browse",
+        WEB_REMIX,
+        buildJsonObject { put("continuation", token) },
+    )
     suspend fun player(videoId: String): JsonObject {
         // Tanpa visitorData, banyak lagu dijawab LOGIN_REQUIRED.
         if (visitorData == null) {
@@ -157,6 +171,9 @@ internal class InnertubeClient(
 
         /** Filter tab "Album" di pencarian YouTube Music. */
         internal const val ALBUMS_FILTER = "EgWKAQIYAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
+
+        /** Filter tab "Video" di pencarian YouTube Music (cadangan pencocokan). */
+        private const val VIDEOS_FILTER = "EgWKAQIQAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
 
         val WEB_REMIX = InnertubeClientInfo(
             name = "WEB_REMIX",
