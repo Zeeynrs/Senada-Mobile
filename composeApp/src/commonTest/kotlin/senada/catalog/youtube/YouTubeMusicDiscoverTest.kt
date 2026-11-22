@@ -172,7 +172,18 @@ class YouTubeMusicDiscoverTest {
 
         assertEquals(listOf("Rizky Febian"), data.relatedArtists.map { it.name })
         assertEquals("UCGhU4I_1obQHUdq_plb1g2w", data.relatedArtists.first().id)
-        assertEquals(listOf("Manusia", "Monokrom", "Teh Hijau", "Adaptasi"), data.albums.map { it.title })
+        assertEquals(
+            listOf(
+                "Manusia",
+                "Monokrom",
+                "Gajah",
+                "Tulus",
+                "Langsung Dari Konser Monokrom Jakarta (Live)",
+                "Teh Hijau",
+                "Adaptasi",
+            ),
+            data.albums.map { it.title },
+        )
     }
 
     @Test
