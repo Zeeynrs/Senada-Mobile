@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -31,6 +29,8 @@ import coil3.compose.AsyncImage
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.playback.PlaybackState
 
+private val MiniArtworkSize = 48.dp
+
 /** Mini player tampil bila ada yang bisa diputar: antrean berisi lagu, atau sampel uji sedang dipilih. */
 internal fun showsMiniPlayer(state: PlaybackState): Boolean =
     state.queue.entries.isNotEmpty() || state.audio.selection != null
@@ -45,29 +45,32 @@ internal fun MiniPlayer(state: PlaybackState, onOpen: () -> Unit, onPlayPause: (
     val title = track?.title ?: state.audio.selection?.title.orEmpty()
     val subtitle = track?.artists?.joinToString().orEmpty()
     val playing = state.audio.isActive
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    GlassSurface(shape = CircleShape, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .clickable(onClick = onOpen)
                 .semantics { contentDescription = "Buka Sedang diputar" }
-                .heightIn(min = 60.dp)
-                .padding(start = 8.dp, end = 4.dp),
+                .heightIn(min = FloatingBarHeight)
+                .padding(start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Sampul bundar mengisi tinggi pil dengan jarak yang sama di setiap sisi; tanpa sampul tampil ikon lagu.
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+                Modifier.size(MiniArtworkSize).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
             ) {
+                Icon(
+                    SenadaIcons.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
                 track?.artworkUrl?.let { url ->
                     AsyncImage(
-                        model = remember(url) { resizeGoogleArtwork(url, 120) },
+                        model = remember(url) { resizeGoogleArtwork(url, 144) },
                         contentDescription = null,
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(MiniArtworkSize),
                         contentScale = ContentScale.Crop,
                     )
                 }
