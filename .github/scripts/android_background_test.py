@@ -338,7 +338,10 @@ def check_sleep_timer() -> None:
         "Pilihan 15 menit menampilkan sisa waktu dan dapat dimatikan",
     )
     armed = tap_desc("Timer tidur") and tap_text("Akhir lagu ini", scrolls=1)
-    if not check(armed and desc_point("Timer tidur. Berhenti di akhir lagu"), "Timer akhir lagu diaktifkan"):
+    timer_label = armed and desc_point("Timer tidur. Berhenti di akhir lagu")
+    # Kembali ke tab agar uji HTTPS dan skala font berikutnya dimulai dari navigasi utama.
+    closed = tap_desc("Tutup")
+    if not check(timer_label and closed, "Timer akhir lagu tetap aktif setelah Sedang diputar ditutup"):
         return
 
     shell("input keyevent KEYCODE_HOME")
