@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -871,18 +870,6 @@ internal fun CatalogTrackRow(
         trackNumber = trackNumber,
         onClick = onPlay,
     ) {
-        FilledTonalButton(
-            onClick = { actions.enqueue(track) },
-            shape = CircleShape,
-            colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-            modifier = Modifier.minTouchTarget().semantics {
-                contentDescription = "Tambah ${track.title} ke antrean"
-            },
-        ) { Text("Tambah") }
         TrackMenu(track, library, actions)
     }
 }
