@@ -43,13 +43,21 @@ class PlaylistImportTest {
     private fun ytTrack(id: String, title: String, artist: String, durationMs: Long = 200_000L) =
         Track("yt:track:$id", title, listOf(artist), durationMs, source = YOUTUBE_MUSIC_SOURCE)
 
+    private fun ytSource(block: suspend (String, Int) -> YouTubeMusicPlaylist) = object : YouTubePlaylistSource {
+        override suspend fun fetchPlaylist(playlistId: String, limit: Int): YouTubeMusicPlaylist = block(playlistId, limit)
+    }
+
+    private fun spSource(block: suspend (String, Int) -> SpotifyPlaylist) = object : SpotifyPlaylistSource {
+        override suspend fun fetchPlaylist(playlistId: String, limit: Int): SpotifyPlaylist = block(playlistId, limit)
+    }
+
     @Test
     fun importsYouTubeMusicPlaylistAndSuffixesDuplicateNames() = runTest {
         val repo = repository()
         repo.createPlaylist("Favorit Sore", listOf(ytTrack("old", "Lama", "Artis")))
         val importer = PlaylistImporter(
             library = repo,
-            youTubePlaylists = YouTubePlaylistSource { _, _ ->
+            youTubePlaylists = ytSource { _, _ ->
                 YouTubeMusicPlaylist(
                     id = "PLabc",
                     name = "Favorit Sore",
@@ -58,7 +66,7 @@ class PlaylistImportTest {
                     truncated = false,
                 )
             },
-            spotifyPlaylists = SpotifyPlaylistSource { _, _ -> error("Should not call Spotify") },
+            spotifyPlaylists = spSource { _, _ -> error("Should not call Spotify") },
             candidateSearcher = CandidateSearcher { _, _ -> emptyList() },
         )
 
@@ -99,8 +107,8 @@ class PlaylistImportTest {
 
         val importer = PlaylistImporter(
             library = repo,
-            youTubePlaylists = YouTubePlaylistSource { _, _ -> error("Should not call YouTube playlist") },
-            spotifyPlaylists = SpotifyPlaylistSource { _, _ ->
+            youTubePlaylists = ytSource { _, _ -> error("Should not call YouTube playlist") },
+            spotifyPlaylists = spSource { _, _ ->
                 SpotifyPlaylist("37i9dQZF1DXcBWIGoYBM5M", "Mix Spotify", spotifyTracks, complete = true)
             },
             candidateSearcher = CandidateSearcher { query, _ ->
@@ -155,8 +163,8 @@ class PlaylistImportTest {
         val repo = repository()
         val importer = PlaylistImporter(
             library = repo,
-            youTubePlaylists = YouTubePlaylistSource { _, _ -> error("unused") },
-            spotifyPlaylists = SpotifyPlaylistSource { _, _ ->
+            youTubePlaylists = ytSource { _, _ -> error("unused") },
+            spotifyPlaylists = spSource { _, _ ->
                 SpotifyPlaylist(
                     "spEmptyMatch",
                     "Tidak Cocok",
@@ -181,8 +189,8 @@ class PlaylistImportTest {
 
         val importer = PlaylistImporter(
             library = repo,
-            youTubePlaylists = YouTubePlaylistSource { _, _ -> error("unused") },
-            spotifyPlaylists = SpotifyPlaylistSource { _, _ ->
+            youTubePlaylists = ytSource { _, _ -> error("unused") },
+            spotifyPlaylists = spSource { _, _ ->
                 SpotifyPlaylist(
                     "37i9dQZF1DXcBWIGoYBM5M",
                     "Dibatalkan",

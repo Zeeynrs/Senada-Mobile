@@ -18,7 +18,7 @@ internal data class YouTubeMusicPlaylist(
     val truncated: Boolean = false,
 )
 
-internal fun interface YouTubePlaylistSource {
+internal interface YouTubePlaylistSource {
     suspend fun fetchPlaylist(
         playlistId: String,
         limit: Int = YouTubeMusicPlaylists.DEFAULT_PLAYLIST_LIMIT,
