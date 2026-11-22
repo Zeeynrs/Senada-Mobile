@@ -2,6 +2,7 @@ package senada.app.nowplaying
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -41,13 +43,16 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.LocalArtworkAccent
@@ -55,8 +60,11 @@ import senada.app.PlaybackProgress
 import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
 import senada.app.theme.SenadaPalette
+import senada.catalog.artistChoicesFor
+import senada.catalog.canOpenArtist
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.lyrics.LyricsPanel
 import senada.playback.PlaybackController
@@ -76,6 +84,10 @@ internal fun NowPlayingScreen(
     val track = if (state.audio.selection == null) state.queue.entries.firstOrNull()?.track else state.currentEntry?.track
     val accent = LocalArtworkAccent.current
     var lyricsSelected by rememberSaveable { mutableStateOf(false) }
+    var pickingArtist by remember(track?.id) { mutableStateOf(false) }
+    val artistChoices = remember(track, actions.canOpenArtists) {
+        if (track != null && actions.canOpenArtists && canOpenArtist(track)) artistChoicesFor(track) else emptyList()
+    }
     NowPlayingSystemBars()
     MaterialTheme(colorScheme = nowPlayingColorScheme(accent)) {
         val colors = MaterialTheme.colorScheme
@@ -113,7 +125,42 @@ internal fun NowPlayingScreen(
                                         modifier = Modifier.semantics { heading() },
                                     )
                                     if (track != null && track.artists.isNotEmpty()) {
-                                        Text(track.artists.joinToString(), color = colors.onSurfaceVariant)
+                                        val artistText = track.artists.joinToString()
+                                        if (artistChoices.isNotEmpty()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .minTouchTarget()
+                                                    .clip(MaterialTheme.shapes.small)
+                                                    .clickable(
+                                                        onClickLabel = "Buka artis",
+                                                        role = Role.Button,
+                                                    ) {
+                                                        if (artistChoices.size == 1) {
+                                                            actions.openArtist(track, artistChoices.first())
+                                                        } else {
+                                                            pickingArtist = true
+                                                        }
+                                                    }
+                                                    .padding(vertical = 4.dp)
+                                                    .semantics { contentDescription = "Buka artis $artistText" },
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            ) {
+                                                Text(
+                                                    artistText,
+                                                    color = colors.onSurfaceVariant,
+                                                    modifier = Modifier.weight(1f, fill = false).clearAndSetSemantics {},
+                                                )
+                                                Icon(
+                                                    imageVector = SenadaIcons.ChevronRight,
+                                                    contentDescription = null,
+                                                    tint = colors.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp),
+                                                )
+                                            }
+                                        } else {
+                                            Text(artistText, color = colors.onSurfaceVariant)
+                                        }
                                     }
                                 }
                                 if (track != null) {
@@ -182,6 +229,16 @@ internal fun NowPlayingScreen(
                         }
                     }
                 }
+            }
+            if (pickingArtist && track != null) {
+                ArtistPickerDialog(
+                    artists = artistChoices,
+                    onPick = { chosen ->
+                        pickingArtist = false
+                        actions.openArtist(track, chosen)
+                    },
+                    onDismiss = { pickingArtist = false },
+                )
             }
         }
     }

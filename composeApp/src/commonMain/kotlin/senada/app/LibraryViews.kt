@@ -47,6 +47,8 @@ import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
+import senada.catalog.artistChoicesFor
+import senada.catalog.canOpenArtist
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistImporter
@@ -79,7 +81,13 @@ internal class LibraryActions(
     private val library: LibraryRepository,
     private val playback: PlaybackController,
     private val scope: CoroutineScope,
+    private val onOpenArtist: ((Track, String) -> Unit)? = null,
 ) {
+    val canOpenArtists: Boolean get() = onOpenArtist != null
+
+    fun openArtist(track: Track, artistName: String) {
+        onOpenArtist?.invoke(track, artistName)
+    }
     fun localTracks(): Flow<List<Track>> = library.localTracks()
 
     /** Menyelaraskan daftar file impor dengan file yang benar-benar masih ada di penyimpanan. */
@@ -166,7 +174,11 @@ internal fun TrackMenu(
 ) {
     var open by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
+    var pickingArtist by remember { mutableStateOf(false) }
     val favorite = track.id in library.favoriteIds
+    val artistChoices = remember(track, actions.canOpenArtists) {
+        if (actions.canOpenArtists && canOpenArtist(track)) artistChoicesFor(track) else emptyList()
+    }
     Box {
         IconButton(
             onClick = { open = true },
@@ -183,6 +195,16 @@ internal fun TrackMenu(
                 open = false
                 actions.toggleFavorite(track)
             })
+            if (artistChoices.isNotEmpty()) {
+                DropdownMenuItem(text = { Text("Buka artis") }, onClick = {
+                    open = false
+                    if (artistChoices.size == 1) {
+                        actions.openArtist(track, artistChoices.first())
+                    } else {
+                        pickingArtist = true
+                    }
+                })
+            }
             library.playlists.forEach { playlist ->
                 DropdownMenuItem(text = { Text("Tambah ke ${playlist.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = {
                     open = false
@@ -201,6 +223,16 @@ internal fun TrackMenu(
             naming = false
             actions.createPlaylist(name, listOf(track))
         }
+    }
+    if (pickingArtist) {
+        ArtistPickerDialog(
+            artists = artistChoices,
+            onPick = { chosen ->
+                pickingArtist = false
+                actions.openArtist(track, chosen)
+            },
+            onDismiss = { pickingArtist = false },
+        )
     }
 }
 

@@ -79,7 +79,11 @@ internal class AppNavigator(
 
     /** Label layar sebelum rute katalog teratas, dipakai untuk tombol kembali. */
     fun previousCatalogLabel(): String =
-        catalogStack.dropLast(1).lastOrNull()?.label ?: if (listeningStatsOpen) "Statistik dengar" else destination.label
+        catalogStack.dropLast(1).lastOrNull()?.label ?: when {
+            listeningStatsOpen -> "Statistik dengar"
+            mostPlayedOpen -> "Paling sering diputar"
+            else -> destination.label
+        }
 
     /** Benar bila tombol kembali masih punya sesuatu untuk ditutup sebelum keluar aplikasi. */
     val canGoBack: Boolean
@@ -115,6 +119,7 @@ internal class AppNavigator(
     fun openArtist(id: String, name: String = "", artworkUrl: String? = null) {
         val cleanId = id.trim()
         if (cleanId.isEmpty()) return
+        nowPlayingOpen = false
         val top = catalogStack.lastOrNull()
         if (top is CatalogRoute.Artist && top.id == cleanId) return
         catalogStack = catalogStack + CatalogRoute.Artist(cleanId, name, artworkUrl)
@@ -123,6 +128,7 @@ internal class AppNavigator(
     fun openAlbum(id: String, title: String = "", subtitle: String? = null, artworkUrl: String? = null) {
         val cleanId = id.trim()
         if (cleanId.isEmpty()) return
+        nowPlayingOpen = false
         val top = catalogStack.lastOrNull()
         if (top is CatalogRoute.Album && top.id == cleanId) return
         catalogStack = catalogStack + CatalogRoute.Album(cleanId, title, subtitle, artworkUrl)
@@ -131,6 +137,7 @@ internal class AppNavigator(
     fun openCatalogPlaylist(id: String, title: String = "", subtitle: String? = null, artworkUrl: String? = null) {
         val cleanId = id.trim().removePrefix("VL")
         if (cleanId.isEmpty()) return
+        nowPlayingOpen = false
         val top = catalogStack.lastOrNull()
         if (top is CatalogRoute.Playlist && top.id == cleanId) return
         catalogStack = catalogStack + CatalogRoute.Playlist(cleanId, title, subtitle, artworkUrl)
@@ -141,13 +148,13 @@ internal class AppNavigator(
         listeningStatsOpen = true
     }
 
-    /** Menutup lapisan paling atas: Sedang diputar, detail tab, lalu kembali ke Beranda. */
+    /** Menutup lapisan paling atas: Sedang diputar, halaman artis/album/playlist, detail tab, lalu kembali ke Beranda. */
     fun back(): Boolean {
         when {
             nowPlayingOpen -> nowPlayingOpen = false
-            mostPlayedOpen -> mostPlayedOpen = false
             catalogStack.isNotEmpty() -> catalogStack = catalogStack.dropLast(1)
             listeningStatsOpen -> listeningStatsOpen = false
+            mostPlayedOpen -> mostPlayedOpen = false
             openedPlaylistId != null -> openedPlaylistId = null
             destination != AppDestination.Home -> destination = AppDestination.Home
             else -> return false
