@@ -75,7 +75,7 @@ class AppearanceTest {
 
     @Test
     fun unreadable_or_invalid_settings_restore_defaults() {
-        val defaults = Appearance(ThemeMode.System, AccentChoice.Senada, saveMobileData = false)
+        val defaults = Appearance(ThemeMode.System, AccentChoice.FollowCover, saveMobileData = false)
         for (bad in listOf(
             "{",
             "{}",
