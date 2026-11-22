@@ -299,7 +299,7 @@ class LibraryRepositoryTest {
 
         SenadaDatabase.Schema.migrate(driver, 4, 5)
 
-        assertEquals(5L, SenadaDatabase.Schema.version)
+        assertEquals(6L, SenadaDatabase.Schema.version)
         assertEquals(listOf(existingLocal), library.localTracks().first())
         assertEquals(listOf(track(1), existingLocal), library.favorites.first())
 

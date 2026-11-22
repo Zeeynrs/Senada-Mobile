@@ -26,6 +26,7 @@ kotlin {
             implementation(compose.components.resources)
             implementation(libs.lifecycle.runtime.compose)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
             implementation(libs.coil.compose)

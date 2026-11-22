@@ -72,6 +72,9 @@ import senada.playback.SampleAudioStatus
 /** Pemutar dan controller hidup selama proses aplikasi, terpisah dari layar Compose. */
 internal object IosPlayback {
     val controller: PlaybackController by lazy(::create)
+    private val output by lazy { AvAudioOutput() }
+
+    fun position(): Long = output.positionMs
 
     // Nilai dari AVAudioSessionInterruptionType dan AVAudioSessionInterruptionOptions.
     private const val INTERRUPTION_BEGAN = 1uL
@@ -92,7 +95,6 @@ internal object IosPlayback {
             options = 0u,
             error = null,
         )
-        val output = AvAudioOutput()
         val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE)
         for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
             observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
