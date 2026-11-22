@@ -44,7 +44,10 @@ internal class InnertubeClient(
     private val gl: String = "ID",
 ) {
     private val visitorLock = Mutex()
+    @kotlin.concurrent.Volatile
     private var visitorData: String? = null
+
+    internal fun currentVisitorData(): String? = visitorData
 
     suspend fun search(query: String, params: String = SONGS_FILTER): JsonObject = post(
         "$MUSIC_API/search",
@@ -67,16 +70,20 @@ internal class InnertubeClient(
         },
     )
 
-    suspend fun browse(browseId: String): JsonObject = post(
+    suspend fun browse(browseId: String, params: String? = null): JsonObject = post(
         "$MUSIC_API/browse",
         WEB_REMIX,
-        buildJsonObject { put("browseId", browseId) },
+        buildJsonObject {
+            put("browseId", browseId)
+            params?.let { put("params", it) }
+        },
     )
 
-    suspend fun browseContinuation(token: String): JsonObject = post(
+    suspend fun browseContinuation(token: String, visitorOverride: String? = null): JsonObject = post(
         "$MUSIC_API/browse",
         WEB_REMIX,
         buildJsonObject { put("continuation", token) },
+        visitorOverride = visitorOverride,
     )
 
     suspend fun nextPlaylist(playlistId: String): JsonObject = postNext(playlistId = playlistId)
@@ -117,8 +124,9 @@ internal class InnertubeClient(
         client: InnertubeClientInfo,
         extra: JsonObject,
         continuation: String? = null,
+        visitorOverride: String? = null,
     ): JsonObject {
-        val visitor = visitorData
+        val visitor = visitorOverride ?: visitorData
         val body = buildJsonObject {
             putJsonObject("context") {
                 putJsonObject("client") {
