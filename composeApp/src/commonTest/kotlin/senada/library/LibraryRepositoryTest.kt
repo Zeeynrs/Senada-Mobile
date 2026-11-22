@@ -344,5 +344,46 @@ class LibraryRepositoryTest {
         assertNull(library.playlist(unknownPlaylistId).first()?.totalDurationMs)
     }
 
+    @Test
+    fun playlistCoversReturnDistinctArtworksInPositionOrderAndReactToReordering() = runTest {
+        val library = library()
+        val t1 = track(1).copy(artworkUrl = null)
+        val t2 = track(2).copy(artworkUrl = "https://art.example/a.jpg")
+        val t3 = track(3).copy(artworkUrl = "https://art.example/a.jpg")
+        val t4 = track(4).copy(artworkUrl = "https://art.example/b.jpg")
+        val t5 = track(5).copy(artworkUrl = "https://art.example/c.jpg")
+        val t6 = track(6).copy(artworkUrl = "https://art.example/d.jpg")
+        val t7 = track(7).copy(artworkUrl = "https://art.example/e.jpg")
+        val id = library.createPlaylist("Campur", listOf(t1, t2, t3, t4, t5, t6, t7))
+        val emptyId = library.createPlaylist("Kosong", listOf(t1))
+
+        assertEquals(
+            mapOf(
+                id to listOf(
+                    "https://art.example/a.jpg",
+                    "https://art.example/b.jpg",
+                    "https://art.example/c.jpg",
+                    "https://art.example/d.jpg",
+                ),
+            ),
+            library.playlistCovers.first(),
+        )
+        assertNull(library.playlistCovers.first()[emptyId])
+
+        library.movePlaylistItem(id, from = 6, to = 0)
+        assertEquals(
+            listOf(
+                "https://art.example/e.jpg",
+                "https://art.example/a.jpg",
+                "https://art.example/b.jpg",
+                "https://art.example/c.jpg",
+            ),
+            library.playlistCovers.first()[id],
+        )
+
+        library.deletePlaylist(id)
+        assertEquals(emptyMap(), library.playlistCovers.first())
+    }
+
     private fun titlesOf(playlist: Playlist) = playlist.entries.map { it.track.title.removePrefix("Lagu ").toInt() }
 }

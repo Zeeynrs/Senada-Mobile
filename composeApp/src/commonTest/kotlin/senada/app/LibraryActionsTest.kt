@@ -153,4 +153,57 @@ class LibraryActionsTest {
         assertEquals(PlaySource.Playlist("Santai"), PlaySourceState.current.value)
         assertTrue(state.currentEntry?.track in songs)
     }
+
+    @Test
+    fun historyPlayResetsShuffleAndStartsFromNewestWhileRowTapKeepsShuffle() = runTest {
+        val (_, playback, actions) = harness()
+        val newestToOldest = listOf(track(3), track(2), track(1))
+        playback.setShuffleEnabled(true)
+
+        actions.playHistory(newestToOldest)
+
+        val fromHeader = playback.state.value
+        assertFalse(fromHeader.queue.shuffleEnabled)
+        assertEquals(newestToOldest, fromHeader.queue.entries.map { it.track })
+        assertEquals(track(3), fromHeader.currentEntry?.track)
+        assertEquals(PlaySource.History, PlaySourceState.current.value)
+
+        playback.setShuffleEnabled(true)
+        actions.playHistory(newestToOldest, startIndex = 1)
+        val fromRow = playback.state.value
+        assertTrue(fromRow.queue.shuffleEnabled)
+        assertEquals(track(2), fromRow.currentEntry?.track)
+        assertEquals(PlaySource.History, PlaySourceState.current.value)
+
+        actions.shuffleHistory(newestToOldest)
+        val shuffled = playback.state.value
+        assertTrue(shuffled.queue.shuffleEnabled)
+        assertEquals(PlaySource.History, PlaySourceState.current.value)
+        assertTrue(shuffled.currentEntry?.track in newestToOldest)
+    }
+
+    @Test
+    fun importedTracksPlayAllAndShuffleWithImportedSource() = runTest {
+        val (_, playback, actions) = harness()
+        val imported = (1..3).map {
+            Track("local:file-$it.m4a", "Rekaman $it", listOf("Senada"), durationMs = 60_000L, source = "local")
+        }
+        playback.setShuffleEnabled(true)
+
+        actions.playImportedTracks(imported)
+        val ordered = playback.state.value
+        assertFalse(ordered.queue.shuffleEnabled)
+        assertEquals(imported, ordered.queue.entries.map { it.track })
+        assertEquals(imported.first(), ordered.currentEntry?.track)
+        assertEquals(PlaySource.Imported, PlaySourceState.current.value)
+
+        actions.playImportedTracks(imported, startIndex = 2)
+        assertEquals(imported[2], playback.state.value.currentEntry?.track)
+
+        actions.shuffleImportedTracks(imported)
+        val shuffled = playback.state.value
+        assertTrue(shuffled.queue.shuffleEnabled)
+        assertEquals(PlaySource.Imported, PlaySourceState.current.value)
+        assertTrue(shuffled.currentEntry?.track in imported)
+    }
 }
