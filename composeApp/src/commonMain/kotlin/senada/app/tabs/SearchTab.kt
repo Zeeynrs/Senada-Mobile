@@ -52,6 +52,7 @@ import senada.app.shell.SenadaIcons
 import senada.catalog.AlbumSummary
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogBrowser
+import senada.catalog.PlaylistSummary
 import senada.model.Track
 
 /** Kueri, filter, dan hasil tab Cari; hasil terbaru menang, mengetik lagi membatalkan pencarian sebelumnya. */
@@ -69,6 +70,8 @@ internal class SearchTabState(
     var artistSearch by mutableStateOf(ArtistSearchState())
         private set
     var albumSearch by mutableStateOf(AlbumSearchState())
+        private set
+    var playlistSearch by mutableStateOf(PlaylistSearchState())
         private set
     var attempt by mutableStateOf(0)
         private set
@@ -93,6 +96,10 @@ internal class SearchTabState(
                     albumSearch = albumSearch.copy(loading = true, error = null)
                     albumSearch = loadAlbumSearchPage(albumSearch, catalog)
                 }
+                SearchFilter.Playlists -> {
+                    playlistSearch = playlistSearch.copy(loading = true, error = null)
+                    playlistSearch = loadPlaylistSearchPage(playlistSearch, catalog)
+                }
             }
         }
     }
@@ -103,6 +110,7 @@ internal class SearchTabState(
             SearchFilter.Songs -> search.nextPageToken != null
             SearchFilter.Artists -> artistSearch.nextPageToken != null
             SearchFilter.Albums -> albumSearch.nextPageToken != null
+            SearchFilter.Playlists -> playlistSearch.nextPageToken != null
         }
         if (hasNext) loadMore() else attempt++
     }
@@ -119,12 +127,14 @@ internal class SearchTabState(
             search = SearchState()
             artistSearch = ArtistSearchState()
             albumSearch = AlbumSearchState()
+            playlistSearch = PlaylistSearchState()
             return
         }
         if (queryChanged) {
             if (search.query != trimmed) search = SearchState(query = "", tracks = emptyList())
             if (artistSearch.query != trimmed) artistSearch = ArtistSearchState()
             if (albumSearch.query != trimmed) albumSearch = AlbumSearchState()
+            if (playlistSearch.query != trimmed) playlistSearch = PlaylistSearchState()
         }
         when (filter) {
             SearchFilter.Songs -> {
@@ -145,6 +155,12 @@ internal class SearchTabState(
                 if (queryChanged && debounceMs > 0) delay(debounceMs)
                 albumSearch = loadAlbumSearchPage(albumSearch, catalog)
             }
+            SearchFilter.Playlists -> {
+                if (!queryChanged && !retried && playlistSearch.query == trimmed && playlistSearch.error == null && !playlistSearch.loading) return
+                playlistSearch = PlaylistSearchState(query = trimmed, loading = true)
+                if (queryChanged && debounceMs > 0) delay(debounceMs)
+                playlistSearch = loadPlaylistSearchPage(playlistSearch, catalog)
+            }
         }
     }
 }
@@ -159,7 +175,7 @@ internal fun rememberSearchTabState(): SearchTabState {
     return state
 }
 
-/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album, impor audio, riwayat saat kosong, lalu hasil. */
+/** Tab Cari: kolom cari pil 52 dp, chip filter Lagu/Artis/Album/Playlist, impor audio, riwayat saat kosong, lalu hasil. */
 internal fun LazyListScope.searchTab(
     tab: SearchTabState,
     searchHistory: List<String>,
@@ -171,6 +187,7 @@ internal fun LazyListScope.searchTab(
     onClearSearches: () -> Unit,
     onOpenArtist: (ArtistSummary) -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
+    onOpenPlaylist: (PlaylistSummary) -> Unit = {},
 ) {
     item(key = "search-field") {
         val focusManager = LocalFocusManager.current
@@ -214,6 +231,13 @@ internal fun LazyListScope.searchTab(
         SearchFilter.Albums -> albumSearchResults(
             state = tab.albumSearch,
             onOpenAlbum = onOpenAlbum,
+            onRetry = tab::retry,
+            onLoadMore = tab::loadMore,
+            onResultUsed = onRecordSearch,
+        )
+        SearchFilter.Playlists -> playlistSearchResults(
+            state = tab.playlistSearch,
+            onOpenPlaylist = onOpenPlaylist,
             onRetry = tab::retry,
             onLoadMore = tab::loadMore,
             onResultUsed = onRecordSearch,

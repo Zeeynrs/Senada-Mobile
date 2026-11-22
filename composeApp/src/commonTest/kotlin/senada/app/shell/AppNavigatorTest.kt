@@ -127,6 +127,7 @@ class AppNavigatorTest {
         navigator.select(AppDestination.Search)
         navigator.openArtist("UC_tulus", "Tulus", "https://example.invalid/artist")
         navigator.openAlbum("MPREb_manusia", "Manusia", "2022", "https://example.invalid/album")
+        navigator.openCatalogPlaylist("PL_sore", "Chill Sore", "YouTube Music · 20 lagu", "https://example.invalid/pl")
         navigator.openNowPlaying()
 
         val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
@@ -136,5 +137,26 @@ class AppNavigatorTest {
         assertEquals(AppDestination.Search, restored.destination)
         assertTrue(restored.nowPlayingOpen)
         assertEquals(navigator.catalogStack, restored.catalogStack)
+    }
+
+    @Test
+    fun catalogPlaylistRouteHandlesBackStackDuplicateGuardAndPrefix() {
+        val navigator = AppNavigator()
+        navigator.select(AppDestination.Search)
+        navigator.openCatalogPlaylist("   ", "Kosong")
+        assertTrue(navigator.catalogStack.isEmpty())
+
+        navigator.openCatalogPlaylist("VLPL_sore", "Chill Sore", "Pemilik · 10 lagu", "https://example.invalid/pl")
+        navigator.openCatalogPlaylist("PL_sore", "Chill Sore")
+        assertEquals(1, navigator.catalogStack.size)
+        assertEquals(
+            CatalogRoute.Playlist("PL_sore", "Chill Sore", "Pemilik · 10 lagu", "https://example.invalid/pl"),
+            navigator.currentCatalogRoute,
+        )
+        assertEquals("Cari", navigator.previousCatalogLabel())
+
+        assertTrue(navigator.back())
+        assertNull(navigator.currentCatalogRoute)
+        assertEquals(AppDestination.Search, navigator.destination)
     }
 }

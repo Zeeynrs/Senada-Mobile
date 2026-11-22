@@ -48,7 +48,9 @@ import senada.app.LibraryState
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
+import senada.app.tabs.CatalogPlaylistSaveOutcome
 import senada.app.tabs.LibraryFilter
+import senada.app.tabs.PlaylistSaveStatus
 import senada.app.tabs.catalogDetailScreen
 import senada.app.tabs.homeTab
 import senada.app.tabs.libraryTab
@@ -175,6 +177,31 @@ internal fun AppShell(
                         onOpenAlbum = { album ->
                             navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
                         },
+                        onSavePlaylist = { routeId, title, tracks ->
+                            if (catalogPage.playlistSaves[routeId] !is PlaylistSaveStatus.Saving) {
+                                catalogPage.playlistSaves =
+                                    catalogPage.playlistSaves + (routeId to PlaylistSaveStatus.Saving)
+                                uiScope.launch {
+                                    val nextStatus = try {
+                                        when (val result = actions.savePlaylistToLibrary(routeId, title, tracks)) {
+                                            is CatalogPlaylistSaveOutcome.Saved -> PlaylistSaveStatus.Saved(result.playlist)
+                                            is CatalogPlaylistSaveOutcome.Rejected -> PlaylistSaveStatus.Failed(result.message)
+                                        }
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (_: Exception) {
+                                        PlaylistSaveStatus.Failed("Playlist gagal disimpan ke Library. Coba lagi.")
+                                    }
+                                    catalogPage.playlistSaves =
+                                        catalogPage.playlistSaves + (routeId to nextStatus)
+                                }
+                            }
+                        },
+                        onOpenSavedPlaylist = { id ->
+                            librarySection = LibraryFilter.Playlists
+                            navigator.select(AppDestination.Library)
+                            navigator.openPlaylist(id)
+                        },
                     )
                     return@LazyColumn
                 }
@@ -228,6 +255,14 @@ internal fun AppShell(
                         },
                         onOpenAlbum = { album ->
                             navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
+                        },
+                        onOpenPlaylist = { playlist ->
+                            navigator.openCatalogPlaylist(
+                                playlist.id,
+                                playlist.title,
+                                playlist.subtitle,
+                                playlist.artworkUrl,
+                            )
                         },
                     )
                     AppDestination.Library -> libraryTab(

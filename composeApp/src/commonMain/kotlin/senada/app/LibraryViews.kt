@@ -50,6 +50,8 @@ import senada.app.shell.SenadaIcons
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistImporter
+import senada.app.tabs.CatalogPlaylistSaveOutcome
+import senada.app.tabs.saveCatalogPlaylist
 import senada.library.PlaylistSummary
 import senada.library.recordPlaylistPlay
 import senada.local.ImportedAudioStorage
@@ -144,6 +146,10 @@ internal class LibraryActions(
         spotifyPlaylists = SenadaSources.spotifyPlaylists,
         candidateSearcher = SenadaSources.candidateSearcher,
     )
+
+    /** Menyimpan daftar lagu ke playlist baru di library dengan nama unik bila sudah ada. */
+    suspend fun savePlaylistToLibrary(playlistId: String, name: String, tracks: List<Track>): CatalogPlaylistSaveOutcome =
+        saveCatalogPlaylist(library, playlistId, name, tracks)
 
     private fun write(block: suspend () -> Unit) {
         scope.launch { runCatching { block() } }
