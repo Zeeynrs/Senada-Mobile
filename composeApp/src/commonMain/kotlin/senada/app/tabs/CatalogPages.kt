@@ -79,6 +79,9 @@ import senada.catalog.ArtistDetail
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogBrowser
 import senada.catalog.CatalogException
+import senada.catalog.HomeCatalog
+import senada.catalog.HomeShelf
+import senada.catalog.MoodChip
 import senada.catalog.PlaylistDetail
 import senada.catalog.PlaylistImportException
 import senada.catalog.PlaylistSummary
@@ -360,18 +363,21 @@ internal data class CatalogLoadState<T>(
     val error: String? = null,
 )
 
-/** Menyimpan halaman artis, album, dan playlist yang baru dibuka agar navigasi kembali tampil instan. */
+/** Menyimpan halaman artis, album, playlist, dan mood yang baru dibuka agar navigasi kembali tampil instan. */
 internal class CatalogDetailStore(
     private val catalog: CatalogBrowser = SenadaSources.youTubeMusic,
+    private val homeCatalog: HomeCatalog = SenadaSources.homeCatalog,
     private val maxEntries: Int = 20,
 ) {
     private val artists = mutableMapOf<String, ArtistDetail>()
     private val albums = mutableMapOf<String, AlbumDetail>()
     private val playlists = mutableMapOf<String, PlaylistDetail>()
+    private val moods = mutableMapOf<String, List<HomeShelf>>()
 
     fun cachedArtist(id: String): ArtistDetail? = artists[id]
     fun cachedAlbum(id: String): AlbumDetail? = albums[id]
     fun cachedPlaylist(id: String): PlaylistDetail? = playlists[id]
+    fun cachedMood(key: String): List<HomeShelf>? = moods[key]
 
     suspend fun loadArtist(id: String): CatalogLoadState<ArtistDetail> {
         artists[id]?.let { return CatalogLoadState(routeId = id, data = it) }
@@ -423,6 +429,22 @@ internal class CatalogDetailStore(
         }
     }
 
+    suspend fun loadMood(chip: MoodChip, key: String): CatalogLoadState<List<HomeShelf>> {
+        moods[key]?.let { return CatalogLoadState(routeId = key, data = it) }
+        return try {
+            val shelves = homeCatalog.mood(chip)
+            putBounded(moods, key, shelves)
+            CatalogLoadState(routeId = key, data = shelves)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CatalogLoadState(
+                routeId = key,
+                error = (e as? CatalogException)?.userMessage ?: "Halaman mood gagal dimuat. Coba lagi.",
+            )
+        }
+    }
+
     private fun <T> putBounded(map: MutableMap<String, T>, key: String, value: T) {
         map.remove(key)
         map[key] = value
@@ -433,13 +455,15 @@ internal class CatalogDetailStore(
     }
 }
 
-/** State Compose untuk halaman detail artis, album, atau playlist yang sedang dibuka. */
+/** State Compose untuk halaman detail artis, album, playlist, atau mood yang sedang dibuka. */
 internal class CatalogPageState {
     var artist by mutableStateOf(CatalogLoadState<ArtistDetail>())
         internal set
     var album by mutableStateOf(CatalogLoadState<AlbumDetail>())
         internal set
     var playlist by mutableStateOf(CatalogLoadState<PlaylistDetail>())
+        internal set
+    var mood by mutableStateOf(CatalogLoadState<List<HomeShelf>>())
         internal set
     var playlistSaves by mutableStateOf<Map<String, PlaylistSaveStatus>>(emptyMap())
         internal set
@@ -460,11 +484,13 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
                 state.artist = CatalogLoadState()
                 state.album = CatalogLoadState()
                 state.playlist = CatalogLoadState()
+                state.mood = CatalogLoadState()
                 state.playlistSaves = emptyMap()
             }
             is CatalogRoute.Artist -> {
                 state.album = CatalogLoadState()
                 state.playlist = CatalogLoadState()
+                state.mood = CatalogLoadState()
                 val cached = store.cachedArtist(route.id)
                 if (cached != null) {
                     state.artist = CatalogLoadState(routeId = route.id, data = cached)
@@ -476,6 +502,7 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
             is CatalogRoute.Album -> {
                 state.artist = CatalogLoadState()
                 state.playlist = CatalogLoadState()
+                state.mood = CatalogLoadState()
                 val cached = store.cachedAlbum(route.id)
                 if (cached != null) {
                     state.album = CatalogLoadState(routeId = route.id, data = cached)
@@ -487,12 +514,26 @@ internal fun rememberCatalogPageState(route: CatalogRoute?, store: CatalogDetail
             is CatalogRoute.Playlist -> {
                 state.artist = CatalogLoadState()
                 state.album = CatalogLoadState()
+                state.mood = CatalogLoadState()
                 val cached = store.cachedPlaylist(route.id)
                 if (cached != null) {
                     state.playlist = CatalogLoadState(routeId = route.id, data = cached)
                 } else {
                     state.playlist = CatalogLoadState(routeId = route.id, loading = true)
                     state.playlist = store.loadPlaylist(route.id)
+                }
+            }
+            is CatalogRoute.Mood -> {
+                state.artist = CatalogLoadState()
+                state.album = CatalogLoadState()
+                state.playlist = CatalogLoadState()
+                val key = route.cacheKey()
+                val cached = store.cachedMood(key)
+                if (cached != null) {
+                    state.mood = CatalogLoadState(routeId = key, data = cached)
+                } else {
+                    state.mood = CatalogLoadState(routeId = key, loading = true)
+                    state.mood = store.loadMood(route.toMoodChip(), key)
                 }
             }
         }
@@ -571,6 +612,27 @@ internal fun LazyListScope.catalogDetailScreen(
                 actions = actions,
                 onBack = onBack,
                 onRetry = state::retry,
+            )
+        }
+        is CatalogRoute.Mood -> {
+            val key = route.cacheKey()
+            val current = if (state.mood.routeId == key) {
+                state.mood
+            } else {
+                val cached = store.cachedMood(key)
+                CatalogLoadState(routeId = key, data = cached, loading = cached == null)
+            }
+            moodDetailScreen(
+                route = route,
+                state = current,
+                previousLabel = previousLabel,
+                library = library,
+                actions = actions,
+                onBack = onBack,
+                onRetry = state::retry,
+                onOpenAlbum = onOpenAlbum,
+                onOpenPlaylist = onOpenPlaylist,
+                onOpenArtist = onOpenArtist,
             )
         }
     }
