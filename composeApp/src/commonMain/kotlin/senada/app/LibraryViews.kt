@@ -86,6 +86,17 @@ internal class LibraryActions(
     }
     fun localTracks(): Flow<List<Track>> = library.localTracks()
 
+    suspend fun addImportedTrack(track: Track) {
+        try {
+            library.recordImported(track)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Kegagalan mencatat ke library tidak menghalangi pemutaran di antrean.
+        }
+        enqueue(track)
+    }
+
     /** Menyelaraskan daftar file impor dengan file yang benar-benar masih ada di penyimpanan. */
     suspend fun syncImportedFiles(storage: ImportedAudioStorage) {
         try {

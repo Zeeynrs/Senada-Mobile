@@ -285,16 +285,6 @@ internal fun AppShell(
                         discover = discoverController.state,
                         library = libraryState,
                         actions = actions,
-                        onImported = { track ->
-                            try {
-                                library.recordImported(track)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) {
-                                // Kegagalan mencatat ke library tidak menghalangi pemutaran di antrean.
-                            }
-                            playback.add(track)
-                        },
                         onRecordSearch = recordSearch,
                         onRemoveSearch = { uiScope.launch { library.removeSearch(it) } },
                         onClearSearches = { uiScope.launch { library.clearSearchHistory() } },
