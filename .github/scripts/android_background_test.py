@@ -435,6 +435,72 @@ def check_listening_stats() -> None:
     shell("input keyevent KEYCODE_BACK")
 
 
+def check_home_shelves() -> None:
+    if not open_tab("Beranda"):
+        check(False, "Beranda menampilkan minimal satu judul rak atau tombol Hemat data", "Tab Beranda gagal dibuka")
+        return
+    scroll_to_top(2)
+    shelf_titles = {
+        "Baru diputar",
+        "Untuk kamu",
+        "Mood & genre",
+        "Lagu untuk kamu",
+        "Lagu populer",
+        "Artis yang mungkin kamu suka",
+        "Artis populer",
+        "Album untuk kamu",
+        "Album populer",
+    }
+    data_saver_button = "Muat rekomendasi YouTube Music"
+
+    def inspect_home(root: ET.Element | None) -> list[str]:
+        if root is None:
+            return []
+        hits = []
+        for node in root.iter("node"):
+            text = (node.get("text") or "").strip()
+            desc = (node.get("content-desc") or "").strip()
+            if text == data_saver_button or text in shelf_titles:
+                hits.append(text)
+            elif desc == "Segarkan rekomendasi YouTube Music":
+                hits.append(desc)
+            elif desc.startswith(("Album ", "Playlist ", "Artis ", "Mood ")):
+                hits.append(desc)
+        return list(dict.fromkeys(hits))
+
+    def settled_tree() -> ET.Element | None:
+        tree = ui_tree()
+        if tree is None:
+            return None
+        loading = any(
+            "Memuat rekomendasi" in (node.get("content-desc") or "") or "Memuat rekomendasi" in (node.get("text") or "")
+            for node in tree.iter("node")
+        )
+        if not loading and inspect_home(tree):
+            return tree
+        return None
+
+    wait_for(settled_tree, 10, interval=1.0)
+    width, height = screen_size()
+    found: list[str] = []
+    for step in range(4):
+        tree = ui_tree(save_as="08b-home-shelves-ui.xml" if step == 0 else None)
+        for hit in inspect_home(tree):
+            if hit not in found:
+                found.append(hit)
+        if step == 0:
+            screenshot("08b-home-shelves")
+        if any(h == data_saver_button or h in shelf_titles or h == "Segarkan rekomendasi YouTube Music" for h in found):
+            break
+        shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 300")
+        time.sleep(0.6)
+    check(
+        bool(found),
+        "Beranda menampilkan minimal satu judul rak atau tombol Hemat data",
+        ", ".join(found[:6]) if found else "tidak ada judul rak maupun tombol Hemat data",
+    )
+
+
 def check_collection_header() -> None:
     if open_tab("Cari"):
         scroll_to_top(3)
@@ -1032,6 +1098,7 @@ def scenario() -> None:
         check_sleep_timer()
     check_https()
     check_listening_stats()
+    check_home_shelves()
     check_collection_header()
     check_large_font_accessibility()
     check_now_playing_queue()
