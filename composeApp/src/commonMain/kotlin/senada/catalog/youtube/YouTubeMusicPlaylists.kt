@@ -304,7 +304,7 @@ private fun extractPlaylistDuration(columns: List<JsonElement?>): Long? {
     for (col in columns) {
         val runs = col.array("runs")
         if (runs.isNotEmpty()) {
-            val found = runs.lastNotNullOfOrNull { run ->
+            val found = runs.asReversed().firstNotNullOfOrNull { run ->
                 run.string("text")?.let(::parseDuration)
             }
             if (found != null) return found
