@@ -1,14 +1,19 @@
 package senada.app
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -29,14 +34,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +63,7 @@ import senada.app.tabs.saveCatalogPlaylist
 import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
+import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistImporter
@@ -75,7 +88,29 @@ internal data class LibraryState(
     val playlists: List<PlaylistSummary> = emptyList(),
     val history: List<Track> = emptyList(),
     val favoriteDurationMs: Long? = null,
+    val playlistCovers: Map<String, List<String>> = emptyMap(),
 )
+
+/** Pilihan sampul 56 dp untuk satu baris playlist di daftar. */
+internal sealed interface PlaylistCover {
+    data object Placeholder : PlaylistCover
+    data class Single(val artworkUrl: String) : PlaylistCover
+    data class Mosaic(val artworkUrls: List<String>) : PlaylistCover
+}
+
+/** Menyusun subjudul baris playlist dengan format seragam "Playlist · N lagu". */
+internal fun playlistRowSubtitle(trackCount: Int): String =
+    "Playlist · ${trackCount.coerceAtLeast(0)} lagu"
+
+/** Memilih mozaik 2x2 bila ada 4+ sampul berbeda, satu sampul bila 1–3, atau placeholder bila kosong. */
+internal fun selectPlaylistCover(artworkUrls: List<String?>): PlaylistCover {
+    val distinct = artworkUrls.mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }.distinct()
+    return when {
+        distinct.size >= 4 -> PlaylistCover.Mosaic(distinct.take(4))
+        distinct.isNotEmpty() -> PlaylistCover.Single(distinct.first())
+        else -> PlaylistCover.Placeholder
+    }
+}
 
 /** Perintah library dan antrean dari layar. Penulisan database berjalan di latar dan tidak menahan UI. */
 internal class LibraryActions(
@@ -468,9 +503,15 @@ internal fun LazyListScope.playlistsTab(
     onToggleReorder: () -> Unit = {},
 ) {
     if (opened == null) {
-        item { PlaylistListHeader(actions, onOpen = { id -> onOpen(id) }) }
+        item(key = "playlist-list-header") {
+            PlaylistListHeader(
+                playlistCount = library.playlists.size,
+                actions = actions,
+                onOpen = { id -> onOpen(id) },
+            )
+        }
         if (library.playlists.isEmpty()) {
-            item {
+            item(key = "playlist-list-empty") {
                 Text(
                     "Belum ada playlist.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -479,41 +520,12 @@ internal fun LazyListScope.playlistsTab(
             }
         }
         items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                AdaptiveRow(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
-                    minPrimaryWidth = 160.dp,
-                    primary = {
-                        Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
-                            Text(
-                                playlist.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                "${playlist.trackCount} lagu",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    trailing = {
-                        TextButton(
-                            onClick = { onOpen(playlist.id) },
-                            modifier = Modifier.minTouchTarget().semantics {
-                                contentDescription = "Buka playlist ${playlist.name}"
-                            },
-                        ) { Text("Buka") }
-                    },
-                )
-            }
+            PlaylistRow(
+                playlist = playlist,
+                cover = selectPlaylistCover(library.playlistCovers[playlist.id].orEmpty()),
+                actions = actions,
+                onOpen = { onOpen(playlist.id) },
+            )
         }
         return
     }
@@ -590,29 +602,220 @@ internal fun LazyListScope.playlistsTab(
 }
 
 @Composable
-private fun PlaylistListHeader(actions: LibraryActions, onOpen: (String) -> Unit) {
-    var naming by remember { mutableStateOf(false) }
-    var importing by remember { mutableStateOf(false) }
+private fun PlaylistRow(
+    playlist: PlaylistSummary,
+    cover: PlaylistCover,
+    actions: LibraryActions,
+    onOpen: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     AdaptiveRow(
-        modifier = Modifier.fillMaxWidth(),
-        minPrimaryWidth = 140.dp,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp),
+        minPrimaryWidth = 180.dp,
+        horizontalSpacing = 12.dp,
         primary = {
-            Text("Playlist", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .minTouchTarget()
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(onClickLabel = "Buka", role = Role.Button, onClick = onOpen)
+                    .semantics { contentDescription = "Buka playlist ${playlist.name}" }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                PlaylistRowCover(cover)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = playlist.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = playlistRowSubtitle(playlist.trackCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         },
         trailing = {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                TextButton(onClick = { importing = true }, modifier = Modifier.minTouchTarget()) {
-                    Text("Impor playlist")
+            Box {
+                IconButton(
+                    onClick = { menuOpen = true },
+                    modifier = Modifier.minTouchTarget().semantics {
+                        contentDescription = "Buka menu playlist ${playlist.name}"
+                    },
+                ) {
+                    Icon(
+                        imageVector = SenadaIcons.More,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                TextButton(onClick = { naming = true }, modifier = Modifier.minTouchTarget()) {
-                    Text("Playlist baru")
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Ganti nama") },
+                        onClick = {
+                            menuOpen = false
+                            renaming = true
+                        },
+                        modifier = Modifier.minTouchTarget(),
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Hapus playlist") },
+                        onClick = {
+                            menuOpen = false
+                            deleting = true
+                        },
+                        modifier = Modifier.minTouchTarget(),
+                    )
                 }
             }
         },
     )
+    if (renaming) {
+        RenamePlaylistDialog(
+            currentName = playlist.name,
+            onDismiss = { renaming = false },
+            onRename = { name ->
+                renaming = false
+                actions.renamePlaylist(playlist.id, name)
+            },
+        )
+    }
+    if (deleting) {
+        DeletePlaylistDialog(
+            playlistName = playlist.name,
+            onDismiss = { deleting = false },
+            onDelete = {
+                deleting = false
+                actions.deletePlaylist(playlist.id)
+            },
+        )
+    }
+}
+
+@Composable
+private fun PlaylistRowCover(cover: PlaylistCover) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clip(MaterialTheme.shapes.extraSmall)
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = SenadaIcons.Library,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(24.dp),
+        )
+        when (cover) {
+            PlaylistCover.Placeholder -> Unit
+            is PlaylistCover.Single -> {
+                CoverArtworkImage(
+                    url = cover.artworkUrl,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+            is PlaylistCover.Mosaic -> {
+                Column(modifier = Modifier.matchParentSize()) {
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        CoverArtworkImage(cover.artworkUrls[0], Modifier.weight(1f).fillMaxHeight())
+                        CoverArtworkImage(cover.artworkUrls[1], Modifier.weight(1f).fillMaxHeight())
+                    }
+                    Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        CoverArtworkImage(cover.artworkUrls[2], Modifier.weight(1f).fillMaxHeight())
+                        CoverArtworkImage(cover.artworkUrls[3], Modifier.weight(1f).fillMaxHeight())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoverArtworkImage(url: String, modifier: Modifier = Modifier) {
+    AsyncImage(
+        model = remember(url) { resizeGoogleArtwork(url, 120) },
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun CompactActionChip(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    emphasized: Boolean = false,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraSmall,
+        color = if (emphasized) colors.primaryContainer else Color.Transparent,
+        contentColor = if (emphasized) colors.onPrimaryContainer else colors.onSurface,
+        border = if (emphasized) null else BorderStroke(1.dp, colors.outline),
+        modifier = Modifier.minTouchTarget().semantics { role = Role.Button },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistListHeader(playlistCount: Int, actions: LibraryActions, onOpen: (String) -> Unit) {
+    var naming by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf(false) }
+    CompactCollectionHeader(
+        title = "Playlist",
+        meta = playlistListMeta(playlistCount),
+    ) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CompactActionChip(
+                label = "Playlist baru",
+                icon = SenadaIcons.Add,
+                onClick = { naming = true },
+                emphasized = true,
+            )
+            CompactActionChip(
+                label = "Impor playlist",
+                icon = SenadaIcons.Import,
+                onClick = { importing = true },
+            )
+        }
+    }
     if (naming) {
         NameDialog(title = "Playlist baru", initial = "", confirmLabel = "Buat", onDismiss = { naming = false }) { name ->
             naming = false
@@ -629,6 +832,43 @@ private fun PlaylistListHeader(actions: LibraryActions, onOpen: (String) -> Unit
             },
         )
     }
+}
+
+@Composable
+private fun RenamePlaylistDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onRename: (String) -> Unit,
+) {
+    NameDialog(
+        title = "Ganti nama",
+        initial = currentName,
+        confirmLabel = "Simpan",
+        onDismiss = onDismiss,
+        onConfirm = onRename,
+    )
+}
+
+@Composable
+private fun DeletePlaylistDialog(
+    playlistName: String,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hapus playlist?", modifier = Modifier.semantics { heading() }) },
+        text = { Text("\"$playlistName\" dan urutan lagunya akan dihapus. Lagu di favorit dan riwayat tetap ada.") },
+        confirmButton = {
+            TextButton(
+                onClick = onDelete,
+                modifier = Modifier.minTouchTarget(),
+            ) { Text("Hapus playlist") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+        },
+    )
 }
 
 @Composable
@@ -683,28 +923,23 @@ private fun PlaylistHeader(
         },
     )
     if (renaming) {
-        NameDialog(title = "Ganti nama", initial = playlist.name, confirmLabel = "Simpan", onDismiss = { renaming = false }) { name ->
-            renaming = false
-            actions.renamePlaylist(playlist.id, name)
-        }
+        RenamePlaylistDialog(
+            currentName = playlist.name,
+            onDismiss = { renaming = false },
+            onRename = { name ->
+                renaming = false
+                actions.renamePlaylist(playlist.id, name)
+            },
+        )
     }
     if (deleting) {
-        AlertDialog(
-            onDismissRequest = { deleting = false },
-            title = { Text("Hapus playlist?", modifier = Modifier.semantics { heading() }) },
-            text = { Text("\"${playlist.name}\" dan urutan lagunya akan dihapus. Lagu di favorit dan riwayat tetap ada.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        deleting = false
-                        onClose()
-                        actions.deletePlaylist(playlist.id)
-                    },
-                    modifier = Modifier.minTouchTarget(),
-                ) { Text("Hapus playlist") }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleting = false }, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+        DeletePlaylistDialog(
+            playlistName = playlist.name,
+            onDismiss = { deleting = false },
+            onDelete = {
+                deleting = false
+                onClose()
+                actions.deletePlaylist(playlist.id)
             },
         )
     }

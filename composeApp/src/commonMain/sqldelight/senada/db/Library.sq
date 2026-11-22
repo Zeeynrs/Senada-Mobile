@@ -199,6 +199,13 @@ SELECT count(*), CAST(sum(CASE WHEN track.duration_ms > 0 THEN track.duration_ms
 FROM playlist_item JOIN track ON track.id = playlist_item.track_id
 WHERE playlist_item.playlist_id = ?;
 
+playlistCoverArtworks:
+SELECT playlist_item.playlist_id, track.artwork_url
+FROM playlist_item JOIN track ON track.id = playlist_item.track_id
+WHERE track.artwork_url IS NOT NULL AND trim(track.artwork_url) != ''
+GROUP BY playlist_item.playlist_id, track.artwork_url
+ORDER BY playlist_item.playlist_id, min(playlist_item.position);
+
 insertPlaylistItem:
 INSERT INTO playlist_item(playlist_id, track_id, position) VALUES (?, ?, ?);
 

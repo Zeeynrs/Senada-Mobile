@@ -183,6 +183,12 @@ class LibraryRepository internal constructor(
         PlaylistSummary(id, name, description, createdAt, (trackCount as Long?)?.toInt() ?: 0)
     }.asFlow().mapToList(dispatcher)
 
+    /** Sampai empat URL sampul berbeda pertama per playlist sesuai urutan lagu. */
+    val playlistCovers: Flow<Map<String, List<String>>> = queries.playlistCoverArtworks { playlistId, artworkUrl ->
+        val url: String? = artworkUrl
+        playlistId to url
+    }.asFlow().mapToList(dispatcher).map(::collectPlaylistCovers)
+
     /**
      * Playlist beserta lagunya sesuai urutan, atau null bila sudah dihapus. Dengan [limit] ≥ 0 hanya
      * entri pertama sebanyak itu yang dimuat; [Playlist.entryCount] tetap jumlah seluruhnya.
@@ -402,6 +408,19 @@ internal fun trackOf(
     artworkUrl: String?,
     source: String,
 ) = Track(id, title, decodeArtists(artists), durationMs, artworkUrl, source)
+
+/** Mengelompokkan paling banyak empat URL sampul berbeda pertama per playlist. */
+internal fun collectPlaylistCovers(rows: List<Pair<String, String?>>): Map<String, List<String>> {
+    val byPlaylist = linkedMapOf<String, MutableList<String>>()
+    for ((playlistId, rawUrl) in rows) {
+        val url = rawUrl?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+        val covers = byPlaylist.getOrPut(playlistId) { mutableListOf() }
+        if (covers.size < 4 && url !in covers) {
+            covers += url
+        }
+    }
+    return byPlaylist
+}
 
 internal fun encodeArtists(artists: List<String>): String = JsonArray(artists.map { JsonPrimitive(it) }).toString()
 
