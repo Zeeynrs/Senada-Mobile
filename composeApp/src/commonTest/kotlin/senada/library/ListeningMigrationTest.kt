@@ -14,10 +14,11 @@ class ListeningMigrationTest {
     fun listening_checkpoints_replace_the_same_play_and_survive_track_cleanup() = runTest {
         val driver = testLibraryDriver()
         try {
+            var clock = 100_000L
             val library = LibraryRepository(
                 SenadaDatabase(driver),
                 dispatcher = StandardTestDispatcher(testScheduler),
-                now = { 100_000L },
+                now = { clock },
             )
             val track = Track("yt:track:lama", "Lagu lama", listOf("A", "B"), source = "ytmusic")
             val event = ListenEvent("putaran", track, 10_000L, 30_000L)
@@ -25,13 +26,16 @@ class ListeningMigrationTest {
             library.recordListening(event)
             library.recordListening(event.copy(listenedMs = 41_000L))
             library.setFavorite(track, false)
+            clock += PLAY_STATS_WINDOW_MS + 1
+            val recent = track.copy(id = "yt:track:baru")
+            library.recordTrackPlay(recent)
 
             val summary = library.listeningStats(ListenPeriod.All).first()
             assertEquals(1, summary.plays)
             assertEquals(41_000L, summary.listenedMs)
             assertEquals(track, summary.topTracks.single().track)
             assertEquals("A", summary.topArtists.single().name)
-            assertEquals(emptyList(), library.mostPlayed().first())
+            assertEquals(listOf(recent), library.mostPlayed().first())
         } finally {
             driver.close()
         }

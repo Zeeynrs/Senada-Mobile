@@ -50,6 +50,22 @@ class AppNavigatorTest {
     }
 
     @Test
+    fun listeningStatsStaysOpenUnderNowPlayingAndClosesWhenChangingTab() {
+        val navigator = AppNavigator()
+        navigator.openListeningStats()
+        navigator.openNowPlaying()
+        assertTrue(navigator.back())
+        assertTrue(navigator.listeningStatsOpen)
+        assertTrue(navigator.back())
+        assertFalse(navigator.listeningStatsOpen)
+        assertFalse(navigator.canGoBack)
+
+        navigator.openListeningStats()
+        navigator.select(AppDestination.Search)
+        assertFalse(navigator.listeningStatsOpen)
+    }
+
+    @Test
     fun selectingATabClosesDetailScreens() {
         val navigator = AppNavigator()
         navigator.openPlaylist("p")
@@ -158,5 +174,43 @@ class AppNavigatorTest {
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
         assertEquals(AppDestination.Search, navigator.destination)
+    }
+
+    @Test
+    fun saverRestoresStatsBeneathCatalogAndAcceptsOlderSavedState() {
+        val navigator = AppNavigator()
+        navigator.openListeningStats()
+        navigator.openArtist("UC_tulus", "Tulus")
+        navigator.openCatalogPlaylist("PL_sore", "Chill Sore", "YouTube Music · 20 lagu", "https://example.invalid/pl")
+        val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
+        val restored = assertNotNull(AppNavigator.Saver.restore(assertNotNull(saved)))
+        assertTrue(restored.listeningStatsOpen)
+        assertEquals(
+            CatalogRoute.Playlist("PL_sore", "Chill Sore", "YouTube Music · 20 lagu", "https://example.invalid/pl"),
+            restored.currentCatalogRoute,
+        )
+        assertTrue(restored.back())
+        assertEquals("UC_tulus", restored.currentCatalogRoute?.id)
+        assertTrue(restored.back())
+        assertTrue(restored.listeningStatsOpen)
+        assertNull(restored.currentCatalogRoute)
+
+        val old = assertNotNull(AppNavigator.Saver.restore(listOf("Home", false, null, true)))
+        assertTrue(old.mostPlayedOpen)
+        assertFalse(old.listeningStatsOpen)
+    }
+
+    @Test
+    fun saverAcceptsPlaylistFromBeforeListeningStatsWasAdded() {
+        val saved = listOf(
+            "Search", false, null, false,
+            "playlist", "PL_lama", "Playlist lama", "10 lagu", "https://example.invalid/lama",
+        )
+        val restored = assertNotNull(AppNavigator.Saver.restore(saved))
+        assertEquals(
+            CatalogRoute.Playlist("PL_lama", "Playlist lama", "10 lagu", "https://example.invalid/lama"),
+            restored.currentCatalogRoute,
+        )
+        assertFalse(restored.listeningStatsOpen)
     }
 }

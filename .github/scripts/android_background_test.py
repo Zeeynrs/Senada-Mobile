@@ -383,6 +383,26 @@ def check_https() -> None:
         check(False, name, f"Sesi HTTPS tidak mencapai PLAYING: {session()}")
 
 
+def check_listening_stats() -> None:
+    opened = open_tab("Beranda") and tap_text("Statistik dengar")
+    if not check(opened, "Statistik dengar dapat dibuka dari Beranda"):
+        return
+
+    def chart_description():
+        root = ui_tree()
+        return next((
+            node.get("content-desc") for node in root.iter("node")
+            if node.get("content-desc", "").startswith("Menit per hari. Terbanyak")
+        ), None) if root is not None else None
+
+    chart = wait_for(chart_description, 5)
+    check(chart and "Total" in chart, "Grafik statistik memiliki ringkasan waktu dengar untuk pembaca layar", chart)
+    screenshot("08-listening-stats")
+    found = collect_while_scrolling([(f"Putar {SECOND}", "content-desc")], scrolls=4)
+    check(f"Putar {SECOND}" in found, "Lagu yang didengar di latar belakang bisa diputar dari statistik")
+    shell("input keyevent KEYCODE_BACK")
+
+
 def min_touch_px() -> int:
     # Toleransi 1 px untuk pembulatan piksel pada kepadatan layar non-bulat (mis. 420 dpi).
     return int(48 * screen_density() / 160) - 1
@@ -741,6 +761,7 @@ def scenario() -> None:
     if ended:
         check_sleep_timer()
     check_https()
+    check_listening_stats()
     check_large_font_accessibility()
 
 
