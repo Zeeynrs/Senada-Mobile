@@ -408,6 +408,30 @@ def check_listening_stats() -> None:
     shell("input keyevent KEYCODE_BACK")
 
 
+def check_collection_header() -> None:
+    if open_tab("Cari"):
+        scroll_to_top(3)
+        if tap_desc(f"Buka menu {FIRST}"):
+            if not tap_text("Tambah ke favorit", scrolls=0):
+                shell("input keyevent KEYCODE_BACK")
+
+    if not check(open_tab("Library"), "Tab Library dapat dibuka untuk memeriksa header koleksi Favorit"):
+        return
+    scroll_to_top(2)
+    min_px = min_touch_px()
+    play_matches = wait_for(lambda: find_interactive("Putar Favorit", attribute="content-desc"), 5) or []
+    play_ok = bool(play_matches) and all(
+        (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
+        for box, _ in play_matches
+    )
+    check(
+        play_ok,
+        "Halaman Favorit menampilkan tombol Putar dengan content-desc 'Putar Favorit' minimal 48 dp",
+        [box for box, _ in play_matches],
+    )
+    screenshot("09-favorites-header")
+
+
 def min_touch_px() -> int:
     # Toleransi 1 px untuk pembulatan piksel pada kepadatan layar non-bulat (mis. 420 dpi).
     return int(48 * screen_density() / 160) - 1
@@ -640,6 +664,27 @@ def check_large_font_accessibility() -> None:
         f"lebar {width}px, hilang {settings_missing}, terpotong/kekecilan {backup_clipped}",
     )
 
+    if open_tab("Library"):
+        scroll_to_top(3)
+        screenshot("10-favorites-large-font")
+        fav_targets = [
+            ("Putar Favorit", "content-desc"),
+            ("Putar acak Favorit", "content-desc"),
+            ("Buka menu Favorit", "content-desc"),
+        ]
+        fav_found = collect_while_scrolling(fav_targets, scrolls=4, save_first="10-favorites-ui.xml")
+        fav_missing = [label for label, _ in fav_targets if label not in fav_found]
+        fav_clipped = [
+            f"{label}={box}"
+            for label, (box, _) in fav_found.items()
+            if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+        ]
+        check(
+            not fav_missing and not fav_clipped,
+            "Header koleksi Favorit tidak terpotong dan minimal 48 dp pada skala font 200%",
+            f"lebar {width}px, hilang {fav_missing}, terpotong/kekecilan {fav_clipped}",
+        )
+
 
 def scenario() -> None:
     run("adb", "install", "-r", APK)
@@ -774,6 +819,7 @@ def scenario() -> None:
         check_sleep_timer()
     check_https()
     check_listening_stats()
+    check_collection_header()
     check_large_font_accessibility()
 
 
