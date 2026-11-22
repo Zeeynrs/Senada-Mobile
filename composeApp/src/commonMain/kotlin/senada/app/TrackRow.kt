@@ -42,16 +42,17 @@ internal fun TrackRow(
     favorite: Boolean = false,
     trackNumber: Int? = null,
     onClick: (() -> Unit)? = null,
+    playing: Boolean = false,
     action: @Composable () -> Unit,
 ) {
     val metadata = listOfNotNull(
         track.artists.joinToString().takeIf { it.isNotEmpty() },
         track.durationMs?.let(::playbackTime),
     ).joinToString(" · ")
-    val accessibilityLabel = if (trackNumber != null) {
-        "$trackNumber. ${trackAccessibilityLabel(track, favorite)}"
-    } else {
-        trackAccessibilityLabel(track, favorite)
+    val accessibilityLabel = buildString {
+        if (trackNumber != null) append("$trackNumber. ")
+        append(trackAccessibilityLabel(track, favorite))
+        if (playing) append(", Sedang diputar")
     }
     AdaptiveRow(
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp),
@@ -118,7 +119,7 @@ internal fun TrackRow(
                     Text(
                         track.title,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )

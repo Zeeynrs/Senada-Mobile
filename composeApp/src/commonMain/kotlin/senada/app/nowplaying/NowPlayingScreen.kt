@@ -214,15 +214,18 @@ internal fun NowPlayingScreen(
                             itemsIndexed(state.queue.entries, key = { _, entry -> "entry-${entry.id}" }) { index, entry ->
                                 Box(panelBody(last = index == state.queue.entries.lastIndex)) {
                                     val playing = state.audio.isActive && state.audio.selection?.queueEntryId == entry.id
-                                    TrackRow(entry.track, favorite = entry.track.id in library.favoriteIds) {
-                                        PlayerIcon(
-                                            if (playing) SenadaIcons.Pause else SenadaIcons.Play,
-                                            if (playing) "Jeda ${entry.track.title}" else "Putar ${entry.track.title}",
-                                        ) { if (playing) playback.pause() else playback.playEntry(entry.id) }
-                                        PlayerIcon(SenadaIcons.Close, "Hapus ${entry.track.title} dari antrean") {
-                                            playback.remove(entry.id)
-                                        }
-                                        TrackMenu(entry.track, library, actions)
+                                    TrackRow(
+                                        track = entry.track,
+                                        favorite = entry.track.id in library.favoriteIds,
+                                        onClick = { playback.playEntry(entry.id) },
+                                        playing = playing,
+                                    ) {
+                                        TrackMenu(
+                                            entry.track,
+                                            library,
+                                            actions,
+                                            onRemoveFromQueue = { playback.remove(entry.id) },
+                                        )
                                     }
                                 }
                             }

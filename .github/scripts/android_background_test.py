@@ -559,6 +559,55 @@ def scroll_to_top(swipes: int = 4) -> None:
         time.sleep(0.35)
 
 
+def check_now_playing_queue() -> None:
+    if not check(open_now_playing() and tap_text("Antrean"), "Tab Antrean di Sedang diputar dapat dibuka"):
+        return
+
+    row_label = f"{SECOND}, Senada, 12 detik"
+    menu_label = f"Buka menu {SECOND}"
+    collect_while_scrolling([(row_label, "content-desc"), (menu_label, "content-desc")], scrolls=3)
+    tree = ui_tree(save_as="11-queue-ui.xml")
+    rows = find_interactive(row_label, attribute="content-desc", root=tree) if tree is not None else []
+    menus = find_interactive(menu_label, attribute="content-desc", root=tree) if tree is not None else []
+    actions = [f"Putar {SECOND}", f"Jeda {SECOND}", f"Hapus {SECOND} dari antrean"]
+    min_px = min_touch_px()
+    if not check(
+        rows and rows[0][1].get("clickable") == "true" and len(menus) == 1
+        and all(x2 - x1 >= min_px and y2 - y1 >= min_px for (x1, y1, x2, y2), _ in rows + menus)
+        and not any(find_interactive(label, attribute="content-desc", root=tree) for label in actions),
+        "Baris Antrean dan satu tombol ⋯ dapat diketuk dengan area sentuh minimal 48 dp",
+    ):
+        return
+
+    x1, y1, x2, y2 = rows[0][0]
+    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    playing = wait_session("PLAYING", SECOND, 5)
+    marked = playing and wait_for(
+        lambda: find_interactive(f"{row_label}, Sedang diputar", attribute="content-desc"), 5,
+    )
+    check(playing and marked, "Ketukan pada baris Antrean memutar lagu dan mengumumkan 'Sedang diputar'", session())
+
+    first_menu = f"Buka menu {FIRST}"
+    if not check(tap_desc(first_menu), "Menu ⋯ pada baris pertama Antrean dapat dibuka"):
+        return
+    menu = ui_tree(save_as="11-queue-menu-ui.xml")
+    remove_label = "Hapus dari antrean"
+    remove = find_interactive(remove_label, root=menu) if menu is not None else []
+    enqueue = find_interactive(QUEUE_ACTION, root=menu) if menu is not None else []
+    if not check(
+        remove and enqueue and remove[0][0][1] < enqueue[0][0][1],
+        "Hapus dari antrean berada di atas aksi Tambah ke antrean pada menu ⋯",
+    ):
+        return
+    removed = tap_text(remove_label, scrolls=0) and wait_for(
+        lambda: (tree := ui_tree()) is not None
+        and not find_interactive(first_menu, attribute="content-desc", root=tree)
+        and find_interactive(menu_label, attribute="content-desc", root=tree),
+        5,
+    )
+    check(removed, "Hapus dari antrean hanya menghapus baris yang dipilih")
+
+
 def check_large_font_accessibility() -> None:
     width, height = screen_size()
     min_px = min_touch_px()
@@ -646,6 +695,16 @@ def check_large_font_accessibility() -> None:
         not accent_missing and not accent_clipped,
         "Semua pilihan warna aksen memiliki label dan minimal 48 dp pada skala font 200%",
         f"lebar {width}px, hilang {accent_missing}, terpotong/kekecilan {accent_clipped}",
+    )
+    accent_boxes = [settings_found[label][0] for label in accent_labels if label in settings_found]
+    columns = sorted({box[0] for box in accent_boxes})
+    cell_widths = [box[2] - box[0] for box in accent_boxes]
+    check(
+        not accent_missing and 3 <= len(columns) <= 5
+        and max(cell_widths) - min(cell_widths) <= 1
+        and all(box[0] == columns[index % len(columns)] for index, box in enumerate(accent_boxes)),
+        "Kisi warna aksen memiliki kolom rata dan lebar sel seragam pada skala font 200%",
+        f"kolom {columns}, lebar sel {cell_widths}",
     )
     backup_clipped = [
         f"{label}={settings_found[label][0]}"
@@ -821,6 +880,7 @@ def scenario() -> None:
     check_listening_stats()
     check_collection_header()
     check_large_font_accessibility()
+    check_now_playing_queue()
 
 
 def main() -> int:

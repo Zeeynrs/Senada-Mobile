@@ -4,12 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -41,14 +43,26 @@ internal fun AccentPicker(selected: AccentChoice, enabled: Boolean, onSelect: (A
         style = MaterialTheme.typography.titleSmall,
         modifier = Modifier.semantics { heading() },
     )
-    FlowRow(
-        modifier = Modifier.fillMaxWidth().selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        for (choice in AccentChoice.entries) {
-            AccentSwatch(choice, choice.source(cover) ?: SenadaPalette.AccentDark, selected == choice, enabled) {
-                onSelect(choice)
+    val gap = 4.dp
+    val labelSize = with(LocalDensity.current) { MaterialTheme.typography.labelMedium.fontSize.toDp() }
+    val minCellWidth = maxOf(68.dp, labelSize * 4 + 8.dp)
+    BoxWithConstraints(Modifier.fillMaxWidth().selectableGroup()) {
+        val columns = ((maxWidth + gap) / (minCellWidth + gap)).toInt().coerceIn(1, 5)
+        Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+            for (choices in AccentChoice.entries.chunked(columns)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    for (choice in choices) {
+                        AccentSwatch(
+                            choice = choice,
+                            color = choice.source(cover) ?: SenadaPalette.AccentDark,
+                            selected = selected == choice,
+                            enabled = enabled,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSelect(choice) },
+                        )
+                    }
+                    repeat(columns - choices.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }
@@ -60,6 +74,7 @@ private fun AccentSwatch(
     color: Color,
     selected: Boolean,
     enabled: Boolean,
+    modifier: Modifier,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -67,15 +82,14 @@ private fun AccentSwatch(
     if (selected) ring = ring.border(2.dp, colors.onSurface, CircleShape)
 
     Column(
-        modifier = Modifier.widthIn(min = 68.dp)
-            .minTouchTarget()
+        modifier = modifier.minTouchTarget()
             .clip(MaterialTheme.shapes.small)
             .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .semantics {
                 contentDescription = "Warna aksen ${choice.label}"
                 stateDescription = if (selected) "Dipilih" else "Tidak dipilih"
             }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
