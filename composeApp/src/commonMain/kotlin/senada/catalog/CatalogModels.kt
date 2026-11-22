@@ -33,12 +33,6 @@ data class PlaylistSummary(
 
 data class PlaylistPage(val items: List<PlaylistSummary>, val nextPageToken: String? = null)
 
-/** Kelompok rilis di halaman artis, misalnya "Album" atau "Single & EP". */
-data class ReleaseSection(
-    val title: String,
-    val items: List<AlbumSummary>,
-)
-
 /** Isi halaman artis dari katalog daring. */
 data class ArtistDetail(
     val id: String,
@@ -50,7 +44,6 @@ data class ArtistDetail(
     val topSongAlbums: Map<String, AlbumSummary> = emptyMap(),
     val popularAlbums: List<AlbumSummary> = emptyList(),
     val newestAlbums: List<AlbumSummary> = emptyList(),
-    val releases: List<ReleaseSection> = emptyList(),
 )
 
 /** Isi halaman album dari katalog daring. */

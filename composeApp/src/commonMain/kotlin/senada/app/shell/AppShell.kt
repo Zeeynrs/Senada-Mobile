@@ -213,6 +213,14 @@ internal fun AppShell(
                         onOpenAlbum = { album ->
                             navigator.openAlbum(album.id, album.title, album.subtitle, album.artworkUrl)
                         },
+                        onOpenPlaylist = { playlist ->
+                            navigator.openCatalogPlaylist(
+                                playlist.id,
+                                playlist.title,
+                                playlist.subtitle,
+                                playlist.artworkUrl,
+                            )
+                        },
                         onSavePlaylist = { routeId, title, tracks ->
                             if (catalogPage.playlistSaves[routeId] !is PlaylistSaveStatus.Saving) {
                                 catalogPage.playlistSaves =

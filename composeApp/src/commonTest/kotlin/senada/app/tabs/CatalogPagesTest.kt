@@ -14,6 +14,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import senada.catalog.AlbumDetail
 import senada.catalog.AlbumPage
 import senada.catalog.AlbumSummary
@@ -28,7 +30,9 @@ import senada.catalog.PlaylistImportException
 import senada.catalog.PlaylistPage
 import senada.catalog.PlaylistSummary
 import senada.catalog.TrackPage
+import senada.catalog.youtube.ARTIST_PAGE_TULUS
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
+import senada.catalog.youtube.parseArtistPage
 import senada.db.SenadaDatabase
 import senada.library.LibraryRepository
 import senada.library.testLibraryDriver
@@ -312,5 +316,63 @@ class CatalogPagesTest {
         assertEquals(3, storedPlaylists.size)
         assertTrue(storedPlaylists.any { it.name == "Chill Nusantara (2)" })
         assertTrue(storedPlaylists.any { it.name == "Featured Mix" })
+    }
+
+    @Test
+    fun artistPageShowsExactlyThreeSectionsFromRealArtistFixture() {
+        val detail = parseArtistPage(
+            "UC_DHlXllTSMB8pTC38_leFg",
+            Json.parseToJsonElement(ARTIST_PAGE_TULUS).jsonObject,
+        )
+
+        val sections = artistPageSections(detail)
+
+        assertEquals(
+            listOf("Lagu terpopuler", "Album terpopuler", "Album terbaru"),
+            sections.map { it.title },
+        )
+        val songsSection = assertIs<ArtistPageSection.PopularSongs>(sections[0])
+        assertEquals(5, songsSection.songs.size)
+        assertEquals("OLAK5uy_mHgw7gB4UOePEByyIUPoXcCIWTbVade7w", songsSection.fullListPlaylistId)
+
+        val popularAlbumsSection = assertIs<ArtistPageSection.PopularAlbums>(sections[1])
+        assertEquals(listOf("Manusia", "Monokrom", "Gajah", "Tulus"), popularAlbumsSection.albums.map { it.title })
+
+        val newestAlbumsSection = assertIs<ArtistPageSection.NewestAlbums>(sections[2])
+        assertEquals(
+            listOf(
+                "Manusia",
+                "Langsung Dari Konser Monokrom Jakarta (Live)",
+                "Monokrom",
+                "Gajah",
+                "Tulus",
+            ),
+            newestAlbumsSection.albums.map { it.title },
+        )
+    }
+
+    @Test
+    fun artistPageCapsPopularSongsAtFiveAndOmitsEmptySectionsOrMissingSeeAll() {
+        val sevenSongs = (1..7).map { i ->
+            Track("yt:track:s$i", "Lagu $i", listOf("Artis"), source = YOUTUBE_MUSIC_SOURCE)
+        }
+        val detail = ArtistDetail(
+            id = "UC_simple",
+            name = "Artis Sederhana",
+            topSongs = sevenSongs,
+            topSongsPlaylistId = null,
+            popularAlbums = emptyList(),
+            newestAlbums = listOf(AlbumSummary("MPREb_1", "Album Satu", year = "2024")),
+        )
+
+        val sections = artistPageSections(detail)
+
+        assertEquals(listOf("Lagu terpopuler", "Album terbaru"), sections.map { it.title })
+        val songsSection = assertIs<ArtistPageSection.PopularSongs>(sections[0])
+        assertEquals(listOf("Lagu 1", "Lagu 2", "Lagu 3", "Lagu 4", "Lagu 5"), songsSection.songs.map { it.title })
+        assertNull(songsSection.fullListPlaylistId)
+
+        assertEquals(emptyList(), artistPageSections(null))
+        assertEquals(emptyList(), artistPageSections(ArtistDetail(id = "UC_empty", name = "Kosong")))
     }
 }
