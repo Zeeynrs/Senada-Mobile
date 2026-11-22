@@ -269,7 +269,7 @@ class YouTubeMusicDiscoverTest {
             home = DiscoverFeed(tracks = listOf(ytTrack("h1", "Pop 1", "Artis")))
         }
         var now = 1_000L
-        val controller = DiscoverController(source, this, now = { now }, ttlMs = DISCOVER_TTL_MS)
+        val controller = DiscoverController(source, this, now = { now }, ttlMs = DISCOVER_TTL_MS, workContext = coroutineContext)
 
         // Mode hemat data menunda pemuatan otomatis.
         controller.refreshIfNeeded(DiscoverSeeds(), saveData = true, force = false)

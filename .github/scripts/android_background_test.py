@@ -143,9 +143,13 @@ def parse_bounds(node: ET.Element) -> tuple[int, int, int, int] | None:
 
 
 def ui_tree(save_as: str | None = None) -> ET.Element | None:
-    for _ in range(3):
-        shell("uiautomator dump /sdcard/senada-ui.xml")
-        xml = shell("cat /sdcard/senada-ui.xml")
+    for _ in range(5):
+        # Hapus hasil dump lama agar kegagalan idle uiautomator tidak membaca layar tab sebelumnya.
+        dumped = shell("rm -f /sdcard/senada-ui.xml && uiautomator dump /sdcard/senada-ui.xml 2>&1 || true")
+        if "ERROR:" in dumped:
+            time.sleep(1)
+            continue
+        xml = shell("cat /sdcard/senada-ui.xml 2>/dev/null || true")
         if "<?xml" in xml:
             cleaned = xml[xml.index("<?xml") :]
             if save_as:
