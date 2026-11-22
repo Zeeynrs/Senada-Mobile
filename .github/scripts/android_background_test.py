@@ -430,6 +430,61 @@ def check_collection_header() -> None:
         [box for box, _ in play_matches],
     )
     screenshot("09-favorites-header")
+    check_library_chips(min_px)
+
+
+def check_library_chips(min_px: int) -> None:
+    if tap_text("Playlist", scrolls=0) and wait_for(lambda: find_interactive("Playlist baru"), 5):
+        if tap_text("Playlist baru", scrolls=0) and tap_text("Nama playlist", scrolls=0):
+            shell("input text Pagi")
+            time.sleep(0.5)
+            if not ui_points("Buat") and "mInputShown=true" in shell("dumpsys input_method"):
+                shell("input keyevent KEYCODE_BACK")
+                time.sleep(0.4)
+            tap_text("Buat", scrolls=0)
+        row_matches = wait_for(lambda: find_interactive("Buka playlist Pagi", attribute="content-desc"), 5) or []
+        menu_matches = find_interactive("Buka menu playlist Pagi", attribute="content-desc")
+        no_buka_button = not find_interactive("Buka")
+        row_ok = bool(row_matches) and bool(menu_matches) and no_buka_button and all(
+            (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
+            for box, _ in row_matches + menu_matches
+        )
+        check(
+            row_ok,
+            "Daftar playlist menampilkan baris ketuk 'Buka playlist Pagi' dan menu ⋯ tanpa tombol Buka",
+            f"row={row_matches}, menu={menu_matches}, no_buka={no_buka_button}",
+        )
+        screenshot("09b-library-playlists")
+
+    if tap_text("Riwayat", scrolls=0):
+        history_play = wait_for(lambda: find_interactive("Putar Riwayat", attribute="content-desc"), 5) or []
+        history_shuffle = find_interactive("Putar acak Riwayat", attribute="content-desc")
+        history_ok = bool(history_play) and bool(history_shuffle) and all(
+            (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
+            for box, _ in history_play + history_shuffle
+        )
+        check(
+            history_ok,
+            "Halaman Riwayat menampilkan header ringkas dengan tombol Putar dan Acak minimal 48 dp",
+            f"play={history_play}, shuffle={history_shuffle}",
+        )
+        screenshot("09c-library-history")
+
+    if tap_text("File impor", scrolls=0):
+        imported_action = wait_for(lambda: find_interactive("Impor file audio"), 5) or []
+        imported_play = ui_bounds("Putar File impor", attribute="content-desc")
+        imported_ok = bool(imported_action) and bool(imported_play) and all(
+            (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
+            for box, _ in imported_action
+        )
+        check(
+            imported_ok,
+            "Halaman File impor menampilkan header ringkas dan aksi Impor file audio minimal 48 dp",
+            f"action={imported_action}, play={imported_play}",
+        )
+        screenshot("09d-library-imported")
+
+    tap_text("Favorit", scrolls=0)
 
 
 def min_touch_px() -> int:
@@ -743,6 +798,81 @@ def check_large_font_accessibility() -> None:
             "Header koleksi Favorit tidak terpotong dan minimal 48 dp pada skala font 200%",
             f"lebar {width}px, hilang {fav_missing}, terpotong/kekecilan {fav_clipped}",
         )
+
+        scroll_to_top(3)
+        chip_boxes = ui_bounds("Favorit")
+        chip_y = (chip_boxes[0][1] + chip_boxes[0][3]) // 2 if chip_boxes else None
+
+        def select_chip(label: str) -> bool:
+            boxes = ui_bounds(label)
+            if (not boxes or boxes[0][2] >= width - 4) and chip_y is not None:
+                shell(f"input swipe {width * 4 // 5} {chip_y} {width // 5} {chip_y} 300")
+                time.sleep(0.5)
+            return tap_text(label, scrolls=0)
+
+        if select_chip("Playlist"):
+            playlist_targets = [
+                ("Playlist baru", "text"),
+                ("Impor playlist", "text"),
+                ("Buka playlist Pagi", "content-desc"),
+                ("Buka menu playlist Pagi", "content-desc"),
+            ]
+            playlist_found = collect_while_scrolling(
+                playlist_targets, scrolls=4, save_first="11-playlists-ui.xml",
+            )
+            playlist_missing = [label for label, _ in playlist_targets if label not in playlist_found]
+            playlist_clipped = [
+                f"{label}={box}"
+                for label, (box, _) in playlist_found.items()
+                if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+            ]
+            check(
+                not playlist_missing and not playlist_clipped,
+                "Daftar playlist dan aksi header tidak terpotong dan minimal 48 dp pada skala font 200%",
+                f"lebar {width}px, hilang {playlist_missing}, terpotong/kekecilan {playlist_clipped}",
+            )
+
+        scroll_to_top(3)
+        if select_chip("Riwayat"):
+            history_targets = [
+                ("Putar Riwayat", "content-desc"),
+                ("Putar acak Riwayat", "content-desc"),
+            ]
+            history_found = collect_while_scrolling(history_targets, scrolls=3)
+            history_missing = [label for label, _ in history_targets if label not in history_found]
+            history_clipped = [
+                f"{label}={box}"
+                for label, (box, _) in history_found.items()
+                if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+            ]
+            check(
+                not history_missing and not history_clipped,
+                "Header ringkas Riwayat tidak terpotong dan minimal 48 dp pada skala font 200%",
+                f"lebar {width}px, hilang {history_missing}, terpotong/kekecilan {history_clipped}",
+            )
+
+        scroll_to_top(3)
+        if select_chip("File impor"):
+            imported_targets = [("Impor file audio", "text")]
+            imported_found = collect_while_scrolling(imported_targets, scrolls=3)
+            imported_play = ui_bounds("Putar File impor", attribute="content-desc")
+            imported_missing = [label for label, _ in imported_targets if label not in imported_found]
+            if not imported_play:
+                imported_missing.append("Putar File impor")
+            imported_clipped = [
+                f"{label}={box}"
+                for label, (box, _) in imported_found.items()
+                if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+            ] + [
+                f"Putar File impor={box}"
+                for box in imported_play
+                if box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+            ]
+            check(
+                not imported_missing and not imported_clipped,
+                "Header ringkas File impor dan aksinya tidak terpotong dan minimal 48 dp pada skala font 200%",
+                f"lebar {width}px, hilang {imported_missing}, terpotong/kekecilan {imported_clipped}",
+            )
 
 
 def scenario() -> None:
