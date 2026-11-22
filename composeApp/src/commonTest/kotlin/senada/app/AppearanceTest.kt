@@ -6,6 +6,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 
 class AppearanceTest {
     @Test
@@ -25,9 +28,39 @@ class AppearanceTest {
     }
 
     @Test
-    fun older_settings_keep_the_theme_and_default_to_full_quality() {
+    fun rewriting_version_one_settings_preserves_theme_data_saver_and_accent_choice() {
+        val legacyChoices = mapOf(true to "followCover", false to "senada")
+        for ((follow, accent) in legacyChoices) {
+            var saved = """{"version":1,"mode":"Dark","followCover":$follow,"saveMobileData":true}"""
+            val store = AppearanceStore({ saved }, { saved = it })
+            val settings = store.load()
+            assertEquals(ThemeMode.Dark, settings.mode)
+            assertTrue(settings.saveMobileData)
+            store.save(settings)
+
+            val updated = Json.parseToJsonElement(saved).jsonObject
+            assertEquals(JsonPrimitive(2), updated["version"])
+            assertEquals(JsonPrimitive(accent), updated["accent"])
+            assertNull(updated["followCover"])
+            assertEquals(settings, store.load())
+        }
+    }
+
+    @Test
+    fun version_one_settings_without_data_saver_keep_full_quality() {
         val legacy = """{"version":1,"mode":"Dark","followCover":false}"""
-        assertEquals(Appearance(ThemeMode.Dark, false, false), AppearanceStore({ legacy }, {}).load())
+        assertEquals(false, AppearanceStore({ legacy }, {}).load().saveMobileData)
+    }
+
+    @Test
+    fun version_two_settings_restore_a_named_accent_and_other_preferences() {
+        var saved = """{"version":2,"mode":"Light","accent":"mint","saveMobileData":true}"""
+        val store = AppearanceStore({ saved }, { saved = it })
+        val settings = store.load()
+        assertEquals(ThemeMode.Light, settings.mode)
+        assertTrue(settings.saveMobileData)
+        store.save(settings)
+        assertEquals(JsonPrimitive("mint"), Json.parseToJsonElement(saved).jsonObject["accent"])
     }
 
     @Test
