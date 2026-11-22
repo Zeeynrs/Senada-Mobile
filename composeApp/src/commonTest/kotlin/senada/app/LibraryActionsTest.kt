@@ -76,7 +76,8 @@ class LibraryActionsTest {
         val playback = PlaybackController(output, backgroundScope) { entry ->
             SampleAudioSelection(entry.track.title, SampleAudioSource.Local, "file:///${entry.id}.m4a", entry.id)
         }
-        val actions = LibraryActions(library, playback, backgroundScope)
+        val actions = LibraryActions(library, playback, this)
+        PlaySourceState.current.value = null
         return Triple(library, playback, actions)
     }
 
