@@ -534,15 +534,6 @@ private fun parseMixPanelTrack(renderer: JsonElement): Track? {
     )
 }
 
-private fun sectionListContents(response: JsonObject): List<JsonElement> {
-    val tabContent = response.at(
-        "contents", "singleColumnBrowseResultsRenderer", "tabs", 0, "tabRenderer", "content",
-    ) ?: response.at(
-        "contents", "twoColumnBrowseResultsRenderer", "tabs", 0, "tabRenderer", "content",
-    )
-    return tabContent.array("sectionListRenderer", "contents")
-}
-
 private fun extractText(textObj: JsonElement?): String {
     if (textObj == null) return ""
     textObj.string("simpleText")?.let { return it }

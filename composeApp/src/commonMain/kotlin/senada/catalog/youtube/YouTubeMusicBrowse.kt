@@ -14,13 +14,13 @@ import senada.catalog.CatalogException.Kind
 import senada.catalog.ReleaseSection
 import senada.model.Track
 
-private const val PAGE_TYPE_ARTIST = "MUSIC_PAGE_TYPE_ARTIST"
-private const val PAGE_TYPE_ALBUM = "MUSIC_PAGE_TYPE_ALBUM"
+internal const val PAGE_TYPE_ARTIST = "MUSIC_PAGE_TYPE_ARTIST"
+internal const val PAGE_TYPE_ALBUM = "MUSIC_PAGE_TYPE_ALBUM"
 private const val PAGE_TYPE_AUDIOBOOK = "MUSIC_PAGE_TYPE_AUDIOBOOK"
 private const val PAGE_TYPE_PLAYLIST = "MUSIC_PAGE_TYPE_PLAYLIST"
 
-private const val KIND_ARTIST = "artist"
-private const val KIND_ALBUM = "album"
+internal const val KIND_ARTIST = "artist"
+internal const val KIND_ALBUM = "album"
 private const val KIND_PLAYLIST = "playlist"
 
 private val NON_ARTIST_PAGE_TYPES = setOf(PAGE_TYPE_ALBUM, PAGE_TYPE_AUDIOBOOK, PAGE_TYPE_PLAYLIST)
@@ -177,7 +177,7 @@ internal fun parseAlbumPage(
     )
 }
 
-private fun parseArtistSummary(item: JsonElement): ArtistSummary? {
+internal fun parseArtistSummary(item: JsonElement): ArtistSummary? {
     val (kind, browseId) = browseTarget(item) ?: return null
     if (kind != KIND_ARTIST) return null
     val name = runsText(columnRuns(item, 0))
@@ -191,7 +191,7 @@ private fun parseArtistSummary(item: JsonElement): ArtistSummary? {
     )
 }
 
-private fun parseAlbumSummary(item: JsonElement): AlbumSummary? {
+internal fun parseAlbumSummary(item: JsonElement): AlbumSummary? {
     val (kind, browseId) = browseTarget(item) ?: return null
     if (kind != KIND_ALBUM) return null
     val title = runsText(columnRuns(item, 0))
@@ -206,7 +206,7 @@ private fun parseAlbumSummary(item: JsonElement): AlbumSummary? {
     )
 }
 
-private fun parseAlbumCard(item: JsonElement): AlbumSummary? {
+internal fun parseAlbumCard(item: JsonElement): AlbumSummary? {
     val target = browseTarget(item)
         ?: item.array("title", "runs").firstNotNullOfOrNull(::browseTarget)
         ?: return null
@@ -223,7 +223,7 @@ private fun parseAlbumCard(item: JsonElement): AlbumSummary? {
     )
 }
 
-private fun parseBrowseTrack(
+internal fun parseBrowseTrack(
     item: JsonElement,
     fallbackArtists: List<String> = emptyList(),
     fallbackArtworkUrl: String? = null,
@@ -318,7 +318,7 @@ private fun searchShelves(response: JsonObject): List<JsonElement> =
 private fun nextContinuation(shelves: List<JsonElement>): String? =
     shelves.firstNotNullOfOrNull { it.string("continuations", 0, "nextContinuationData", "continuation") }
 
-private fun sectionListContents(response: JsonObject): List<JsonElement> {
+internal fun sectionListContents(response: JsonObject): List<JsonElement> {
     val tab = response.at(
         "contents", "singleColumnBrowseResultsRenderer", "tabs", 0, "tabRenderer", "content",
     ) ?: response.at(
@@ -348,7 +348,7 @@ private fun shelfTitle(shelf: JsonElement): String =
         textOf(shelf.at("header", "musicCarouselShelfBasicHeaderRenderer", "title"))
     }
 
-private fun browseTarget(element: JsonElement?): Pair<String, String>? {
+internal fun browseTarget(element: JsonElement?): Pair<String, String>? {
     val endpoint = element.at("navigationEndpoint") ?: element
     val browse = endpoint.at("browseEndpoint") ?: return null
     val browseId = browse.string("browseId")?.takeIf { it.isNotBlank() } ?: return null
@@ -366,13 +366,13 @@ private fun browseTarget(element: JsonElement?): Pair<String, String>? {
     return kind to browseId
 }
 
-private fun findYear(runs: List<JsonElement>): String? =
+internal fun findYear(runs: List<JsonElement>): String? =
     runs.mapNotNull { it.string("text")?.trim() }.firstOrNull { YEAR.matches(it) }
 
-private fun runsText(runs: List<JsonElement>): String =
+internal fun runsText(runs: List<JsonElement>): String =
     runs.joinToString("") { it.string("text").orEmpty() }.trim()
 
-private fun textOf(textObj: JsonElement?): String =
+internal fun textOf(textObj: JsonElement?): String =
     textObj.string("simpleText")?.trim() ?: runsText(textObj.array("runs"))
 
 private fun thumbnailsOf(renderer: JsonElement?): List<JsonElement> =
@@ -381,7 +381,7 @@ private fun thumbnailsOf(renderer: JsonElement?): List<JsonElement> =
         .ifEmpty { renderer.array("foregroundThumbnail", "musicThumbnailRenderer", "thumbnail", "thumbnails") }
         .ifEmpty { renderer.array("thumbnail", "thumbnails") }
 
-private fun bestArtwork(renderer: JsonElement?, size: Int = ARTWORK_SIZE): String? {
+internal fun bestArtwork(renderer: JsonElement?, size: Int = ARTWORK_SIZE): String? {
     val thumbnails = thumbnailsOf(renderer)
     if (thumbnails.isEmpty()) return null
     val best = thumbnails.maxByOrNull { (it.at("width") as? JsonPrimitive)?.content?.toIntOrNull() ?: 0 }

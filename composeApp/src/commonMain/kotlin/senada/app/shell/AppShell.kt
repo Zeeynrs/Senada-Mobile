@@ -48,10 +48,13 @@ import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
+import senada.app.dataSaverActive
+import senada.app.meteredNetwork
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
 import senada.app.tabs.CatalogPlaylistSaveOutcome
+import senada.app.tabs.DiscoverController
 import senada.app.tabs.LibraryFilter
 import senada.app.tabs.PlaylistSaveStatus
 import senada.app.tabs.catalogDetailScreen
@@ -63,10 +66,12 @@ import senada.app.tabs.rememberCatalogPageState
 import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
 import senada.app.tabs.settingsTab
+import senada.catalog.youtube.DiscoverSeeds
 import senada.library.HomeHero
 import senada.library.LibraryRepository
 import senada.library.ListenPeriod
 import senada.library.Playlist
+import senada.library.discoverSeeds
 import senada.library.homeHero
 import senada.library.listeningStats
 import senada.library.mostPlayed
@@ -145,6 +150,22 @@ internal fun AppShell(
     val catalogStore = remember { CatalogDetailStore() }
     val currentCatalogRoute = navigator.currentCatalogRoute
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
+    val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
+    val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
+    val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(DiscoverSeeds())
+    val discoverController = remember(uiScope) { DiscoverController(SenadaSources.discover, uiScope) }
+    LaunchedEffect(
+        navigator.destination,
+        currentCatalogRoute,
+        search.query.isBlank(),
+        discoverSeeds,
+        saveData,
+        screenVisible,
+    ) {
+        if (screenVisible && navigator.destination == AppDestination.Search && currentCatalogRoute == null && search.query.isBlank()) {
+            discoverController.refreshIfNeeded(discoverSeeds, saveData = saveData)
+        }
+    }
     val searchHistory by remember(library) { library.searchHistory() }.collectAsState(emptyList())
     // Dicatat saat pengguna menekan cari atau memakai hasilnya, bukan setiap ketikan yang sempat dicari.
     val recordSearch: () -> Unit = {
@@ -261,6 +282,7 @@ internal fun AppShell(
                     AppDestination.Search -> searchTab(
                         tab = search,
                         searchHistory = searchHistory,
+                        discover = discoverController.state,
                         library = libraryState,
                         actions = actions,
                         onImported = { track ->
@@ -276,6 +298,9 @@ internal fun AppShell(
                         onRecordSearch = recordSearch,
                         onRemoveSearch = { uiScope.launch { library.removeSearch(it) } },
                         onClearSearches = { uiScope.launch { library.clearSearchHistory() } },
+                        onRefreshDiscover = {
+                            discoverController.refreshIfNeeded(discoverSeeds, saveData = saveData, force = true)
+                        },
                         onOpenArtist = { artist ->
                             navigator.openArtist(artist.id, artist.name, artist.artworkUrl)
                         },
