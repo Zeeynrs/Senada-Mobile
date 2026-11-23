@@ -40,11 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -57,7 +57,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -401,10 +400,7 @@ private fun Cover(url: String?, accent: Color?, size: Dp, scale: Float) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             Modifier.size(size)
-                .dropShadow(
-                    shape,
-                    Shadow(radius = 60.dp * scale, color = Color.Black.copy(alpha = .45f), offset = DpOffset(0.dp, 30.dp * scale)),
-                )
+                .coverShadow(scale)
                 .clip(shape)
                 .background(backdrop),
         ) {
@@ -420,6 +416,35 @@ private fun Cover(url: String?, accent: Color?, size: Dp, scale: Float) {
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+        }
+    }
+}
+
+// Sampel Gaussian untuk box-shadow 0 30px 60px rgba(0,0,0,.45).
+// Gambar dari luar ke dalam agar alpha bertambah sesuai kurva tanpa bitmap sebesar sampul.
+private val CoverShadowProfile = listOf(
+    3f to .0013f, 2.5f to .0062f, 2f to .0228f, 1.5f to .0668f, 1f to .1587f,
+    .5f to .3085f, 0f to .5f, -.5f to .6915f, -1f to .8413f, -1.5f to .9332f,
+    -2f to .9772f, -2.5f to .9938f, -3f to .9987f,
+)
+
+private fun Modifier.coverShadow(scale: Float): Modifier = drawWithCache {
+    val deviation = (30.dp * scale).toPx()
+    val corner = (20.dp * scale).toPx()
+    onDrawBehind {
+        var previousAlpha = 0f
+        for ((distance, coverage) in CoverShadowProfile) {
+            val spread = distance * deviation
+            val shadowSize = Size(size.width + 2f * spread, size.height + 2f * spread)
+            if (shadowSize.width <= 0f || shadowSize.height <= 0f) break
+            val opacity = .45f * coverage
+            drawRoundRect(
+                color = Color.Black.copy(alpha = (opacity - previousAlpha) / (1f - previousAlpha)),
+                topLeft = Offset(-spread, deviation - spread),
+                size = shadowSize,
+                cornerRadius = CornerRadius((corner + spread).coerceAtLeast(0f)),
+            )
+            previousAlpha = opacity
         }
     }
 }
