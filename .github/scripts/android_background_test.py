@@ -269,6 +269,7 @@ def check_now_playing_swipes() -> None:
 
     width, height = screen_size()
     x, y = mini_player
+    print("INFO: Menggeser mini player untuk membuka Sedang diputar", flush=True)
     shell(f"input swipe {x} {y} {x} {y - height * 2 // 5} 1000")
     close = wait_for(lambda: desc_point("Tutup"), 5)
     if close is None:
@@ -1611,8 +1612,21 @@ def scenario() -> None:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
+    with (OUT / "logcat-live.txt").open("w", encoding="utf-8") as live_log:
+        logcat = subprocess.Popen(["adb", "logcat", "-v", "brief", "*:W"], stdout=live_log, stderr=subprocess.STDOUT)
+        try:
+            return run_scenario()
+        finally:
+            if logcat.poll() is None:
+                logcat.terminate()
+            logcat.wait()
+
+
+def run_scenario() -> int:
     try:
         scenario()
+    except subprocess.CalledProcessError as error:
+        check(False, "Skenario berjalan tanpa error", f"{error} {(error.stderr or '').strip()}")
     except Exception as error:  # noqa: BLE001 - laporkan lalu tetap simpan bukti
         check(False, "Skenario berjalan tanpa error", repr(error))
     finally:
@@ -1620,11 +1634,14 @@ def main() -> int:
             shell("settings put system font_scale 1.0")
         except Exception:  # noqa: BLE001
             pass
-        crashes = shell("logcat -d -b crash")
-        check(PKG not in crashes, "Tidak ada crash aplikasi", crashes.strip()[-2000:] if PKG in crashes else "")
-        save("logcat.txt", shell("logcat -d"))
-        save("media_session.txt", shell("dumpsys media_session"))
-        save("notification.txt", shell("dumpsys notification --noredact"))
+        try:
+            crashes = shell("logcat -d -b crash")
+            check(PKG not in crashes, "Tidak ada crash aplikasi", crashes.strip()[-2000:] if PKG in crashes else "")
+            save("logcat.txt", shell("logcat -d"))
+            save("media_session.txt", shell("dumpsys media_session"))
+            save("notification.txt", shell("dumpsys notification --noredact"))
+        except subprocess.CalledProcessError as error:
+            check(False, "ADB tetap terhubung setelah skenario", f"{error} {(error.stderr or '').strip()}")
 
     report = ["| Hasil | Pemeriksaan | Detail |", "| --- | --- | --- |"]
     labels = {"PASS": "✅ Lulus", "FAIL": "❌ Gagal", "DILEWATI": "⚠️ Dilewati"}
