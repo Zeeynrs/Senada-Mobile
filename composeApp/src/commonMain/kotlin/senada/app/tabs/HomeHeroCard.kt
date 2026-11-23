@@ -2,6 +2,7 @@ package senada.app.tabs
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
@@ -248,6 +250,7 @@ internal fun HomeHeroCard(
             HomeTopBar(
                 safeTop = safeTop,
                 profileName = profileName,
+                darkTheme = darkTheme,
                 textColor = topBarTextColor,
                 waveColor = topBarWaveColor,
                 onOpenProfile = onOpenProfile,
@@ -323,6 +326,7 @@ internal fun HomeHeroCard(
 private fun HomeTopBar(
     safeTop: Dp,
     profileName: String,
+    darkTheme: Boolean,
     textColor: Color,
     waveColor: Color,
     onOpenProfile: () -> Unit,
@@ -331,6 +335,7 @@ private fun HomeTopBar(
     val topBarVisualTop = maxOf(52.dp, safeTop)
     // Avatar visual 36 dp berada di tengah target sentuh 48 dp -> margin sentuh 6 dp di atas & kanan.
     val topPadding = (topBarVisualTop - 6.dp).coerceAtLeast(0.dp)
+    val avatarBorder = if (darkTheme) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
 
     Row(
         modifier = Modifier
@@ -370,12 +375,24 @@ private fun HomeTopBar(
                 .semantics { contentDescription = "Buka profil" },
             contentAlignment = Alignment.Center,
         ) {
-            ProfileAvatar(
-                name = profileName,
-                selected = false,
-                size = 36.dp,
-                borderAlpha = 0.25f,
-            )
+            // Memakai komponen ProfileAvatar (28 dp) milik navbar, diskalakan mengisi 32 dp interior dalam cincin 36 dp bergaris putih 25%.
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .border(2.dp, avatarBorder, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.graphicsLayer { scaleX = 32f / 24f; scaleY = 32f / 24f }) {
+                        ProfileAvatar(name = profileName, selected = false)
+                    }
+                }
+            }
         }
     }
 }
