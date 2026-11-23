@@ -15,7 +15,8 @@ import senada.app.Appearance
 import senada.app.DEFAULT_COVER_RADIUS_DP
 import senada.app.clampCoverRadius
 
-private const val LIST_COVER_RADIUS_RATIO = 12f / 20f
+private const val LIST_COVER_RADIUS_NUMERATOR = 12
+private const val LIST_COVER_RADIUS_DENOMINATOR = 20f
 
 /**
  * Pengaturan tampilan visual yang dipakai bersama di seluruh UI:
@@ -44,7 +45,7 @@ internal val LocalSenadaLook = compositionLocalOf { SenadaLook() }
 
 /** Menghitung sudut sampul daftar (`coverRadius × 12/20`, minimal 0 dp). */
 internal fun listCoverRadiusDp(coverRadiusDp: Int): Float =
-    (clampCoverRadius(coverRadiusDp) * LIST_COVER_RADIUS_RATIO).coerceAtLeast(0f)
+    ((clampCoverRadius(coverRadiusDp) * LIST_COVER_RADIUS_NUMERATOR) / LIST_COVER_RADIUS_DENOMINATOR).coerceAtLeast(0f)
 
 /** Menghitung skala animasi efektif; permintaan pengurangan gerak dari sistem selalu memaksa 0. */
 internal fun effectiveAnimationScale(speed: AnimationSpeed, systemReduceMotion: Boolean): Float =
