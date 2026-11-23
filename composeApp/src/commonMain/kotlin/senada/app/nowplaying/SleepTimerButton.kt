@@ -36,35 +36,53 @@ internal fun SleepTimerButton(state: SleepTimerState, canStopAfterTrack: Boolean
             label = label,
             tint = if (running) colors.primary else colors.onSurfaceVariant,
         ) { expanded = true }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            sleepTimerMinutes.forEach { minutes ->
-                DropdownMenuItem(
-                    text = { Text("$minutes menit") },
-                    onClick = {
-                        playback.startSleepTimer(minutes)
-                        expanded = false
-                    },
-                    modifier = Modifier.minTouchTarget(),
-                )
-            }
+        SleepTimerMenu(
+            expanded = expanded,
+            onDismiss = { expanded = false },
+            state = state,
+            canStopAfterTrack = canStopAfterTrack,
+            playback = playback,
+        )
+    }
+}
+
+@Composable
+internal fun SleepTimerMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    state: SleepTimerState,
+    canStopAfterTrack: Boolean,
+    playback: PlaybackController,
+) {
+    val running = state != SleepTimerState.Off
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        sleepTimerMinutes.forEach { minutes ->
             DropdownMenuItem(
-                text = { Text("Akhir lagu ini") },
-                enabled = canStopAfterTrack,
+                text = { Text("$minutes menit") },
                 onClick = {
-                    playback.stopAfterCurrentTrack()
-                    expanded = false
-                },
-                modifier = Modifier.minTouchTarget(),
-            )
-            DropdownMenuItem(
-                text = { Text("Matikan") },
-                enabled = running,
-                onClick = {
-                    playback.cancelSleepTimer()
-                    expanded = false
+                    playback.startSleepTimer(minutes)
+                    onDismiss()
                 },
                 modifier = Modifier.minTouchTarget(),
             )
         }
+        DropdownMenuItem(
+            text = { Text("Akhir lagu ini") },
+            enabled = canStopAfterTrack,
+            onClick = {
+                playback.stopAfterCurrentTrack()
+                onDismiss()
+            },
+            modifier = Modifier.minTouchTarget(),
+        )
+        DropdownMenuItem(
+            text = { Text("Matikan") },
+            enabled = running,
+            onClick = {
+                playback.cancelSleepTimer()
+                onDismiss()
+            },
+            modifier = Modifier.minTouchTarget(),
+        )
     }
 }
