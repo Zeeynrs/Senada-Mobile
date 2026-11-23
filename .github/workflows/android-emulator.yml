@@ -21,7 +21,8 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :composeApp:assembleDebug
+      # Release build memory before starting the virtual Pixel.
+      - run: ./gradlew --no-daemon -Pkotlin.compiler.execution.strategy=in-process :composeApp:assembleDebug
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -34,8 +35,14 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: python3 .github/scripts/android_background_test.py build/android-e2e
+      - name: Host diagnostics after emulator failure
+        if: failure()
+        run: |
+          mkdir -p build/android-e2e
+          sudo dmesg -T > build/android-e2e/runner-kernel.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
