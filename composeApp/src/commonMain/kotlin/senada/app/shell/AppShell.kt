@@ -97,6 +97,23 @@ import senada.playback.PlaybackController
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
 
+internal data class BottomOverlayVisibility(
+    val showNavBar: Boolean,
+    val showMiniPlayer: Boolean,
+) {
+    val visible: Boolean get() = showNavBar || showMiniPlayer
+}
+
+internal fun bottomOverlayVisibility(
+    imeVisible: Boolean,
+    profileDetail: Boolean,
+    miniPlayerVisible: Boolean,
+): BottomOverlayVisibility = if (imeVisible) {
+    BottomOverlayVisibility(showNavBar = false, showMiniPlayer = false)
+} else {
+    BottomOverlayVisibility(showNavBar = !profileDetail, showMiniPlayer = miniPlayerVisible)
+}
+
 /**
  * Kerangka aplikasi: isi tab yang aktif, mini player dan navigasi yang mengambang di bawah, serta
  * Sedang diputar sebagai layar penuh di atasnya.
@@ -255,9 +272,14 @@ internal fun AppShell(
     val profileDetail = profilePage && profileRoute != null
     val safeTop = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
     val safeBottom = with(density) { WindowInsets.safeDrawing.getBottom(this).toDp() }
+    val overlay = bottomOverlayVisibility(
+        imeVisible = imeVisible,
+        profileDetail = profileDetail,
+        miniPlayerVisible = miniPlayerVisible,
+    )
     val bottomPadding = when {
         imeVisible -> BelowContentGap
-        profileDetail -> maxOf(40.dp, safeBottom)
+        !overlay.visible -> maxOf(40.dp, safeBottom)
         else -> overlayHeight + BelowContentGap
     }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
@@ -440,7 +462,7 @@ internal fun AppShell(
             }
 
             CompositionLocalProvider(LocalGlassState provides glassState) {
-                if (!imeVisible && !profileDetail) {
+                if (overlay.visible) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -450,7 +472,7 @@ internal fun AppShell(
                             .padding(start = 16.dp, end = 16.dp, bottom = maxOf(24.dp, safeBottom)),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        if (miniPlayerVisible) {
+                        if (overlay.showMiniPlayer) {
                             MiniPlayer(
                                 state = state,
                                 onOpen = navigator::openNowPlaying,
@@ -459,7 +481,9 @@ internal fun AppShell(
                                 modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
                             )
                         }
-                        FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
+                        if (overlay.showNavBar) {
+                            FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
+                        }
                     }
                 }
             }

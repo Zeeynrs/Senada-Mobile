@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -57,7 +56,7 @@ internal fun DataSection(preferences: AppearancePreferences) {
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            Switch(enabled, onCheckedChange = null, enabled = settings != null)
+            SenadaSwitch(enabled, onCheckedChange = null, enabled = settings != null)
         }
         if (dataSaverActive(enabled, metered)) {
             Text(
