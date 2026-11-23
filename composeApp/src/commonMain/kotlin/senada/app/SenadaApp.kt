@@ -13,12 +13,17 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import senada.app.shell.AppShell
+import senada.audio.AudioEffectsController
 import senada.library.LibraryRepository
 import senada.playback.PlaybackController
 
 /** Titik masuk layar: tema Senada, pemuat gambar bersama, lalu kerangka aplikasi. */
 @Composable
-internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository) {
+internal fun SenadaApp(
+    playback: PlaybackController,
+    library: LibraryRepository,
+    audioEffects: AudioEffectsController? = null,
+) {
     // Sampul diunduh dengan klien HTTP yang sama dengan katalog.
     setSingletonImageLoaderFactory { context ->
         ImageLoader.Builder(context)
@@ -46,6 +51,6 @@ internal fun SenadaApp(playback: PlaybackController, library: LibraryRepository)
     }
 
     SenadaTheme(state.currentEntry?.track?.artworkUrl, visible = screenVisible) { appearance ->
-        AppShell(playback, library, appearance, screenVisible)
+        AppShell(playback, library, appearance, screenVisible, audioEffects)
     }
 }

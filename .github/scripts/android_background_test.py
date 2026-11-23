@@ -70,7 +70,7 @@ def session() -> dict[str, str] | None:
         if line.strip() != f"package={PKG}":
             continue
         block = "\n".join(lines[i : i + 25])
-        state = re.search(r"PlaybackState \{state=([^,]+), position=(-?\d+)", block)
+        state = re.search(r"PlaybackState \{state=([^,]+), position=(-?\d+).*?\bspeed=([\d.\-]+)", block)
         if not state:
             continue
         code = re.search(r"\d+", state.group(1))
@@ -78,6 +78,7 @@ def session() -> dict[str, str] | None:
         return {
             "state": STATES.get(code.group(0) if code else "", state.group(1)),
             "position": state.group(2),
+            "speed": state.group(3),
             "description": description.group(1).strip() if description else "",
         }
     return None
@@ -492,6 +493,75 @@ def check_profile_shell() -> None:
             return
 
 
+def wait_playing_at_speed(title: str, speed: float) -> dict[str, str] | None:
+    def matches():
+        current = session()
+        if current and current["state"] == "PLAYING" and title in current["description"]:
+            if abs(float(current["speed"]) - speed) < 0.01:
+                return current
+        return None
+
+    return wait_for(matches, 5)
+
+
+def check_playback_speed(title: str, speed: float) -> None:
+    name = f"Posisi audio maju sekitar {speed:g}× waktu nyata"
+    before = pause_for_setup(title)
+    if not before:
+        check(False, name, f"Sesi tidak dapat dijeda: {session()}")
+        return
+
+    # Posisi mentah dumpsys bisa tetap sama selama PLAYING. Ambil posisi aktual di kedua jeda.
+    started = time.monotonic()
+    shell("cmd media_session dispatch play")
+    time.sleep(3)
+    elapsed = time.monotonic() - started
+    shell("cmd media_session dispatch pause")
+    after = wait_session("PAUSED", title, 5)
+    if after:
+        delta_ms = int(after["position"]) - int(before["position"])
+        measured = delta_ms / (elapsed * 1000)
+        check(abs(measured - speed) <= 0.18, name, f"{delta_ms} ms / {elapsed:.2f} dtk = {measured:.2f}×")
+    else:
+        check(False, name, f"Sesi tidak dapat dijeda setelah pengukuran: {session()}")
+    shell("cmd media_session dispatch play")
+    check(wait_playing_at_speed(title, speed), f"Pemutaran {speed:g}× berlanjut setelah pengukuran", session())
+
+
+def check_developer_effects() -> None:
+    points = ui_points("Uji efek")
+    if not check(points, "Tombol 'Uji efek' tersedia di Pengembang"):
+        return
+    app_pid = shell(f"pidof -s {PKG}").strip()
+    errors_command = f"logcat -d --pid={app_pid} '*:E'"
+    prior_errors = set(shell(errors_command).splitlines())
+    title = f"{FIRST}, null, null"
+    if not check(tap_text("Putar lokal", scrolls=0) and wait_playing_at_speed(title, 1),
+                 "Sampel lokal diputar sebelum menguji efek", session()):
+        return
+
+    point = points[0]
+    tap(point)
+    try:
+        enabled = wait_playing_at_speed(title, 1.25)
+        check(enabled, "Sesi media melaporkan 1,25× saat Uji efek aktif", enabled or session())
+        screenshot("v2-20-dev-effects")
+        if enabled:
+            check_playback_speed(title, 1.25)
+    finally:
+        tap(point)
+
+    disabled = wait_playing_at_speed(title, 1)
+    check(disabled, "Pemutaran tetap berjalan pada 1× setelah Uji efek dimatikan", disabled or session())
+    if disabled:
+        check_playback_speed(title, 1)
+    errors = [
+        line for line in shell(errors_command).splitlines()
+        if line not in prior_errors and re.search(r"\b[\w$.]*(?:Exception|Error)\b|FATAL EXCEPTION", line)
+    ]
+    check(not errors, "Tidak ada exception aplikasi saat menguji efek", "\n".join(errors)[-2000:])
+
+
 def check_https() -> None:
     name = "Tombol 'Putar HTTPS' memutar sampel internet (PLAYING)"
     shell("input keyevent KEYCODE_WAKEUP")
@@ -503,6 +573,7 @@ def check_https() -> None:
                  and tap_profile_item("Pengembang"), "Tujuh ketukan kartu versi membuka Pengembang"):
         return
     screenshot("v2-10-profile-developer")
+    check_developer_effects()
     if not tap_text("Putar HTTPS", scrolls=8):
         check(False, name, "Tombol 'Putar HTTPS' tidak ditemukan")
         return

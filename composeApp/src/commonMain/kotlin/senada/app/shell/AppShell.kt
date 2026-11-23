@@ -81,6 +81,7 @@ import senada.app.tabs.ProfileTab
 import senada.app.tabs.profileHeader
 import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
+import senada.audio.AudioEffectsController
 import senada.catalog.youtube.DiscoverSeeds
 import senada.library.HomeHero
 import senada.library.LibraryRepository
@@ -125,6 +126,7 @@ internal fun AppShell(
     library: LibraryRepository,
     appearance: AppearancePreferences,
     screenVisible: Boolean,
+    audioEffects: AudioEffectsController?,
 ) {
     val navigator = rememberAppNavigator()
     val state by playback.state.collectAsState()
@@ -365,7 +367,7 @@ internal fun AppShell(
                         ProfileRoute.Playback -> item { DataSection(appearance) }
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
-                        ProfileRoute.Developer -> item { DeveloperSection(playback) }
+                        ProfileRoute.Developer -> item { DeveloperSection(playback, audioEffects) }
                         ProfileRoute.About -> item { Text("Senada " + versionName()) }
                         ProfileRoute.AudioLab, ProfileRoute.Equalizer, ProfileRoute.SoundFx -> item { Text("Segera hadir") }
                     }
