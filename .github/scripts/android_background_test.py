@@ -313,7 +313,7 @@ def check_paused_seek(before: dict[str, str]) -> None:
     y = (y1 + y2) // 2
     before_ms = int(before["position"])
     start_x = x1 + round((x2 - x1) * max(0.04, before_ms / 12_000))
-    shell(f"input swipe {start_x} {y} {(x1 + x2) // 2} {y} 400")
+    shell(f"input swipe {start_x} {y} {(x1 + x2) // 2} {y} 1000")
 
     # Geseran ke tengah mendarat sekitar 4,5–6 detik tergantung jarak sentuh awal; yang diuji adalah
     # posisi pindah jauh dari awal dan tidak melewati akhir lagu.
