@@ -578,38 +578,150 @@ def check_playback_speed(title: str, speed: float) -> None:
     check(wait_playing_at_speed(title, speed), f"Pemutaran {speed:g}× berlanjut setelah pengukuran", session())
 
 
-def check_developer_effects() -> None:
-    points = ui_points("Uji efek")
-    if not check(points, "Tombol 'Uji efek' tersedia di Pengembang"):
-        return
+def return_to_profile_tab() -> bool:
+    for _ in range(4):
+        if desc_point("Profil"):
+            return True
+        shell("input keyevent KEYCODE_BACK")
+        time.sleep(0.5)
+    return bool(desc_point("Profil"))
+
+
+def check_audio_lab_effects() -> bool:
     app_pid = shell(f"pidof -s {PKG}").strip()
     errors_command = f"logcat -d --pid={app_pid} '*:E'"
     prior_errors = set(shell(errors_command).splitlines())
     title = f"{FIRST}, null, null"
-    if not check(tap_text("Putar lokal", scrolls=0) and wait_playing_at_speed(title, 1),
-                 "Sampel lokal diputar sebelum menguji efek", session()):
-        return
+    min_px = min_touch_px()
 
-    point = points[0]
-    tap(point)
-    try:
-        enabled = wait_playing_at_speed(title, 1.25)
-        check(enabled, "Sesi media melaporkan 1,25× saat Uji efek aktif", enabled or session())
-        screenshot("v2-20-dev-effects")
-        if enabled:
-            check_playback_speed(title, 1.25)
-    finally:
-        tap(point)
+    if not check(return_to_profile_tab() and tap_profile_item("Audio Lab") and desc_point("Kembali ke Profil"),
+                 "Audio Lab terbuka dari Profil untuk uji efek"):
+        return False
 
-    disabled = wait_playing_at_speed(title, 1)
-    check(disabled, "Pemutaran tetap berjalan pada 1× setelah Uji efek dimatikan", disabled or session())
-    if disabled:
-        check_playback_speed(title, 1)
+    # 1. Equalizer: nyalakan, pilih Bass+, periksa semantik band, lalu tangkap layar.
+    if not check(tap_profile_item("Equalizer") and desc_point("Kembali ke Audio Lab"),
+                 "Halaman Equalizer terbuka dari Audio Lab"):
+        return_to_profile_tab()
+        return False
+
+    eq_sw = find_interactive("Equalizer", attribute="content-desc")
+    eq_on = bool(eq_sw) and tap_desc("Equalizer") and bool(wait_for(
+        lambda: [item for item in find_interactive("Equalizer", attribute="content-desc")
+                 if item[1].get("checked") == "true"],
+        5,
+    ))
+    check(eq_on, "Sakelar Equalizer dapat dinyalakan", eq_sw)
+
+    bass_tapped = tap_profile_item("Bass+")
+    bass_applied = bass_tapped and bool(wait_for(
+        lambda: ui_bounds("BASS+") and ui_bounds("31 Hz, +7 dB", attribute="content-desc"),
+        5,
+    ))
+    check(bass_applied, "Preset Bass+ memperbarui label preset dan semantik slider band (31 Hz, +7 dB)")
+    eq_targets = [
+        ("Equalizer", find_interactive("Equalizer", attribute="content-desc")),
+        ("Bass+", find_interactive("Bass+")),
+    ]
+    eq_undersized = [
+        f"{label}={matches[0][0]}"
+        for label, matches in eq_targets
+        if not matches
+        or (matches[0][0][2] - matches[0][0][0]) < min_px
+        or (matches[0][0][3] - matches[0][0][1]) < min_px
+    ]
+    check(not eq_undersized, "Kontrol Equalizer memenuhi ukuran sentuh minimal 48 dp", eq_undersized)
+    screenshot("v2-51-equalizer-bass")
+
+    # 2. Kembali ke Audio Lab, pastikan status AKTIF · BASS+ tampil, lalu tangkap layar.
+    back_lab = tap_desc("Kembali ke Audio Lab") and bool(wait_for(lambda: ui_bounds("AKTIF · BASS+"), 5))
+    check(back_lab, "Audio Lab menampilkan status AKTIF · BASS+ setelah Equalizer Bass+ aktif")
+    screenshot("v2-50-audiolab")
+
+    # 3. Efek suara: pilih kecepatan 1,25×, lalu tangkap layar.
+    if not check(tap_profile_item("Efek suara") and desc_point("Kembali ke Audio Lab"),
+                 "Halaman Efek suara terbuka dari Audio Lab"):
+        return_to_profile_tab()
+        return False
+
+    speed_125 = tap_profile_item("1,25×") and bool(wait_for(
+        lambda: [item for item in find_interactive("1,25×")
+                 if any(item[1].get(attr) == "true" for attr in ("selected", "checked"))],
+        5,
+    ))
+    check(speed_125, "Chip kecepatan 1,25× terpilih di Efek suara")
+    screenshot("v2-52-soundfx")
+
+    speed_status_ok = tap_desc("Kembali ke Audio Lab") and bool(wait_for(
+        lambda: ui_bounds("1,25× · NADA TERKUNCI"),
+        5,
+    ))
+    check(speed_status_ok, "Audio Lab menampilkan status 1,25× · NADA TERKUNCI")
+    if not check(return_to_profile_tab() and tap_profile_item("Pengembang"),
+                 "Kembali ke Pengembang untuk memutar sampel lokal pada 1,25×"):
+        return_to_profile_tab()
+        return False
+
+    # 4. Putar sampel lokal dan verifikasi kecepatan 1,25×.
+    playing_125 = tap_text("Putar lokal", scrolls=0) and wait_playing_at_speed(title, 1.25)
+    check(playing_125, "Sesi media melaporkan 1,25× saat Equalizer Bass+ dan Efek suara 1,25× aktif",
+          playing_125 or session())
+    if playing_125:
+        check_playback_speed(title, 1.25)
+        pause_for_setup(title)
+
+    # 5. Kembalikan semua pengaturan lewat UI nyata Audio Lab.
+    if not check(return_to_profile_tab() and tap_profile_item("Audio Lab") and desc_point("Kembali ke Profil"),
+                 "Audio Lab dibuka kembali untuk mereset efek"):
+        return_to_profile_tab()
+        return False
+
+    if check(tap_profile_item("Equalizer") and desc_point("Kembali ke Audio Lab"),
+             "Equalizer dibuka untuk atur ulang dan dimatikan"):
+        reset_ok = tap_profile_item("Atur ulang") and bool(wait_for(lambda: ui_bounds("DATAR"), 5))
+        check(reset_ok, "Tombol Atur ulang mengembalikan Equalizer ke Datar")
+        scroll_to_top(2)
+        eq_off = tap_desc("Equalizer") and bool(wait_for(
+            lambda: [item for item in find_interactive("Equalizer", attribute="content-desc")
+                     if item[1].get("checked") == "false"],
+            5,
+        ))
+        check(eq_off, "Sakelar Equalizer kembali dimatikan")
+        tap_desc("Kembali ke Audio Lab")
+
+    if check(tap_profile_item("Kecepatan & nada") and desc_point("Kembali ke Audio Lab"),
+             "Kartu Kecepatan & nada membuka Efek suara dan menggulir ke kartunya"):
+        speed_100 = tap_profile_item("1,00×") and bool(wait_for(
+            lambda: [item for item in find_interactive("1,00×")
+                     if any(item[1].get(attr) == "true" for attr in ("selected", "checked"))],
+            5,
+        ))
+        check(speed_100, "Chip kecepatan 1,00× terpilih kembali di Efek suara")
+        tap_desc("Kembali ke Audio Lab")
+
+    restored_lab = bool(wait_for(
+        lambda: ui_bounds("MATI") and ui_bounds("1,00× · NADA TERKUNCI"),
+        5,
+    ))
+    check(restored_lab, "Audio Lab kembali menampilkan status MATI dan 1,00× · NADA TERKUNCI")
+
+    if not check(return_to_profile_tab() and tap_profile_item("Pengembang"),
+                 "Pengembang dibuka kembali untuk verifikasi 1,0×"):
+        return_to_profile_tab()
+        return False
+
+    # 6. Putar sampel lokal dan verifikasi kecepatan kembali 1,0×.
+    playing_100 = tap_text("Putar lokal", scrolls=0) and wait_playing_at_speed(title, 1.0)
+    check(playing_100, "Pemutaran kembali berjalan pada 1× setelah pengaturan Audio Lab dikembalikan",
+          playing_100 or session())
+    if playing_100:
+        check_playback_speed(title, 1.0)
+
     errors = [
         line for line in shell(errors_command).splitlines()
         if line not in prior_errors and re.search(r"\b[\w$.]*(?:Exception|Error)\b|FATAL EXCEPTION", line)
     ]
-    check(not errors, "Tidak ada exception aplikasi saat menguji efek", "\n".join(errors)[-2000:])
+    check(not errors, "Tidak ada exception aplikasi saat menguji efek lewat Audio Lab", "\n".join(errors)[-2000:])
+    return True
 
 
 def check_https() -> None:
@@ -623,7 +735,8 @@ def check_https() -> None:
                  and tap_profile_item("Pengembang"), "Tujuh ketukan kartu versi membuka Pengembang"):
         return
     screenshot("v2-10-profile-developer")
-    check_developer_effects()
+    if not check_audio_lab_effects():
+        return
     # Sampel lokal dan HTTPS memakai judul yang sama. Akhiri status PLAYING lokal
     # sebelum menunggu PLAYING untuk HTTPS.
     local = session()

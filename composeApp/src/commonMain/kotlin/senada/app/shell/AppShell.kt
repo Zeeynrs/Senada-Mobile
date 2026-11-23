@@ -61,6 +61,10 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
 import senada.app.UserProfileController
+import senada.app.audiolab.audioLabScreen
+import senada.app.audiolab.equalizerScreen
+import senada.app.audiolab.soundFxScreen
+import senada.app.audiolab.soundFxSpeedItemIndex
 import senada.app.dataSaverActive
 import senada.app.meteredNetwork
 import senada.app.profilePhotoModel
@@ -87,6 +91,7 @@ import senada.app.tabs.ProfileTab
 import senada.app.tabs.profileHeader
 import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
+import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.catalog.youtube.DiscoverSeeds
 import senada.catalog.ArtistResolveResult
@@ -103,6 +108,7 @@ import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
+import senada.playback.SleepTimerState
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
@@ -308,6 +314,16 @@ internal fun AppShell(
     val homePage = navigator.destination == AppDestination.Home && currentCatalogRoute == null && profileRoute == null
     val profilePage = navigator.destination == AppDestination.Profile && currentCatalogRoute == null
     val profileDetail = profilePage && profileRoute != null
+    val audioLabRoute = profileRoute == ProfileRoute.AudioLab ||
+        profileRoute == ProfileRoute.Equalizer ||
+        profileRoute == ProfileRoute.SoundFx
+    var focusSoundFxSpeed by rememberSaveable { mutableStateOf(false) }
+    val effectsState = if (audioLabRoute) audioEffects?.effects?.collectAsState()?.value ?: AudioEffects() else AudioEffects()
+    val sleepTimerState = if (profileRoute == ProfileRoute.AudioLab) {
+        playback.sleepTimerState.collectAsState().value
+    } else {
+        SleepTimerState.Off
+    }
     val safeTop = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
     val safeBottom = with(density) { WindowInsets.safeDrawing.getBottom(this).toDp() }
     val shellWidthDp = with(density) { shellWidthPx.toDp().value }
@@ -322,6 +338,28 @@ internal fun AppShell(
         !overlay.visible -> maxOf(40.dp, safeBottom)
         else -> overlayHeight + BelowContentGap
     }
+    val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
+        rememberLazyListState()
+    }
+    LaunchedEffect(profileRoute, focusSoundFxSpeed) {
+        if (profileRoute == ProfileRoute.SoundFx && focusSoundFxSpeed) {
+            listState.animateScrollToItem(soundFxSpeedItemIndex(audioEffects != null))
+            focusSoundFxSpeed = false
+        }
+    }
+    val horizontalPadding = when {
+        homePage -> 0.dp
+        profileRoute == ProfileRoute.AudioLab -> 12.dp
+        profilePage -> 16.dp
+        else -> 20.dp
+    }
+    val verticalSpacing = when {
+        homePage -> 0.dp
+        profileRoute == ProfileRoute.AudioLab -> 10.dp
+        profileRoute == ProfileRoute.Equalizer -> 16.dp
+        profilePage -> 14.dp
+        else -> 12.dp
+    }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -335,9 +373,6 @@ internal fun AppShell(
                 }
                 .clipToBounds(),
         ) {
-            val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
-                rememberLazyListState()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -349,16 +384,8 @@ internal fun AppShell(
                     )
                     .windowInsetsPadding(imeInsets),
                 contentPadding = PaddingValues(
-                    start = when {
-                        homePage -> 0.dp
-                        profilePage -> 16.dp
-                        else -> 20.dp
-                    },
-                    end = when {
-                        homePage -> 0.dp
-                        profilePage -> 16.dp
-                        else -> 20.dp
-                    },
+                    start = horizontalPadding,
+                    end = horizontalPadding,
                     top = when {
                         homePage -> 0.dp
                         profilePage -> ((if (profileDetail) 52.dp else 56.dp) - safeTop).coerceAtLeast(0.dp)
@@ -366,13 +393,7 @@ internal fun AppShell(
                     },
                     bottom = bottomPadding,
                 ),
-                verticalArrangement = Arrangement.spacedBy(
-                    when {
-                        homePage -> 0.dp
-                        profilePage -> 14.dp
-                        else -> 12.dp
-                    },
-                ),
+                verticalArrangement = Arrangement.spacedBy(verticalSpacing),
             ) {
                 if (currentCatalogRoute != null) {
                     catalogDetailScreen(
@@ -426,8 +447,11 @@ internal fun AppShell(
                     return@LazyColumn
                 }
                 if (profileRoute != null) {
-                    profileHeader(profileRoute, navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label) {
-                        navigator.back()
+                    val previousLabel = navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label
+                    if (!audioLabRoute) {
+                        profileHeader(profileRoute, previousLabel) {
+                            navigator.back()
+                        }
                     }
                     when (profileRoute) {
                         ProfileRoute.Stats -> listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions) { listenPeriod = it }
@@ -438,7 +462,34 @@ internal fun AppShell(
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
                         ProfileRoute.Developer -> item { DeveloperSection(playback, audioEffects) }
                         ProfileRoute.About -> item { Text("Senada " + versionName()) }
-                        ProfileRoute.AudioLab, ProfileRoute.Equalizer, ProfileRoute.SoundFx -> item { Text("Segera hadir") }
+                        ProfileRoute.AudioLab -> audioLabScreen(
+                            effects = effectsState,
+                            effectsAvailable = audioEffects != null,
+                            saveMobileData = appearance.settings?.saveMobileData == true,
+                            sleepTimerState = sleepTimerState,
+                            canStopAfterTrack = state.audio.canStopAfterTrack,
+                            playback = playback,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                            onOpenEqualizer = { navigator.openProfileRoute(ProfileRoute.Equalizer) },
+                            onOpenSoundFx = { focusSpeed ->
+                                focusSoundFxSpeed = focusSpeed
+                                navigator.openProfileRoute(ProfileRoute.SoundFx)
+                            },
+                            onOpenPlayback = { navigator.openProfileRoute(ProfileRoute.Playback) },
+                        )
+                        ProfileRoute.Equalizer -> equalizerScreen(
+                            effects = effectsState,
+                            audioEffects = audioEffects,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                        )
+                        ProfileRoute.SoundFx -> soundFxScreen(
+                            effects = effectsState,
+                            audioEffects = audioEffects,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                        )
                     }
                     return@LazyColumn
                 }
