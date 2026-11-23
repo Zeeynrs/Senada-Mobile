@@ -5,6 +5,8 @@ internal class FakeAudioOutput : SampleAudioOutput {
     /** Titik mulai setiap kali audio dimuat ulang. */
     val startPositions = mutableListOf<Long>()
     val seeks = mutableListOf<Long>()
+    /** Akhir audio yang diteruskan setiap kali audio dimuat ulang. */
+    val endPositions = mutableListOf<Long?>()
     var pauseCount = 0
     override var volume = 1f
     val volumesAtPause = mutableListOf<Float>()
@@ -14,11 +16,12 @@ internal class FakeAudioOutput : SampleAudioOutput {
     override var durationMs: Long? = null
     override var onEvent: (() -> Unit)? = null
 
-    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         restarts += restart
         status = SampleAudioStatus.Playing
         if (restart) {
             startPositions += startAtMs
+            endPositions += endAtMs
             positionMs = startAtMs
         }
         if (emitEventOnPlay) emitEvent()

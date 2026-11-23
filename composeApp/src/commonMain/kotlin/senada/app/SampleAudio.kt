@@ -72,6 +72,7 @@ internal suspend fun queueAudioSelection(
             audio.location,
             entry.id,
             expiresAtEpochMs = audio.expiresAtEpochMs,
+            durationMs = audio.durationMs,
         )
     }
     LOCAL_FILE_SOURCE -> {

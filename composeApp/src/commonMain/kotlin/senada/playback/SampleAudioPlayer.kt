@@ -13,6 +13,8 @@ internal data class SampleAudioSelection(
     val queueEntryId: Long? = null,
     /** Batas berlaku alamat stream; null untuk file lokal dan alamat tetap. */
     val expiresAtEpochMs: Long? = null,
+    /** Panjang audio menurut sumbernya; null bila hanya pemutar native yang tahu. */
+    val durationMs: Long? = null,
 ) {
     /** Entri antrean yang alamat audionya belum didapat. */
     val isPending get() = uri.isEmpty()
@@ -59,8 +61,11 @@ internal interface SampleAudioOutput {
     /** Dipanggil pemutar native saat status berubah, termasuk saat aplikasi di latar belakang. */
     var onEvent: (() -> Unit)?
 
-    /** Saat [restart], audio baru dimuat dan dimulai dari [startAtMs]; selain itu melanjutkan audio yang ada. */
-    fun play(uri: String, restart: Boolean, startAtMs: Long = 0)
+    /**
+     * Saat [restart], audio baru dimuat dan dimulai dari [startAtMs]; selain itu melanjutkan audio yang ada.
+     * [endAtMs] adalah akhir audio yang sebenarnya bila sumbernya tahu; pemutar berhenti di sana.
+     */
+    fun play(uri: String, restart: Boolean, startAtMs: Long = 0, endAtMs: Long? = null)
     fun pause()
     fun seekTo(positionMs: Long)
     fun release()
@@ -110,7 +115,7 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
             output.play(selection.uri, restart = false)
             state = state.copy(status = SampleAudioStatus.Loading)
         } else {
-            output.play(selection.uri, restart = true, startAtMs = startAtMs)
+            output.play(selection.uri, restart = true, startAtMs = startAtMs, endAtMs = selection.knownDurationMs)
             state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = startAtMs)
         }
         refresh()
@@ -137,8 +142,16 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     fun refresh() {
         if (awaitingSource || !state.isActive) return
 
-        val status = output.status
-        val duration = output.durationMs?.takeIf { it > 0 }
+        var status = output.status
+        val known = state.selection?.knownDurationMs
+        val reported = output.durationMs?.takeIf { it > 0 }
+        // Pemutar native bisa menebak durasi lebih panjang dari audionya; panjang dari sumber yang menang.
+        val duration = if (known != null && reported != null) minOf(known, reported) else known ?: reported
+        if (status == SampleAudioStatus.Playing && known != null && output.positionMs >= known + END_GRACE_MS) {
+            // Pemutar terus berjalan senyap melewati akhir audio: anggap lagu selesai.
+            output.pause()
+            status = SampleAudioStatus.Ended
+        }
         val position = if (status == SampleAudioStatus.Ended && duration != null) {
             duration
         } else {
@@ -163,3 +176,9 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         state = SampleAudioState()
     }
 }
+
+/** Toleransi sebelum posisi yang melewati akhir audio dianggap lagu sudah selesai. */
+internal const val END_GRACE_MS = 1_500L
+
+private val SampleAudioSelection.knownDurationMs: Long?
+    get() = durationMs?.takeIf { it > 0 }

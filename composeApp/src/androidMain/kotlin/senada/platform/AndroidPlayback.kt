@@ -146,7 +146,8 @@ private class ExoAudioOutput(context: Context, initialEffects: AudioEffects) : S
         get() = player.volume
         set(value) { player.volume = value }
 
-    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
+    // ExoPlayer membaca durasi MP4 YouTube dengan tepat, jadi endAtMs tidak diperlukan di sini.
+    override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         if (restart) {
             player.setMediaItem(MediaItem.fromUri(uri), startAtMs)
             player.prepare()

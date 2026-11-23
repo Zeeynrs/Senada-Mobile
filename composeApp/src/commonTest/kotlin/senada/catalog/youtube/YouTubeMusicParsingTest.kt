@@ -62,6 +62,21 @@ class YouTubeMusicParsingTest {
     }
 
     @Test
+    fun playerReportsTheChosenStreamsOwnDuration() {
+        assertEquals(213_089L, parsePlayer(json(PLAYER_OK), 0, saveData = false).durationMs)
+        assertEquals(213_159L, parsePlayer(json(PLAYER_OK), 0, saveData = true).durationMs)
+    }
+
+    @Test
+    fun playerFallsBackToVideoLengthWhenTheStreamHasNoDuration() {
+        val withoutApprox = PLAYER_OK.replace(Regex(""""approxDurationMs": "\d+","""), "")
+        val reply = json(
+            withoutApprox.replace(""""streamingData"""", """"videoDetails": {"lengthSeconds": "214"}, "streamingData""""),
+        )
+        assertEquals(214_000L, parsePlayer(reply, 0).durationMs)
+    }
+
+    @Test
     fun dataSaverSelectsLowBitrateAacWithStandardAacAsFallback() {
         assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = true).location.contains("itag=139"))
         assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = false).location.contains("itag=140"))
