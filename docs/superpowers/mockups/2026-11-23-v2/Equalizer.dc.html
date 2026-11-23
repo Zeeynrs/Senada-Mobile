@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Equalizer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#67CDB1}a:hover{color:#8FE0C9}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A6AD}
+.card{background:#17181B;border:1px solid #2A2C31;border-radius:24px}
+.chip{height:40px;padding:0 16px;border-radius:20px;border:0;font-family:inherit;font-weight:700;font-size:14px;flex-shrink:0}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0B0C0E;color:#F2F2F3;font-family:'Plus Jakarta Sans',sans-serif">
+<div style="padding:52px 16px 0;display:flex;flex-direction:column;gap:16px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <a href="AudioLab.dc.html" aria-label="Kembali ke Audio Lab" style="width:44px;height:44px;border-radius:50%;background:#1D1F23;display:flex;align-items:center;justify-content:center">
+      <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="#F2F2F3" stroke-width="2" stroke-linecap="round"></path></svg>
+    </a>
+    <div class="mono">Audio Lab</div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px">
+    <div style="font-size:34px;font-weight:800;letter-spacing:-.04em">Equalizer</div>
+    <button aria-label="Equalizer aktif" style="width:56px;height:32px;border-radius:16px;border:0;background:#67CDB1;position:relative;padding:0">
+      <span style="position:absolute;right:3px;top:3px;width:26px;height:26px;border-radius:50%;background:#0B0C0E"></span>
+    </button>
+  </div>
+
+  <!-- Preset -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <sc-for list="{{presets}}" as="p" hint-placeholder-count="6">
+      <button class="chip" onClick="{{ p.pick }}" style="{{ p.style }}">{{ p.name }}</button>
+    </sc-for>
+  </div>
+
+  <!-- Band -->
+  <div class="card" style="padding:18px 12px 14px">
+    <div style="display:flex;justify-content:space-between;padding:0 4px 8px" class="mono"><span>+12 dB</span><span>{{ presetLabel }}</span></div>
+    <div style="position:relative;height:220px;display:flex;justify-content:space-between;padding:0 2px">
+      <div style="position:absolute;left:0;right:0;top:110px;height:1px;background:#2A2C31"></div>
+      <sc-for list="{{bands}}" as="b" hint-placeholder-count="10">
+        <div style="width:30px;height:220px;position:relative;display:flex;justify-content:center">
+          <div style="width:4px;height:220px;border-radius:2px;background:#2A2C31"></div>
+          <div style="{{ b.fill }}"></div>
+          <div style="{{ b.thumb }}" role="img" aria-label="{{ b.aria }}"></div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:10px 2px 0">
+      <sc-for list="{{bands}}" as="b" hint-placeholder-count="10">
+        <div style="width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;color:#A3A6AD">{{ b.hz }}</div>
+      </sc-for>
+    </div>
+    <div class="mono" style="padding:8px 4px 0">−12 dB</div>
+  </div>
+
+  <!-- Preamp -->
+  <div class="card" style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px"><span>Preamp</span><span style="color:#A3A6AD">−2 dB</span></div>
+    <div style="height:6px;border-radius:3px;background:#2A2C31;position:relative">
+      <div style="width:42%;height:6px;border-radius:3px;background:#67CDB1"></div>
+      <div style="position:absolute;left:42%;top:-9px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:#F2F2F3"></div>
+    </div>
+    <div style="font-size:12px;color:#A3A6AD">Turunkan sedikit bila suara pecah setelah band dinaikkan.</div>
+  </div>
+
+  <div style="display:flex;gap:10px">
+    <button style="flex:1;height:48px;border-radius:24px;border:1px solid #2A2C31;background:transparent;color:#F2F2F3;font-family:inherit;font-weight:700;font-size:14px">Atur ulang</button>
+    <button style="flex:1;height:48px;border-radius:24px;border:0;background:#F2F2F3;color:#0B0C0E;font-family:inherit;font-weight:800;font-size:14px">Simpan preset</button>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { preset: 'Bass+' }; }
+  renderVals() {
+    const table = {
+      'Datar':     [0,0,0,0,0,0,0,0,0,0],
+      'Bass+':     [7,6,4,2,0,0,0,0,0,0],
+      'Vokal':     [-2,-1,0,2,4,4,3,1,0,-1],
+      'Akustik':   [3,3,2,1,1,1,2,3,2,1],
+      'Elektronik':[5,4,1,0,-2,1,1,3,4,5],
+      'Malam':     [2,2,1,0,-1,-2,-3,-4,-5,-6]
+    };
+    const hz = ['31','62','125','250','500','1k','2k','4k','8k','16k'];
+    const cur = this.state.preset;
+    const gains = table[cur];
+    const presets = Object.keys(table).map((name) => ({
+      name,
+      pick: () => this.setState({ preset: name }),
+      style: name === cur ? 'background:#F2F2F3;color:#0B0C0E' : 'background:#1D1F23;color:#F2F2F3'
+    }));
+    const bands = gains.map((g, i) => {
+      const y = 110 - (g / 12) * 110; // pusat 110 px
+      const top = Math.min(y, 110), h = Math.abs(110 - y);
+      return {
+        hz: hz[i],
+        aria: hz[i] + ' Hz ' + (g > 0 ? '+' : '') + g + ' dB',
+        fill: 'position:absolute;left:13px;width:4px;border-radius:2px;background:#67CDB1;top:' + top + 'px;height:' + h + 'px',
+        thumb: 'position:absolute;left:4px;width:22px;height:22px;border-radius:50%;background:#F2F2F3;box-shadow:0 2px 6px rgba(0,0,0,.5);top:' + (y - 11) + 'px'
+      };
+    });
+    return { presets, bands, presetLabel: cur };
+  }
+}
+</script>
+</body>
+</html>
