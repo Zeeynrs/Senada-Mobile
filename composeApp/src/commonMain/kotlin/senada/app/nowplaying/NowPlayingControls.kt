@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,10 +37,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import kotlin.math.roundToLong
 import senada.app.accessibleDuration
 import senada.app.excludeSystemGestures
@@ -55,7 +50,6 @@ import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
 
-internal val LocalPlayerGlass = staticCompositionLocalOf<HazeState> { error("Sumber kaca pemutar belum dipasang") }
 internal val PlayerGlassTint = Color.White.copy(alpha = .12f)
 internal val PlayerGlassBorder = Color.White.copy(alpha = .14f)
 
@@ -78,16 +72,8 @@ internal fun PlayerGlassButton(
         Box(
             Modifier.size(44.dp * scale)
                 .clip(CircleShape)
-                .hazeEffect(
-                    state = LocalPlayerGlass.current,
-                    style = HazeStyle(
-                        backgroundColor = Color(0xFF0B0C0E),
-                        tint = HazeTint(PlayerGlassTint),
-                        blurRadius = 16.dp * scale,
-                        noiseFactor = 0f,
-                        fallbackTint = HazeTint(PlayerGlassTint),
-                    ),
-                )
+                .playerGlassBackdrop()
+                .background(PlayerGlassTint)
                 .border(1.dp * scale, PlayerGlassBorder, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
