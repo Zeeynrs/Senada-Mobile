@@ -1,35 +1,50 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -47,9 +62,25 @@ import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
 import senada.library.RecentHomeItem
 
+private val HomeContentPadding = 20.dp
+private val HomeFavoritesBackground = Color(0xFF21413A)
+
+/** Ikon hati garis 44 dp persis SVG mockup Main.dc.html (stroke 1.8). */
+private val HomeFavoritesHeartIcon: ImageVector =
+    ImageVector.Builder("HomeFavoritesHeart", 24.dp, 24.dp, 24f, 24f).apply {
+        addPath(
+            pathData = addPathNodes("M12 20c0 0-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"),
+            fill = null,
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+    }.build()
+
 /**
- * Tab Beranda: hero ringkas, pintasan statistik & teratas, Baru diputar,
- * rekomendasi pribadi "Untuk kamu", chip mood & genre, lalu rak YouTube Music.
+ * Tab Beranda v2: hero penuh lebar sampai tepi atas, "Baru diputar ›" dengan kartu Favorit
+ * di depan, rekomendasi pribadi "Untuk kamu", chip mood & genre, lalu rak YouTube Music.
  */
 internal fun LazyListScope.homeTab(
     library: LibraryState,
@@ -59,16 +90,21 @@ internal fun LazyListScope.homeTab(
     discover: DiscoverUiState,
     homeShelves: HomeShelvesUiState,
     screenVisible: Boolean,
+    screenWidthDp: Float,
+    screenHeightDp: Float,
+    onOpenProfile: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onOpenHistory: () -> Unit,
     onSearch: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onOpenMostPlayed: () -> Unit,
-    onOpenListeningStats: () -> Unit,
     onRefreshDiscover: () -> Unit,
     onRefreshHomeShelves: () -> Unit,
     onOpenArtist: (ArtistSummary) -> Unit,
     onOpenAlbum: (AlbumSummary) -> Unit,
     onOpenCatalogPlaylist: (HomeItem.Playlist) -> Unit,
     onOpenMood: (MoodChip) -> Unit,
+    profileName: String = "",
 ) {
     val sections = buildHomeSections(
         recentItems = recentItems,
@@ -83,6 +119,10 @@ internal fun LazyListScope.homeTab(
                     HomeHeroCard(
                         hero = hero,
                         screenVisible = screenVisible,
+                        screenWidthDp = screenWidthDp,
+                        screenHeightDp = screenHeightDp,
+                        profileName = profileName,
+                        onOpenProfile = onOpenProfile,
                         onPrimary = {
                             when (hero) {
                                 is HomeHero.FromPlaylist -> actions.playAllOf(hero.summary.id)
@@ -100,18 +140,28 @@ internal fun LazyListScope.homeTab(
                     )
                 }
             }
-            HomeSection.Shortcuts -> {
-                item(key = "home-shortcuts") {
-                    HomeQuickLinksCard(
-                        onOpenListeningStats = onOpenListeningStats,
-                        onOpenMostPlayed = onOpenMostPlayed,
+            is HomeSection.Recent -> {
+                item(key = "home-recent-title") {
+                    // 26 dp + 12 dp margin sentuh atas dalam target 48 dp = 38 dp dari bawah hero (top 478 dp).
+                    HomeRecentHeader(
+                        onClick = onOpenHistory,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 26.dp, start = HomeContentPadding, end = HomeContentPadding),
                     )
                 }
-            }
-            is HomeSection.Recent -> {
-                item(key = "home-recent-title") { ShelfTitle("Baru diputar") }
                 item(key = "home-recent") {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                        contentPadding = PaddingValues(horizontal = HomeContentPadding),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        item(key = "recent-favorites") {
+                            HomeFavoritesTile(onClick = onOpenFavorites)
+                        }
                         items(section.items, key = { it.key }) { item ->
                             when (item) {
                                 is RecentHomeItem.Song -> {
@@ -128,24 +178,6 @@ internal fun LazyListScope.homeTab(
                                         fallbackIcon = SenadaIcons.MusicNote,
                                         accessibilityLabel = "Putar ${trackAccessibilityLabel(track, favorite)}",
                                         onClick = { actions.playAll(listOf(track)) },
-                                        badge = if (favorite) {
-                                            {
-                                                Surface(
-                                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                                    shape = CircleShape,
-                                                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
-                                                ) {
-                                                    Icon(
-                                                        SenadaIcons.HeartFilled,
-                                                        contentDescription = null,
-                                                        tint = SenadaPalette.Favorite,
-                                                        modifier = Modifier.padding(6.dp).size(16.dp),
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            null
-                                        },
                                     )
                                 }
                                 is RecentHomeItem.Playlist -> {
@@ -173,12 +205,18 @@ internal fun LazyListScope.homeTab(
                     onRefresh = onRefreshDiscover,
                     onOpenArtist = onOpenArtist,
                     onOpenAlbum = onOpenAlbum,
+                    horizontalPadding = HomeContentPadding,
+                    sectionTopSpacing = 16.dp,
+                    itemSpacing = 12.dp,
                 )
             }
             is HomeSection.Moods -> {
                 item(key = "home-moods-title") {
                     ShelfTitle(
                         title = "Mood & genre",
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 16.dp, start = HomeContentPadding, end = HomeContentPadding),
                         trailing = if (section.showRefresh) {
                             {
                                 TextButton(
@@ -197,37 +235,70 @@ internal fun LazyListScope.homeTab(
                     )
                 }
                 item(key = "home-moods-row") {
-                    MoodChipsRow(chips = section.chips, onOpenMood = onOpenMood)
+                    MoodChipsRow(
+                        chips = section.chips,
+                        onOpenMood = onOpenMood,
+                        contentPadding = PaddingValues(horizontal = HomeContentPadding),
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 12.dp),
+                    )
                 }
             }
             HomeSection.YouTubeDataSaver -> {
                 item(key = "home-yt-data-saver") {
-                    HomeDataSaverCard(
-                        onLoad = {
-                            onRefreshHomeShelves()
-                            if (discover.deferredByDataSaver && discover.result == null) {
-                                onRefreshDiscover()
-                            }
-                        },
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 20.dp, start = HomeContentPadding, end = HomeContentPadding),
+                    ) {
+                        HomeDataSaverCard(
+                            onLoad = {
+                                onRefreshHomeShelves()
+                                if (discover.deferredByDataSaver && discover.result == null) {
+                                    onRefreshDiscover()
+                                }
+                            },
+                        )
+                    }
                 }
             }
             HomeSection.YouTubeLoading -> {
                 item(key = "home-yt-loading-1") {
-                    ShelfSkeletonRow(statusLabel = "Memuat rekomendasi YouTube Music…")
+                    ShelfSkeletonRow(
+                        statusLabel = "Memuat rekomendasi YouTube Music…",
+                        horizontalPadding = HomeContentPadding,
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 20.dp),
+                    )
                 }
                 item(key = "home-yt-loading-2") {
-                    ShelfSkeletonRow(statusLabel = "Memuat rak lainnya…")
+                    ShelfSkeletonRow(
+                        statusLabel = "Memuat rak lainnya…",
+                        horizontalPadding = HomeContentPadding,
+                        modifier = Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 20.dp),
+                    )
                 }
             }
             is HomeSection.YouTubeError -> {
                 item(key = "home-yt-error") {
-                    QuietNoticeCard(
-                        message = section.message,
-                        actionLabel = "Coba lagi",
-                        actionDescription = "Coba muat ulang rekomendasi YouTube Music",
-                        onAction = onRefreshHomeShelves,
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(top = 20.dp, start = HomeContentPadding, end = HomeContentPadding),
+                    ) {
+                        QuietNoticeCard(
+                            message = section.message,
+                            actionLabel = "Coba lagi",
+                            actionDescription = "Coba muat ulang rekomendasi YouTube Music",
+                            onAction = onRefreshHomeShelves,
+                        )
+                    }
                 }
             }
             is HomeSection.YouTubeShelf -> {
@@ -241,75 +312,89 @@ internal fun LazyListScope.homeTab(
                     onOpenPlaylist = onOpenCatalogPlaylist,
                     refreshing = homeShelves.loading,
                     onRefresh = if (section.showRefresh) onRefreshHomeShelves else null,
+                    horizontalPadding = HomeContentPadding,
+                    sectionTopSpacing = 16.dp,
+                    itemSpacing = 12.dp,
                 )
             }
         }
     }
 }
 
-/** Kartu berisi pintu masuk Statistik dengar dan Paling sering diputar dengan gaya baris seragam. */
 @Composable
-private fun HomeQuickLinksCard(
-    onOpenListeningStats: () -> Unit,
-    onOpenMostPlayed: () -> Unit,
+private fun HomeRecentHeader(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            HomeQuickLinkRow(
-                icon = SenadaIcons.Clock,
-                title = "Statistik dengar",
-                onClick = onOpenListeningStats,
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .minTouchTarget()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(role = Role.Button, onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "Baru diputar",
+                style = homeSectionTitleStyle(),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.semantics { heading() },
             )
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant,
-            )
-            HomeQuickLinkRow(
-                icon = SenadaIcons.MusicNote,
-                title = "Paling sering diputar",
-                onClick = onOpenMostPlayed,
+            Icon(
+                imageVector = SenadaIcons.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
 }
 
 @Composable
-private fun HomeQuickLinkRow(
-    icon: ImageVector,
-    title: String,
+private fun HomeFavoritesTile(
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
+    val largeFont = LocalDensity.current.fontScale >= 1.5f
+    val tileWidth = if (largeFont) 148.dp else 132.dp
+    Column(
+        modifier = modifier
+            .width(tileWidth)
             .minTouchTarget()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick),
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(HomeFavoritesBackground),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = HomeFavoritesHeartIcon,
+                contentDescription = null,
+                tint = SenadaPalette.AccentDark,
+                modifier = Modifier.size(44.dp),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
         Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
+            text = "Favorit",
+            style = homeTileTitleStyle(),
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
+            maxLines = if (largeFont) 2 else 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Icon(
-            imageVector = SenadaIcons.ChevronRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp),
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "Daftar favoritmu",
+            style = homeTileSubtitleStyle(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (largeFont) 2 else 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

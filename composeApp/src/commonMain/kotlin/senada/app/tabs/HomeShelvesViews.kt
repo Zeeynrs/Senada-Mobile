@@ -2,6 +2,7 @@ package senada.app.tabs
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -10,18 +11,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -41,9 +48,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import senada.app.AdaptiveRow
 import senada.app.LibraryActions
 import senada.app.LibraryState
@@ -72,7 +83,6 @@ internal const val SONG_LIST_MAX_ITEMS = 5
 /** Susunan bagian Beranda dari atas ke bawah agar urutannya tetap konsisten dan mudah diuji. */
 internal sealed interface HomeSection {
     data object Hero : HomeSection
-    data object Shortcuts : HomeSection
     data class Recent(val items: List<RecentHomeItem>) : HomeSection
     data class Personal(val state: DiscoverUiState) : HomeSection
     data class Moods(val chips: List<MoodChip>, val showRefresh: Boolean = false) : HomeSection
@@ -84,8 +94,8 @@ internal sealed interface HomeSection {
 
 /**
  * Menyusun urutan bagian Beranda:
- * 1. Hero ringkas, 2. Pintasan, 3. Baru diputar, 4. Pribadi ("Untuk kamu"),
- * 5. Chip mood & genre, 6. Rak YouTube Music sesuai urutan feed.
+ * 1. Hero penuh lebar, 2. Baru diputar (selalu tampil dengan kartu Favorit di depan),
+ * 3. Pribadi ("Untuk kamu"), 4. Chip mood & genre, 5. Rak YouTube Music sesuai urutan feed.
  */
 internal fun buildHomeSections(
     recentItems: List<RecentHomeItem>,
@@ -93,10 +103,7 @@ internal fun buildHomeSections(
     homeShelves: HomeShelvesUiState,
 ): List<HomeSection> = buildList {
     add(HomeSection.Hero)
-    add(HomeSection.Shortcuts)
-    if (recentItems.isNotEmpty()) {
-        add(HomeSection.Recent(recentItems))
-    }
+    add(HomeSection.Recent(recentItems))
 
     val homeDeferred = homeShelves.deferredByDataSaver && homeShelves.feed == null
     val discoverDeferredOnly = discover.deferredByDataSaver && discover.result == null
@@ -222,6 +229,33 @@ internal fun artistCardAccessibilityLabel(artist: ArtistSummary): String {
 /** Label pembaca layar untuk chip mood & genre. */
 internal fun moodChipAccessibilityLabel(chip: MoodChip): String = "Mood ${chip.title.trim()}"
 
+/** Gaya judul rak Beranda v2: 18 sp tebal 800, persis mockup Main.dc.html. */
+@Composable
+internal fun homeSectionTitleStyle(): TextStyle =
+    MaterialTheme.typography.titleLarge.copy(
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        fontWeight = FontWeight.ExtraBold,
+    )
+
+/** Gaya judul kartu sampul 132 dp Beranda v2: 14 sp tebal 700. */
+@Composable
+internal fun homeTileTitleStyle(): TextStyle =
+    MaterialTheme.typography.titleSmall.copy(
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+        fontWeight = FontWeight.Bold,
+    )
+
+/** Gaya subjudul kartu sampul 132 dp Beranda v2: 12 sp medium. */
+@Composable
+internal fun homeTileSubtitleStyle(): TextStyle =
+    MaterialTheme.typography.bodySmall.copy(
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.Medium,
+    )
+
 /** Judul rak bersama yang dipakai oleh Baru diputar, Untuk kamu, rak YouTube Music, dan halaman Mood. */
 @Composable
 internal fun ShelfTitle(
@@ -232,7 +266,7 @@ internal fun ShelfTitle(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val topPadding = if (emphasized) 8.dp else 4.dp
-    val titleStyle = if (emphasized) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium
+    val titleStyle = if (emphasized) homeSectionTitleStyle() else MaterialTheme.typography.titleMedium
     val titleBlock: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -346,7 +380,7 @@ internal fun QuickPicksShelf(
     }
 }
 
-/** Kartu kotak 152–160 dp bersama untuk album, playlist/mix, lagu baru diputar, dan rak kartu lainnya. */
+/** Kartu sampul 132 dp gaya v2 (radius 12 dp, judul 14 sp/700, subjudul 12 sp) untuk Beranda dan rak kartu. */
 @Composable
 internal fun ShelfSquareCard(
     title: String,
@@ -358,50 +392,48 @@ internal fun ShelfSquareCard(
     modifier: Modifier = Modifier,
     badge: (@Composable BoxScope.() -> Unit)? = null,
 ) {
-    val cardWidth = if (LocalDensity.current.fontScale >= 1.5f) 160.dp else 152.dp
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+    val largeFont = LocalDensity.current.fontScale >= 1.5f
+    val cardWidth = if (largeFont) 148.dp else 132.dp
+    val coverShape = RoundedCornerShape(12.dp)
+    Column(
         modifier = modifier
             .width(cardWidth)
             .minTouchTarget()
+            .clip(coverShape)
+            .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = accessibilityLabel
                 role = Role.Button
             },
     ) {
-        Column {
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
-                HomeCover(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(MaterialTheme.shapes.medium),
-                    icon = fallbackIcon,
-                    artworkUrl = artworkUrl,
-                )
-                badge?.invoke(this)
-            }
-            Column(
-                modifier = Modifier.padding(12.dp).clearAndSetSemantics {},
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
+            HomeCover(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(coverShape),
+                icon = fallbackIcon,
+                artworkUrl = artworkUrl,
+            )
+            badge?.invoke(this)
+        }
+        Spacer(Modifier.height(6.dp))
+        Column(modifier = Modifier.clearAndSetSemantics {}) {
+            Text(
+                text = title,
+                style = homeTileTitleStyle(),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = if (largeFont) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            subtitle?.takeIf { it.isNotBlank() }?.let { detail ->
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    text = detail,
+                    style = homeTileSubtitleStyle(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (largeFont) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                subtitle?.takeIf { it.isNotBlank() }?.let { detail ->
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
         }
     }
@@ -472,9 +504,11 @@ internal fun MoodChipsRow(
     chips: List<MoodChip>,
     onOpenMood: (MoodChip) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     LazyRow(
         modifier = modifier.fillMaxWidth(),
+        contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         itemsIndexed(
@@ -544,9 +578,10 @@ internal fun ShelfSkeletonRow(
     statusLabel: String,
     cardCount: Int = 3,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 0.dp,
 ) {
     val blockColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val cardColor = MaterialTheme.colorScheme.surfaceContainer
+    val coverShape = RoundedCornerShape(12.dp)
     Column(
         modifier = modifier.fillMaxWidth().clearAndSetSemantics {
             contentDescription = statusLabel
@@ -556,50 +591,42 @@ internal fun ShelfSkeletonRow(
     ) {
         Box(
             modifier = Modifier
-                .padding(top = 8.dp)
+                .padding(top = 8.dp, start = horizontalPadding, end = horizontalPadding)
                 .width(164.dp)
                 .height(20.dp)
                 .clip(CircleShape)
                 .background(blockColor),
         )
         LazyRow(
+            contentPadding = PaddingValues(horizontal = horizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             userScrollEnabled = false,
         ) {
             items(cardCount) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = cardColor,
-                    modifier = Modifier.width(152.dp),
-                ) {
-                    Column {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f)
-                                .clip(MaterialTheme.shapes.medium)
-                                .background(blockColor),
-                        )
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.85f)
-                                    .height(14.dp)
-                                    .clip(CircleShape)
-                                    .background(blockColor),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.55f)
-                                    .height(12.dp)
-                                    .clip(CircleShape)
-                                    .background(blockColor),
-                            )
-                        }
-                    }
+                Column(modifier = Modifier.width(132.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(coverShape)
+                            .background(blockColor),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(14.dp)
+                            .clip(CircleShape)
+                            .background(blockColor),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.55f)
+                            .height(12.dp)
+                            .clip(CircleShape)
+                            .background(blockColor),
+                    )
                 }
             }
         }
@@ -617,14 +644,25 @@ internal fun LazyListScope.homeShelfItems(
     onOpenPlaylist: (HomeItem.Playlist) -> Unit,
     refreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
+    horizontalPadding: Dp = 0.dp,
+    sectionTopSpacing: Dp = 0.dp,
+    itemSpacing: Dp = 0.dp,
 ) {
     if (!shelf.hasRenderableItems()) return
     val songs = shelf.items.filterIsInstance<HomeItem.Song>().map { it.track }
     val artists = shelf.items.filterIsInstance<HomeItem.Artist>().map { it.artist }
 
     item(key = "$keyPrefix-title") {
+        val titleModifier = if (horizontalPadding > 0.dp) {
+            Modifier
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                .padding(top = sectionTopSpacing, start = horizontalPadding, end = horizontalPadding)
+        } else {
+            Modifier
+        }
         ShelfTitle(
             title = shelf.title,
+            modifier = titleModifier,
             trailing = if (onRefresh != null) {
                 {
                     TextButton(
@@ -646,11 +684,19 @@ internal fun LazyListScope.homeShelfItems(
     when (shelf.layout) {
         HomeShelfLayout.QuickPicks -> {
             item(key = "$keyPrefix-quickpicks") {
+                val quickModifier = if (horizontalPadding > 0.dp) {
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(top = itemSpacing, start = horizontalPadding, end = horizontalPadding)
+                } else {
+                    Modifier
+                }
                 QuickPicksShelf(
                     tracks = songs,
                     library = library,
                     actions = actions,
                     onPlayTrack = { index -> actions.playAll(songs, startIndex = index) },
+                    modifier = quickModifier,
                 )
             }
         }
@@ -660,20 +706,45 @@ internal fun LazyListScope.homeShelfItems(
                 items = topSongs,
                 key = { index, track -> "$keyPrefix-song-$index-${track.id}" },
             ) { index, track ->
-                TrackRow(
-                    track = track,
-                    favorite = track.id in library.favoriteIds,
-                    trackNumber = index + 1,
-                    showArtworkWithNumber = true,
-                    onClick = { actions.playAll(topSongs, startIndex = index) },
-                ) {
-                    TrackMenu(track, library, actions)
+                val rowModifier = if (horizontalPadding > 0.dp) {
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(
+                            top = if (index == 0) itemSpacing else 8.dp,
+                            start = horizontalPadding,
+                            end = horizontalPadding,
+                        )
+                } else {
+                    Modifier
+                }
+                Box(modifier = rowModifier) {
+                    TrackRow(
+                        track = track,
+                        favorite = track.id in library.favoriteIds,
+                        trackNumber = index + 1,
+                        showArtworkWithNumber = true,
+                        onClick = { actions.playAll(topSongs, startIndex = index) },
+                    ) {
+                        TrackMenu(track, library, actions)
+                    }
                 }
             }
         }
         HomeShelfLayout.Cards -> {
             item(key = "$keyPrefix-cards") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val rowModifier = if (horizontalPadding > 0.dp) {
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(top = itemSpacing)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+                LazyRow(
+                    modifier = rowModifier,
+                    contentPadding = PaddingValues(horizontal = horizontalPadding),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     itemsIndexed(
                         items = shelf.items,
                         key = { index, item -> "$keyPrefix-card-$index-${item.stableKey()}" },
@@ -729,7 +800,19 @@ internal fun LazyListScope.homeShelfItems(
         }
         HomeShelfLayout.Artists -> {
             item(key = "$keyPrefix-artists") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val rowModifier = if (horizontalPadding > 0.dp) {
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(top = itemSpacing)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+                LazyRow(
+                    modifier = rowModifier,
+                    contentPadding = PaddingValues(horizontal = horizontalPadding),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     itemsIndexed(
                         items = artists,
                         key = { index, artist -> "$keyPrefix-artist-$index-${artist.id}" },

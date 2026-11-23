@@ -334,39 +334,37 @@ class HomeShelvesTest {
             ),
         )
 
-        // Urutan penuh: Hero -> Pintasan -> Baru diputar -> Untuk kamu -> Mood -> Rak YouTube Music sesuai urutan.
+        // Urutan penuh: Hero -> Baru diputar (dengan kartu Favorit) -> Untuk kamu -> Mood -> Rak YouTube Music.
         val full = buildHomeSections(
             recentItems = recent,
             discover = personalLoaded,
             homeShelves = HomeShelvesUiState(feed = feedWithEmptyShelf),
         )
-        assertEquals(7, full.size)
+        assertEquals(6, full.size)
         assertIs<HomeSection.Hero>(full[0])
-        assertIs<HomeSection.Shortcuts>(full[1])
-        assertIs<HomeSection.Recent>(full[2])
-        assertIs<HomeSection.Personal>(full[3])
-        val moods = assertIs<HomeSection.Moods>(full[4])
+        assertIs<HomeSection.Recent>(full[1])
+        assertIs<HomeSection.Personal>(full[2])
+        val moods = assertIs<HomeSection.Moods>(full[3])
         assertEquals(listOf("Santai"), moods.chips.map { it.title })
         assertFalse(moods.showRefresh)
-        val shelf0 = assertIs<HomeSection.YouTubeShelf>(full[5])
+        val shelf0 = assertIs<HomeSection.YouTubeShelf>(full[4])
         assertEquals("Pilihan cepat", shelf0.shelf.title)
         assertTrue(shelf0.showRefresh)
-        val shelf1 = assertIs<HomeSection.YouTubeShelf>(full[6])
+        val shelf1 = assertIs<HomeSection.YouTubeShelf>(full[5])
         assertEquals("Tangga lagu", shelf1.shelf.title)
         assertFalse(shelf1.showRefresh)
 
-        // Bila YouTube Music gagal, bagian pribadi (Hero, Pintasan, Baru diputar, Untuk kamu) tetap tampil.
+        // Bila YouTube Music gagal, bagian pribadi (Hero, Baru diputar, Untuk kamu) tetap tampil.
         val ytFailed = buildHomeSections(
             recentItems = recent,
             discover = personalLoaded,
             homeShelves = HomeShelvesUiState(error = "Offline"),
         )
-        assertEquals(5, ytFailed.size)
+        assertEquals(4, ytFailed.size)
         assertIs<HomeSection.Hero>(ytFailed[0])
-        assertIs<HomeSection.Shortcuts>(ytFailed[1])
-        assertIs<HomeSection.Recent>(ytFailed[2])
-        assertIs<HomeSection.Personal>(ytFailed[3])
-        assertEquals("Offline", assertIs<HomeSection.YouTubeError>(ytFailed[4]).message)
+        assertIs<HomeSection.Recent>(ytFailed[1])
+        assertIs<HomeSection.Personal>(ytFailed[2])
+        assertEquals("Offline", assertIs<HomeSection.YouTubeError>(ytFailed[3]).message)
 
         // Hemat data menunda keduanya -> bagian pribadi lokal + satu tombol "Muat rekomendasi YouTube Music".
         val bothDeferred = buildHomeSections(
@@ -374,13 +372,12 @@ class HomeShelvesTest {
             discover = DiscoverUiState(deferredByDataSaver = true),
             homeShelves = HomeShelvesUiState(deferredByDataSaver = true),
         )
-        assertEquals(4, bothDeferred.size)
+        assertEquals(3, bothDeferred.size)
         assertIs<HomeSection.Hero>(bothDeferred[0])
-        assertIs<HomeSection.Shortcuts>(bothDeferred[1])
-        assertIs<HomeSection.Recent>(bothDeferred[2])
-        assertIs<HomeSection.YouTubeDataSaver>(bothDeferred[3])
+        assertIs<HomeSection.Recent>(bothDeferred[1])
+        assertIs<HomeSection.YouTubeDataSaver>(bothDeferred[2])
 
-        // Hemat data dengan Untuk kamu yang sudah termuat sebelumnya -> Untuk kamu tetap tampil + satu tombol Hemat data.
+        // Hemat data dengan Untuk kamu yang sudah termuat sebelumnya -> Baru diputar (kartu Favorit) + Untuk kamu + tombol Hemat data.
         val homeOnlyDeferred = buildHomeSections(
             recentItems = emptyList(),
             discover = personalLoaded,
@@ -388,7 +385,7 @@ class HomeShelvesTest {
         )
         assertEquals(4, homeOnlyDeferred.size)
         assertIs<HomeSection.Hero>(homeOnlyDeferred[0])
-        assertIs<HomeSection.Shortcuts>(homeOnlyDeferred[1])
+        assertEquals(emptyList(), assertIs<HomeSection.Recent>(homeOnlyDeferred[1]).items)
         assertIs<HomeSection.Personal>(homeOnlyDeferred[2])
         assertIs<HomeSection.YouTubeDataSaver>(homeOnlyDeferred[3])
 
@@ -399,6 +396,7 @@ class HomeShelvesTest {
             homeShelves = HomeShelvesUiState(loading = true),
         )
         assertEquals(4, loading.size)
+        assertIs<HomeSection.Recent>(loading[1])
         assertIs<HomeSection.Personal>(loading[2])
         assertIs<HomeSection.YouTubeLoading>(loading[3])
     }

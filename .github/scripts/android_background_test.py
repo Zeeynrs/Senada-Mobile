@@ -605,10 +605,13 @@ def check_https() -> None:
 
 
 def check_listening_stats() -> None:
-    opened = open_tab("Beranda") and tap_text("Statistik dengar")
-    if not check(opened, "Statistik dengar dapat dibuka dari Beranda"):
-        return
-    opened = back_to_profile() and tap_profile_item("Statistik dengar")
+    opened_profile = (
+        open_tab("Beranda")
+        and tap_desc("Buka profil")
+        and bool(wait_for(lambda: ui_bounds("Halo!"), 5))
+    )
+    check(opened_profile, "Avatar di bar atas Beranda membuka tab Profil")
+    opened = (opened_profile or open_tab("Profil")) and tap_profile_item("Statistik dengar")
     if not check(opened, "Statistik dengar dapat dibuka dari Profil"):
         return
 
@@ -625,6 +628,17 @@ def check_listening_stats() -> None:
     found = collect_while_scrolling([(f"Putar {SECOND}", "content-desc")], scrolls=4)
     check(f"Putar {SECOND}" in found, "Lagu yang didengar di latar belakang bisa diputar dari statistik")
     shell("input keyevent KEYCODE_BACK")
+
+
+def hero_play_target(root: ET.Element | None = None) -> tuple[str, tuple[int, int, int, int]] | None:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return None
+    for title in (FIRST, SECOND):
+        matches = find_interactive(f"Putar {title}", attribute="content-desc", root=tree)
+        if matches:
+            return title, matches[0][0]
+    return None
 
 
 def check_home_shelves() -> None:
@@ -674,15 +688,61 @@ def check_home_shelves() -> None:
 
     wait_for(settled_tree, 10, interval=1.0)
     width, height = screen_size()
+    min_px = min_touch_px()
+    top_tree = ui_tree(save_as="v2-30-home-ui.xml")
+    screenshot("v2-30-home")
+    screenshot("08b-home-shelves")
+
+    avatar = find_interactive("Buka profil", attribute="content-desc", root=top_tree) if top_tree is not None else []
+    hero_play = hero_play_target(top_tree)
+    hero_view = find_interactive("Lihat lagu yang paling sering diputar", attribute="content-desc", root=top_tree) if top_tree is not None else []
+    has_brand = top_tree is not None and bool(ui_bounds("Senada", root=top_tree))
+    has_recent = top_tree is not None and bool(ui_bounds("Baru diputar", root=top_tree))
+    has_favorites = top_tree is not None and bool(ui_bounds("Favorit", root=top_tree)) and bool(ui_bounds("Daftar favoritmu", root=top_tree))
+    shortcuts_removed = top_tree is not None and not ui_bounds("Statistik dengar", root=top_tree) and not ui_bounds("Paling sering diputar", root=top_tree)
+    touch_targets = [
+        ("Buka profil", avatar[0][0]) if avatar else ("Buka profil", None),
+        ("Putar hero", hero_play[1]) if hero_play else ("Putar hero", None),
+        ("Lihat hero", hero_view[0][0]) if hero_view else ("Lihat hero", None),
+    ]
+    undersized = [
+        f"{label}={box}"
+        for label, box in touch_targets
+        if box is None or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+    ]
+    check(
+        has_brand and has_recent and has_favorites and shortcuts_removed and not undersized,
+        "Beranda v2 menampilkan bar atas Senada, hero dengan tombol kaca minimal 48 dp, Baru diputar dengan Favorit, tanpa pintasan Statistik/Teratas",
+        f"brand={has_brand}, recent={has_recent}, fav={has_favorites}, no_shortcuts={shortcuts_removed}, targets={undersized}",
+    )
+
+    if hero_view:
+        x1, y1, x2, y2 = hero_view[0][0]
+        tap(((x1 + x2) // 2, (y1 + y2) // 2))
+        most_played_opened = bool(wait_for(lambda: desc_point("Kembali ke Profil"), 5)) and bool(ui_bounds("Paling sering diputar"))
+        check(most_played_opened, "Tombol 'Lihat' pada hero lagu membuka Paling sering diputar")
+        back_to_profile()
+        open_tab("Beranda")
+        scroll_to_top(2)
+
+    fav_matches = find_interactive("Daftar favoritmu")
+    if fav_matches:
+        x1, y1, x2, y2 = fav_matches[0][0]
+        tap(((x1 + x2) // 2, (y1 + y2) // 2))
+        fav_opened = bool(wait_for(lambda: ui_bounds("Putar Favorit", attribute="content-desc"), 5))
+        check(fav_opened, "Kartu Favorit pada Baru diputar membuka halaman Favorit di Library")
+        open_tab("Beranda")
+        scroll_to_top(2)
+
     found: list[str] = []
     for step in range(4):
         tree = ui_tree(save_as="08b-home-shelves-ui.xml" if step == 0 else None)
         for hit in inspect_home(tree):
             if hit not in found:
                 found.append(hit)
-        if step == 0:
-            screenshot("08b-home-shelves")
-        if any(h == data_saver_button or h in shelf_titles or h == "Segarkan rekomendasi YouTube Music" for h in found):
+        if step == 1:
+            screenshot("v2-31-home-scrolled")
+        if step >= 1 and any(h == data_saver_button or h in shelf_titles or h == "Segarkan rekomendasi YouTube Music" for h in found):
             break
         shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 300")
         time.sleep(0.6)
@@ -691,6 +751,28 @@ def check_home_shelves() -> None:
         "Beranda menampilkan minimal satu judul rak atau tombol Hemat data",
         ", ".join(found[:6]) if found else "tidak ada judul rak maupun tombol Hemat data",
     )
+
+
+def check_home_hero_play() -> None:
+    shell("input keyevent KEYCODE_BACK")
+    wait_for(now_playing_closed, 5)
+    shell("settings put system font_scale 1.0")
+    time.sleep(1.5)
+    wait_for(lambda: find_interactive("Beranda", attribute="content-desc"), 5)
+    if not open_tab("Beranda"):
+        check(False, "Tombol 'Putar' pada hero Beranda memutar lagu teratas", "Tab Beranda gagal dibuka")
+        return
+    scroll_to_top(2)
+    shell("cmd media_session dispatch pause")
+    time.sleep(0.5)
+    target = hero_play_target()
+    if target is None:
+        check(False, "Tombol 'Putar' pada hero Beranda memutar lagu teratas", "Tombol Putar hero tidak ditemukan")
+        return
+    hero_title, (x1, y1, x2, y2) = target
+    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    playing = wait_session("PLAYING", hero_title, 10)
+    check(playing, f"Tombol 'Putar' pada hero Beranda memutar '{hero_title}'", playing or session())
 
 
 def check_collection_header() -> None:
@@ -1068,6 +1150,29 @@ def check_large_font_accessibility() -> None:
         f"lebar {width}px, hilang {settings_missing}, terpotong/kekecilan {backup_clipped}",
     )
 
+    if open_tab("Beranda"):
+        scroll_to_top(2)
+        home_tree = ui_tree(save_as="10b-home-large-font-ui.xml")
+        home_avatar = find_interactive("Buka profil", attribute="content-desc", root=home_tree) if home_tree is not None else []
+        home_play = hero_play_target(home_tree)
+        home_view = find_interactive("Lihat lagu yang paling sering diputar", attribute="content-desc", root=home_tree) if home_tree is not None else []
+        home_targets = [
+            ("Buka profil", home_avatar[0][0] if home_avatar else None),
+            ("Putar hero", home_play[1] if home_play else None),
+            ("Lihat hero", home_view[0][0] if home_view else None),
+        ]
+        home_missing = [label for label, box in home_targets if box is None]
+        home_clipped = [
+            f"{label}={box}"
+            for label, box in home_targets
+            if box is not None and (box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px)
+        ]
+        check(
+            not home_missing and not home_clipped,
+            "Kontrol bar atas dan hero Beranda tidak terpotong dan minimal 48 dp pada skala font 200%",
+            f"lebar {width}px, hilang {home_missing}, terpotong/kekecilan {home_clipped}",
+        )
+
     if open_tab("Library"):
         scroll_to_top(3)
         screenshot("10-favorites-large-font")
@@ -1300,6 +1405,7 @@ def scenario() -> None:
     check_collection_header()
     check_large_font_accessibility()
     check_now_playing_queue()
+    check_home_hero_play()
 
 
 def main() -> int:
