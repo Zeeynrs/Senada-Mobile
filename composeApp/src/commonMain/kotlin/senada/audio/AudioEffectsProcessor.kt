@@ -57,7 +57,7 @@ internal class AudioEffectsProcessor(
         checkRange(buffer.size, offset, frames)
         if (frames == 0 || !prepareBlock()) return
         var position = offset
-        var framesRemaining = frames
+        var framesRemaining = if (next?.bypass == true) minOf(frames, fadeRemaining) else frames
         while (framesRemaining > 0) {
             val chunk = minOf(framesRemaining, maxPcm16Frames)
             val samples = chunk * channels
@@ -87,15 +87,12 @@ internal class AudioEffectsProcessor(
 
     private fun prepareBlock(): Boolean {
         val requested = pending.load()
-        if (requested.bypass) {
+        val current = active
+        if (current == null || (next == null && current.bypass && requested.bypass)) {
             active = requested
-            next = null
-            fadeRemaining = 0
-            return false
+            return !requested.bypass
         }
-        if (active == null) {
-            active = requested
-        } else if (next == null && active !== requested) {
+        if (next == null && current !== requested) {
             // Finish a fade before accepting another update so fast slider moves stay continuous.
             next = requested
             fadeRemaining = fadeFrames
@@ -110,12 +107,17 @@ internal class AudioEffectsProcessor(
         if (incoming != null) {
             val count = minOf(frames, fadeRemaining)
             repeat(count) {
-                val blend = (fadeFrames - fadeRemaining + 1).toFloat() / fadeFrames
-                for (channel in 0 until channels) {
-                    val sample = buffer[position]
-                    val previous = chain.process(sample, channel)
-                    val updated = incoming.process(sample, channel)
-                    buffer[position++] = (previous + (updated - previous) * blend).coerceIn(-1f, 1f)
+                if (incoming.bypass && fadeRemaining == 1) {
+                    // The last frame is fully dry and retains the original sample bits.
+                    position += channels
+                } else {
+                    val blend = (fadeFrames - fadeRemaining + 1).toFloat() / fadeFrames
+                    for (channel in 0 until channels) {
+                        val sample = buffer[position]
+                        val previous = chain.process(sample, channel)
+                        val updated = if (incoming.bypass) sample else incoming.process(sample, channel)
+                        buffer[position++] = (previous + (updated - previous) * blend).coerceIn(-1f, 1f)
+                    }
                 }
                 fadeRemaining--
             }
@@ -125,6 +127,7 @@ internal class AudioEffectsProcessor(
                 next = null
             }
         }
+        if (chain.bypass) return
         val end = offset + frames * channels
         while (position < end) {
             for (channel in 0 until channels) {
