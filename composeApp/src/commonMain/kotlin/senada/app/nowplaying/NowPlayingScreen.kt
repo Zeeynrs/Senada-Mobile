@@ -62,8 +62,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
@@ -115,7 +113,6 @@ internal fun NowPlayingScreen(
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
     val activeLine = synced?.lines?.let { it.getOrNull(activeLineIndex(it, state.audio.positionMs)) }
         ?.text?.takeIf { it.isNotBlank() }
-    val glass = remember { HazeState() }
 
     if (immersive) NowPlayingSystemBars()
     PlatformBackHandler(enabled = immersive && sheet != null) { sheet = null }
@@ -124,13 +121,14 @@ internal fun NowPlayingScreen(
             BoxWithConstraints(
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
             ) {
-                val scale = maxWidth.value.coerceAtMost(520f) / 390f
+                val scale = maxWidth.value / 390f
                 val density = LocalDensity.current
                 val insets = WindowInsets.safeDrawing
                 val safeTop = with(density) { insets.getTop(this).toDp() }
                 val safeBottom = with(density) { insets.getBottom(this).toDp() }
-                NowPlayingBackdrop(accent, backdropFromCover, scale, Modifier.hazeSource(glass))
-                CompositionLocalProvider(LocalPlayerGlass provides glass) {
+                val backdrop = remember(accent, backdropFromCover, scale) { PlayerBackdrop(accent, backdropFromCover, scale) }
+                NowPlayingBackdrop(backdrop)
+                CompositionLocalProvider(LocalPlayerBackdrop provides backdrop) {
                     val currentSheet = sheet
                     if (currentSheet == null) {
                         PlayerMainContent(
@@ -397,7 +395,7 @@ private fun ActiveLyric(line: String?, scale: Float, onClick: () -> Unit) {
 
 @Composable
 private fun Cover(url: String?, accent: Color?, size: Dp, scale: Float) {
-    val glow = remember(accent) { playerGlow(accent) }
+    val glow = LocalPlayerBackdrop.current.glow
     val backdrop = if (accent == null) Color(0xFF3A1C10) else Color(glow.red * .32f, glow.green * .32f, glow.blue * .32f)
     val shape = RoundedCornerShape(20.dp * scale)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
