@@ -410,6 +410,29 @@ def back_to_profile() -> bool:
     return bool(wait_for(lambda: desc_point("Profil"), 5))
 
 
+def screenshot_full_profile() -> None:
+    """Perpanjang layar sebentar agar seluruh Profil terlihat seperti kanvas mockup."""
+    original_size = re.search(r"Override size: (\d+x\d+)", shell("wm size"))
+    density = screen_density() / 160
+    width, height = round(390 * density), round(1320 * density)
+    try:
+        shell(f"wm size {width}x{height}")
+        def full_profile_visible():
+            root = ui_tree()
+            if root is None or not ui_bounds("Halo lagi, Uji!", root=root):
+                return False
+            return any(
+                y2 < overlay_top(root, height)
+                for _, _, _, y2 in ui_bounds("Tentang Senada", root=root)
+            )
+
+        check(wait_for(full_profile_visible, 10), "Sapaan hingga kartu versi terlihat pada kanvas Profil")
+        screenshot("v2-40-profile-full")
+    finally:
+        shell("wm size " + (original_size.group(1) if original_size else "reset"))
+        wait_for(lambda: ui_bounds("Halo lagi, Uji!") and desc_point("Profil"), 5)
+
+
 def check_profile_shell() -> None:
     if not check(open_tab("Beranda"), "Beranda terbuka dengan navbar v2"):
         return
@@ -417,7 +440,33 @@ def check_profile_shell() -> None:
     if not check(open_tab("Profil") and ui_bounds("Halo!"), "Profil menampilkan sapaan"):
         return
     screenshot("v2-02-profile")
-    if not check(tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"), "Tampilan terbuka dari Profil"):
+    if not check(tap_desc("Ubah nama dan foto") and ui_bounds("Ubah profil"), "Lembar Ubah profil terbuka"):
+        return
+    screenshot("v2-41-profile-edit-sheet")
+    if not check(tap_desc("Nama profil"), "Kolom nama profil bisa diedit"):
+        return
+    shell("input text Uji")
+    shell("input keyevent KEYCODE_BACK")
+    if not check(tap_text("Simpan", scrolls=0), "Nama profil tersimpan"):
+        return
+    if not check(wait_for(lambda: ui_bounds("Halo lagi, Uji!"), 5), "Sapaan memakai nama yang disimpan"):
+        return
+    root = ui_tree()
+    nav = desc_point("Profil")
+    initial_in_nav = root is not None and nav is not None and any(
+        x1 <= nav[0] <= x2 and y1 <= nav[1] <= y2
+        for x1, y1, x2, y2 in ui_bounds("U", root=root)
+    )
+    check(initial_in_nav, "Navbar menampilkan inisial U")
+    screenshot_full_profile()
+    if not check(tap_desc("Cari pengaturan") and tap_desc("Kata kunci pengaturan"), "Kolom pencarian pengaturan terbuka"):
+        return
+    shell("input text sudut")
+    root = ui_tree()
+    if not check(root is not None and ui_bounds("Tampilan", root=root) and not ui_bounds("Audio Lab", root=root),
+                 "Pencarian pengaturan menyaring berdasarkan subjudul"):
+        return
+    if not check(tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"), "Tampilan terbuka dari hasil pencarian Profil"):
         return
     screenshot("v2-03-profile-appearance")
     if not check(back_to_profile(), "Kembali dari Tampilan ke Profil"):
@@ -428,7 +477,7 @@ def check_profile_shell() -> None:
         ("Backup library", "v2-06-profile-backup"),
         ("Penyimpanan", "v2-07-profile-storage"),
         ("Tentang Senada", "v2-08-profile-about"),
-        ("Paling sering diputar", "v2-09-profile-most-played"),
+        ("LAGU TERATAS", "v2-09-profile-most-played"),
     ):
         if not check(tap_profile_item(label) and desc_point("Kembali ke Profil"), f"Profil membuka {label}"):
             return
@@ -605,13 +654,25 @@ def check_https() -> None:
 
 
 def check_listening_stats() -> None:
+    home_open = open_tab("Beranda")
+    root = ui_tree() if home_open else None
+    avatar = ui_bounds("Buka profil", attribute="content-desc", root=root) if root is not None else []
+    initials = ui_bounds("U", root=root) if root is not None else []
+    initial_in_avatar = any(
+        ax1 <= x1 and ay1 <= y1 and x2 <= ax2 and y2 <= ay2
+        for ax1, ay1, ax2, ay2 in avatar
+        for x1, y1, x2, y2 in initials
+    )
+    check(initial_in_avatar, "Avatar di bar atas Beranda menampilkan inisial U")
+    if home_open:
+        screenshot("v2-43-home-profile-avatar")
     opened_profile = (
-        open_tab("Beranda")
+        home_open
         and tap_desc("Buka profil")
-        and bool(wait_for(lambda: ui_bounds("Halo!"), 5))
+        and bool(wait_for(lambda: ui_bounds("Halo lagi, Uji!"), 5))
     )
     check(opened_profile, "Avatar di bar atas Beranda membuka tab Profil")
-    opened = (opened_profile or open_tab("Profil")) and tap_profile_item("Statistik dengar")
+    opened = (opened_profile or open_tab("Profil")) and tap_profile_item("Lihat statistik lengkap")
     if not check(opened, "Statistik dengar dapat dibuka dari Profil"):
         return
 
@@ -625,6 +686,7 @@ def check_listening_stats() -> None:
     chart = wait_for(chart_description, 5)
     check(chart and "Total" in chart, "Grafik statistik memiliki ringkasan waktu dengar untuk pembaca layar", chart)
     screenshot("08-listening-stats")
+    screenshot("v2-42-stats")
     found = collect_while_scrolling([(f"Putar {SECOND}", "content-desc")], scrolls=4)
     check(f"Putar {SECOND}" in found, "Lagu yang didengar di latar belakang bisa diputar dari statistik")
     shell("input keyevent KEYCODE_BACK")

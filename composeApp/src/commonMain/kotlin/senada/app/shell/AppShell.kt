@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,8 +60,11 @@ import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
+import senada.app.UserProfileController
 import senada.app.dataSaverActive
 import senada.app.meteredNetwork
+import senada.app.profilePhotoModel
+import senada.app.userProfileStore
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
@@ -85,6 +89,8 @@ import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
 import senada.audio.AudioEffectsController
 import senada.catalog.youtube.DiscoverSeeds
+import senada.catalog.ArtistResolveResult
+import senada.catalog.canOpenArtist
 import senada.library.HomeHero
 import senada.library.LibraryRepository
 import senada.library.ListenPeriod
@@ -93,6 +99,7 @@ import senada.library.discoverSeeds
 import senada.library.homeHero
 import senada.library.listeningStats
 import senada.library.mostPlayed
+import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
@@ -143,6 +150,11 @@ internal fun AppShell(
         LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open)
     }
     val platformContext = LocalPlatformContext.current
+    val profileController = remember(platformContext) { UserProfileController(userProfileStore(platformContext)) }
+    val profile by profileController.state.collectAsState()
+    val profilePhoto = remember(platformContext, profile.photoPath) {
+        profile.photoPath?.let { profilePhotoModel(platformContext, it) }
+    }
     val importedStorage = remember(platformContext) { importedAudioStorage(platformContext) }
     LaunchedEffect(actions, importedStorage) {
         actions.syncImportedFiles(importedStorage)
@@ -201,6 +213,25 @@ internal fun AppShell(
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
+    val profileRoot = navigator.destination == AppDestination.Profile && profileRoute == null && currentCatalogRoute == null
+    val profileSummary = if (profileRoot) {
+        remember(library, screenVisible) { library.listeningStats(ListenPeriod.Month) }.collectAsState(null).value
+    } else null
+    val oldestListening = if (profileRoot) {
+        remember(library) { library.oldestListeningStartedAt() }.collectAsState(null).value
+    } else null
+    val topArtist = profileSummary?.topArtists?.firstOrNull()
+    val profileArtist = if (topArtist != null && canOpenArtist(topArtist.track)) {
+        val resolver = SenadaSources.artistResolver
+        val known = resolver.knownArtist(topArtist.track, topArtist.name)
+        key(topArtist.name, topArtist.track.id) {
+            produceState(known, saveData, screenVisible) {
+                value = known ?: if (!saveData && screenVisible) {
+                    resolver.resolve(topArtist.track, topArtist.name) as? ArtistResolveResult.Found
+                } else null
+            }.value
+        }
+    } else null
     val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(null)
     val discoverController = remember(uiScope) { DiscoverController(SenadaSources.discover, uiScope) }
     val homeShelvesController = remember(uiScope) { HomeShelvesController(SenadaSources.homeCatalog, uiScope) }
@@ -504,9 +535,17 @@ internal fun AppShell(
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
                     AppDestination.Profile -> item(key = "profile") {
-                        ProfileTab(navigator::openProfileRoute, developerUnlocked = versionTaps == 7) {
-                            if (versionTaps < 7) versionTaps++
-                        }
+                        ProfileTab(
+                            controller = profileController,
+                            photo = profilePhoto,
+                            summary = profileSummary,
+                            oldestListening = oldestListening,
+                            artist = profileArtist,
+                            onOpen = navigator::openProfileRoute,
+                            onOpenArtist = { navigator.openArtist(it.id, it.name, it.artworkUrl) },
+                            developerUnlocked = versionTaps == 7,
+                            onVersionTap = { if (versionTaps < 7) versionTaps++ },
+                        )
                     }
                 }
             }
@@ -544,7 +583,12 @@ internal fun AppShell(
                             )
                         }
                         if (overlay.showNavBar) {
-                            FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
+                            FloatingNavBar(
+                                current = navigator.destination,
+                                onSelect = navigator::select,
+                                profileName = profile.name,
+                                profilePhoto = profilePhoto,
+                            )
                         }
                     }
                 }
