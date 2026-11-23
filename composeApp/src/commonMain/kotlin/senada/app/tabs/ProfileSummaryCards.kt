@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -78,7 +80,7 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
             },
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(18.dp),
+                Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -106,7 +108,9 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
                     }
                     Text(
                         "Mendengar sejak ${chartDate(date, daily = true)} ${date.year}",
-                        style = type.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        style = type.bodySmall.copy(
+                            fontWeight = FontWeight.SemiBold, lineHeight = TextUnit.Unspecified, letterSpacing = 0.em,
+                        ),
                         color = colors.onSurfaceVariant,
                     )
                 }
@@ -120,7 +124,7 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
     val colors = MaterialTheme.colorScheme
     val minutes = (summary?.listenedMs ?: 0L) / 60_000
     SenadaCard {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.padding(1.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val numbers: @Composable () -> Unit = {
                     Row(
@@ -163,7 +167,7 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
             ) {
                 Text(
                     "Lihat statistik lengkap", Modifier.weight(1f),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLarge.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.em),
                 )
                 Icon(SenadaIcons.ChevronRight, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
             }
@@ -193,7 +197,10 @@ private fun ProfileListeningChart(summary: ListeningSummary?) {
     val colors = MaterialTheme.colorScheme
     val description = "Grafik waktu dengar harian, 7 hari terakhir. " +
         if (max > 0L) "Total ${listeningMinutes(bars.sumOf { it.listenedMs })}." else "Belum ada waktu dengar."
-    Canvas(Modifier.fillMaxWidth().height(56.dp).semantics { contentDescription = description }) {
+    Canvas(Modifier.fillMaxWidth().height(56.dp).semantics {
+        contentDescription = description
+        role = Role.Image
+    }) {
         if (max == 0L) return@Canvas
         val gap = 6.dp.toPx()
         val width = (size.width - 6 * gap) / 7
@@ -219,7 +226,7 @@ internal fun ProfileRankings(
 ) {
     val artist = summary?.topArtists?.firstOrNull()
     val track = summary?.topTracks?.firstOrNull()
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ProfileRankingCard(Modifier.weight(1f), "Artis teratas", artist?.name, artist?.plays, onOpenArtist) {
             ProfileAvatar(
                 artist?.name.orEmpty(), size = 52.dp, borderWidth = 0.dp, photoModel = artistPhoto,
@@ -244,9 +251,10 @@ private fun ProfileRankingCard(
     onOpen: () -> Unit,
     artwork: @Composable () -> Unit,
 ) {
-    SenadaCard(modifier) {
+    SenadaCard(modifier.fillMaxHeight()) {
         Column(
-            Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpen).padding(16.dp),
+            Modifier.fillMaxWidth().fillMaxHeight().clickable(role = Role.Button, onClick = onOpen)
+                .padding(1.dp).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             MonoLabel(title)
@@ -259,7 +267,11 @@ private fun ProfileRankingCard(
                     ),
                 )
                 if (plays != null) {
-                    Text("$plays putaran", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "$plays putaran",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.em),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
