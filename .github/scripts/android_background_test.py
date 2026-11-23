@@ -432,6 +432,62 @@ def check_profile_shell() -> None:
         if not check(tap_profile_item(label) and desc_point("Kembali ke Profil"), f"Profil membuka {label}"):
             return
         screenshot(screen)
+        if label == "Audio Lab":
+            tree = ui_tree()
+            nav_hidden = tree is not None and not find_interactive("Beranda", attribute="content-desc", root=tree)
+            mini_boxes = find_interactive("Buka Sedang diputar", attribute="content-desc", root=tree) if tree is not None else []
+            _, height = screen_size()
+            max_bottom_margin_px = int(48 * screen_density() / 160)
+            mini_at_bottom = bool(mini_boxes) and (height - mini_boxes[0][0][3]) <= max_bottom_margin_px
+            check(
+                nav_hidden and mini_at_bottom,
+                "Audio Lab menyembunyikan navbar tetapi menampilkan mini player di bawah",
+                f"nav_hidden={nav_hidden}, mini={mini_boxes}, height={height}",
+            )
+            if mini_boxes:
+                opened_player = open_now_playing()
+                shell("input keyevent KEYCODE_BACK")
+                back_to_lab = wait_for(
+                    lambda: (t := ui_tree()) is not None
+                    and not find_interactive("Tutup", attribute="content-desc", root=t)
+                    and bool(find_interactive("Kembali ke Profil", attribute="content-desc", root=t))
+                    and bool(find_interactive("Buka Sedang diputar", attribute="content-desc", root=t)),
+                    5,
+                )
+                check(
+                    opened_player and back_to_lab,
+                    "Mengetuk mini player di halaman turunan membuka Sedang diputar",
+                )
+        elif label == "Pemutaran":
+            min_px = min_touch_px()
+            before_sw = find_interactive("Hemat data seluler")
+            row_ok = bool(before_sw) and before_sw[0][1].get("checked") == "false" and (
+                before_sw[0][0][3] - before_sw[0][0][1]
+            ) >= min_px
+            check(
+                row_ok,
+                "Switch Hemat data seluler tampil mati dengan area sentuh minimal 48 dp",
+                before_sw,
+            )
+            tapped_on = bool(before_sw) and tap_text("Hemat data seluler", scrolls=0)
+            sw_on = tapped_on and wait_for(
+                lambda: [
+                    item for item in find_interactive("Hemat data seluler")
+                    if item[1].get("checked") == "true"
+                ],
+                5,
+            )
+            check(bool(sw_on), "Switch Hemat data seluler menyala saat diketuk", sw_on)
+            screenshot("v2-11-switch-on")
+            tapped_off = bool(sw_on) and tap_text("Hemat data seluler", scrolls=0)
+            sw_off = tapped_off and wait_for(
+                lambda: [
+                    item for item in find_interactive("Hemat data seluler")
+                    if item[1].get("checked") == "false"
+                ],
+                5,
+            )
+            check(bool(sw_off), "Switch Hemat data seluler kembali mati setelah diketuk ulang", sw_off)
         if not check(back_to_profile(), f"Kembali dari {label} ke Profil"):
             return
 

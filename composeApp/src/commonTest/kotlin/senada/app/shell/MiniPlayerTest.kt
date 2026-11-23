@@ -29,4 +29,40 @@ class MiniPlayerTest {
         val sample = SampleAudioSelection("Selepas Hujan", SampleAudioSource.Local, "file:///contoh.m4a")
         assertTrue(showsMiniPlayer(PlaybackState(audio = SampleAudioState(sample, SampleAudioStatus.Playing))))
     }
+
+    @Test
+    fun profileSubpagesHideNavBarButKeepMiniPlayerWhenSongSelected() {
+        val subpageWithSong = bottomOverlayVisibility(
+            imeVisible = false,
+            profileDetail = true,
+            miniPlayerVisible = true,
+        )
+        assertFalse(subpageWithSong.showNavBar)
+        assertTrue(subpageWithSong.showMiniPlayer)
+        assertTrue(subpageWithSong.visible)
+
+        val subpageWithoutSong = bottomOverlayVisibility(
+            imeVisible = false,
+            profileDetail = true,
+            miniPlayerVisible = false,
+        )
+        assertFalse(subpageWithoutSong.showNavBar)
+        assertFalse(subpageWithoutSong.showMiniPlayer)
+        assertFalse(subpageWithoutSong.visible)
+
+        val mainTabWithSong = bottomOverlayVisibility(
+            imeVisible = false,
+            profileDetail = false,
+            miniPlayerVisible = true,
+        )
+        assertTrue(mainTabWithSong.showNavBar)
+        assertTrue(mainTabWithSong.showMiniPlayer)
+
+        val keyboardOpen = bottomOverlayVisibility(
+            imeVisible = true,
+            profileDetail = false,
+            miniPlayerVisible = true,
+        )
+        assertFalse(keyboardOpen.visible)
+    }
 }
