@@ -3,6 +3,7 @@
 package senada.library
 
 import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToOneOrNull
 import kotlin.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -38,7 +39,7 @@ internal enum class ListenPeriod(val label: String, private val days: Int? = nul
 
 internal data class ListeningBar(val date: LocalDate, val listenedMs: Long)
 internal data class ListeningTrack(val track: Track, val plays: Int, val listenedMs: Long)
-internal data class ListeningArtist(val name: String, val plays: Int, val listenedMs: Long)
+internal data class ListeningArtist(val name: String, val plays: Int, val listenedMs: Long, val track: Track)
 
 internal data class ListeningSummary(
     val listenedMs: Long,
@@ -73,6 +74,9 @@ internal fun LibraryRepository.listeningStats(period: ListenPeriod): Flow<Listen
     }
 }
 
+internal fun LibraryRepository.oldestListeningStartedAt(): Flow<Long?> =
+    database.listeningQueries.oldestListeningStartedAt().asFlow().mapToOneOrNull(dispatcher)
+
 internal fun summarizeListening(
     events: List<ListenEvent>,
     period: ListenPeriod,
@@ -87,7 +91,7 @@ internal fun summarizeListening(
     }.sortedWith(compareByDescending<ListeningTrack> { it.plays }.thenByDescending { it.listenedMs }.thenBy { it.track.id })
     val artists = inPeriod.groupBy { it.track.artists.firstOrNull()?.trim().orEmpty() }
         .filterKeys { it.isNotEmpty() }.map { (name, plays) ->
-            ListeningArtist(name, plays.size, plays.sumOf { it.listenedMs })
+            ListeningArtist(name, plays.size, plays.sumOf { it.listenedMs }, plays.maxBy { it.startedAt }.track)
         }.sortedWith(compareByDescending<ListeningArtist> { it.plays }.thenByDescending { it.listenedMs }.thenBy { it.name })
     val buckets = mutableMapOf<LocalDate, Long>()
     for (event in inPeriod) {

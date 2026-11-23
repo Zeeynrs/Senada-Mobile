@@ -3,6 +3,7 @@ package senada.app.tabs
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,9 +27,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import kotlinx.datetime.LocalDate
 import senada.app.LibraryActions
-import senada.app.SettingsCard
+import senada.app.SenadaCard
 import senada.app.TrackRow
 import senada.app.accessibleAccent
 import senada.app.minTouchTarget
@@ -66,7 +68,7 @@ internal fun LazyListScope.listeningStatsScreen(
         return
     }
     item(key = "listening-totals") {
-        SettingsCard("Ringkasan") {
+        StatsCard("Ringkasan") {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ListeningTotal(listeningMinutes(summary.listenedMs), "Waktu dengar")
                 ListeningTotal(summary.plays.toString(), "Kali memutar lagu")
@@ -84,13 +86,17 @@ internal fun LazyListScope.listeningStatsScreen(
     item(key = "listening-top-tracks") { ListeningHeading("Lagu teratas") }
     items(summary.topTracks, key = { "listening-track-${it.track.id}" }) { ranked ->
         val track = ranked.track
-        TrackRow(track, favorite = track.id in favoriteIds) {
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${ranked.plays} kali", style = MaterialTheme.typography.bodyMedium)
-                TextButton(
-                    onClick = { actions.playAll(listOf(track)) },
-                    modifier = Modifier.minTouchTarget().semantics { contentDescription = "Putar ${track.title}" },
-                ) { Text("Putar", modifier = Modifier.clearAndSetSemantics {}) }
+        SenadaCard {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                TrackRow(track, favorite = track.id in favoriteIds) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("${ranked.plays} kali", style = MaterialTheme.typography.bodyMedium)
+                        TextButton(
+                            onClick = { actions.playAll(listOf(track)) },
+                            modifier = Modifier.minTouchTarget().semantics { contentDescription = "Putar ${track.title}" },
+                        ) { Text("Putar", modifier = Modifier.clearAndSetSemantics {}) }
+                    }
+                }
             }
         }
     }
@@ -100,20 +106,35 @@ internal fun LazyListScope.listeningStatsScreen(
         item(key = "listening-no-artists") { Text("Belum ada nama artis yang tercatat.") }
     }
     items(summary.topArtists, key = { "listening-artist-${it.name}" }) { artist ->
-        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Text(artist.name, style = MaterialTheme.typography.titleMedium)
-            Text(
-                "${artist.plays} kali · ${listeningMinutes(artist.listenedMs)}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        SenadaCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(artist.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "${artist.plays} kali · ${listeningMinutes(artist.listenedMs)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ListeningHeading(label: String) {
-    Text(label, Modifier.semantics { heading() }, style = MaterialTheme.typography.titleLarge)
+    Text(
+        label, Modifier.semantics { heading() },
+        style = MaterialTheme.typography.headlineSmall.copy(letterSpacing = (-0.02).em),
+    )
+}
+
+@Composable
+private fun StatsCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    SenadaCard {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ListeningHeading(title)
+            content()
+        }
+    }
 }
 
 @Composable
@@ -137,7 +158,7 @@ private fun ListeningChart(summary: ListeningSummary, period: ListenPeriod) {
     val baseline = colors.onSurfaceVariant
     val maxMs = busiest?.listenedMs ?: 1L
 
-    SettingsCard(title) {
+    StatsCard(title) {
         Canvas(Modifier.fillMaxWidth().height(120.dp).semantics { contentDescription = description }) {
             val slot = size.width / bars.size.coerceAtLeast(1)
             val width = (slot * 0.65f).coerceAtMost(28.dp.toPx())
@@ -170,10 +191,10 @@ private fun ListeningChart(summary: ListeningSummary, period: ListenPeriod) {
 
 private val MonthNames = listOf("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
 
-private fun chartDate(date: LocalDate, daily: Boolean): String {
+internal fun chartDate(date: LocalDate, daily: Boolean): String {
     val month = MonthNames[date.month.ordinal]
     return if (daily) "${date.day} $month" else "$month ${date.year}"
 }
 
-private fun listeningMinutes(ms: Long): String =
+internal fun listeningMinutes(ms: Long): String =
     if (ms in 1L..59_999L) "Kurang dari 1 menit" else "${ms / 60_000} menit"

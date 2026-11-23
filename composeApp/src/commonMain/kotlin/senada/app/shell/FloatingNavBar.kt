@@ -1,6 +1,5 @@
 package senada.app.shell
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -14,7 +13,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,12 +23,15 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import senada.app.theme.SenadaPalette
 
 /** Pil navigasi kaca yang mengambang di bawah layar; tujuan aktif ditandai pil monokrom. */
 @Composable
-internal fun FloatingNavBar(current: AppDestination, onSelect: (AppDestination) -> Unit, profileName: String = "") {
+internal fun FloatingNavBar(
+    current: AppDestination,
+    onSelect: (AppDestination) -> Unit,
+    profileName: String = "",
+    profilePhoto: Any? = null,
+) {
     GlassSurface(shape = CircleShape, modifier = Modifier.fillMaxWidth().height(64.dp)) {
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp).selectableGroup(),
@@ -56,7 +57,7 @@ internal fun FloatingNavBar(current: AppDestination, onSelect: (AppDestination) 
                         contentAlignment = Alignment.Center,
                     ) {
                         if (destination == AppDestination.Profile) {
-                            ProfileAvatar(profileName, selected)
+                            ProfileAvatar(profileName, selected, photoModel = profilePhoto)
                         } else {
                             val icon = when (destination) {
                                 AppDestination.Home -> if (selected) SenadaIcons.HomeFilled else SenadaIcons.Home
@@ -68,29 +69,6 @@ internal fun FloatingNavBar(current: AppDestination, onSelect: (AppDestination) 
                     }
                 }
             }
-        }
-    }
-}
-
-private val avatarColors = listOf(Color(0xFFC9A86A), Color(0xFF8FE0C9), Color(0xFFAFA6DE))
-
-@Composable
-internal fun ProfileAvatar(name: String, selected: Boolean) {
-    val colors = MaterialTheme.colorScheme
-    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    val background = if (words.isEmpty()) colors.surfaceContainerHigh
-        else avatarColors[name.hashCode().mod(avatarColors.size)]
-    val border = if (selected) colors.onSurface else if (colors.onSurface == SenadaPalette.DarkText)
-        Color.White.copy(alpha = 0.2f) else colors.onSurface.copy(alpha = 0.2f)
-    Box(Modifier.size(28.dp).background(background, CircleShape).border(2.dp, border, CircleShape),
-        contentAlignment = Alignment.Center) {
-        if (words.isEmpty()) {
-            Icon(SenadaIcons.Person, null, Modifier.size(18.dp),
-                tint = if (selected) colors.onSurface else colors.onSurfaceVariant)
-        } else {
-            Text(words.take(2).joinToString("") { it.take(1).uppercase() },
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 13.sp, lineHeight = 16.sp),
-                color = SenadaPalette.LightText)
         }
     }
 }

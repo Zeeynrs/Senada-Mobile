@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -1134,9 +1135,10 @@ internal fun CatalogArtwork(
     fallbackIcon: ImageVector,
     imageSize: Int,
     modifier: Modifier = Modifier,
+    background: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
 ) {
     Box(
-        modifier = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = modifier.clip(shape).background(background),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

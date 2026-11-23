@@ -24,6 +24,8 @@ internal object SenadaIcons {
     val Storage = stroke("Storage", "M5 6a7 2.5 0 1 0 14 0a7 2.5 0 1 0-14 0Z", "M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5")
     val MiniNext = fill("MiniNext", "M2 4l10 8-10 8zM12 4l10 8-10 8z")
     val Search = stroke("Search", "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14Z", "M20 20l-3.5-3.5")
+    val ProfileSearch = stroke("ProfileSearch", "M11 4.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13Z", "M16 16l4 4")
+    val Edit = stroke("Edit", "M4 20h4L19 9l-4-4L4 16z")
     val Library = stroke("Library", "M5 4v16", "M10 4v16", "M15 5l4 15")
     val Settings = stroke(
         "Settings",
