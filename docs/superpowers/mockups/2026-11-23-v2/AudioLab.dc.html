@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Audio Lab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#67CDB1}a:hover{color:#8FE0C9}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A6AD}
+.lab{position:relative;overflow:hidden;background:#17181B;border:1px solid #2A2C31;border-radius:24px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:#F2F2F3;box-sizing:border-box}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
+.glass{background:rgba(29,31,35,.72);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;background:#0B0C0E;color:#F2F2F3;font-family:'Plus Jakarta Sans',sans-serif">
+
+  <div style="position:absolute;left:0;top:0;right:0;height:250px;background:#0B0C0E">
+    <a href="Profile.dc.html" aria-label="Kembali ke Profil" style="position:absolute;left:16px;top:52px;width:44px;height:44px;border-radius:50%;background:#1D1F23;display:flex;align-items:center;justify-content:center">
+      <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="#F2F2F3" stroke-width="2" stroke-linecap="round"></path></svg>
+    </a>
+    <div style="position:absolute;left:20px;top:116px;font-size:46px;font-weight:800;letter-spacing:-.05em;line-height:.98">Audio<br>Lab</div>
+    <div class="mono" style="position:absolute;right:20px;top:196px">Android · iPhone</div>
+  </div>
+
+  <div style="position:absolute;left:12px;right:12px;top:252px;display:flex;flex-direction:column;gap:10px">
+
+    <a class="lab" href="Equalizer.dc.html" style="height:120px">
+      <div class="mono"><span class="dot" style="background:#67CDB1"></span>Aktif · Bass+</div>
+      <div style="font-size:26px;font-weight:800;letter-spacing:-.03em">Equalizer</div>
+      <svg width="130" height="110" viewBox="0 0 130 110" aria-hidden="true" style="position:absolute;right:-6px;top:6px">
+        <g fill="none" stroke="#3A3D44" stroke-width="5" stroke-linecap="round">
+          <path d="M30 10v100M65 10v100M100 10v100"></path>
+        </g>
+        <g fill="#0B0C0E" stroke="#3A3D44" stroke-width="5">
+          <circle cx="30" cy="70" r="13"></circle><circle cx="65" cy="38" r="13"></circle><circle cx="100" cy="62" r="13"></circle>
+        </g>
+      </svg>
+    </a>
+
+    <a class="lab" href="SoundFx.dc.html" style="height:120px">
+      <div class="mono"><span class="dot" style="background:#67CDB1"></span>Reverb · Bass boost</div>
+      <div style="font-size:26px;font-weight:800;letter-spacing:-.03em">Efek suara</div>
+      <div aria-hidden="true" style="position:absolute;right:10px;top:4px;font-size:104px;font-weight:800;font-style:italic;letter-spacing:-.06em;color:transparent;-webkit-text-stroke:2px #3A3D44;line-height:1">FX</div>
+    </a>
+
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <a class="lab" href="SoundFx.dc.html" style="height:112px">
+        <div style="font-size:17px;font-weight:800">Kecepatan &amp; nada</div>
+        <div class="mono">1,00× · nada 0</div>
+      </a>
+      <a class="lab" href="#" style="height:112px">
+        <div style="font-size:17px;font-weight:800">Kualitas audio</div>
+        <div class="mono">Wi-Fi tinggi · seluler hemat</div>
+      </a>
+    </div>
+
+    <a class="lab" href="#" style="height:72px;flex-direction:row;align-items:center">
+      <div>
+        <div style="font-size:16px;font-weight:800">Timer tidur</div>
+        <div class="mono" style="margin-top:2px">Mati</div>
+      </div>
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 14.5A7.5 7.5 0 1 1 9.5 5a6 6 0 0 0 9.5 9.5z" fill="none" stroke="#A3A6AD" stroke-width="2" stroke-linejoin="round"></path></svg>
+    </a>
+  </div>
+
+  <div class="glass" style="position:absolute;left:16px;right:16px;bottom:24px;height:60px;border-radius:30px;display:flex;align-items:center;gap:12px;padding:0 8px">
+    <div style="width:44px;height:44px;border-radius:22px;background:#5A2A22;flex-shrink:0"></div>
+    <div style="flex-grow:1;min-width:0">
+      <div style="font-weight:700;font-size:14px">Judul Lagu Diputar</div>
+      <div style="font-size:12px;color:#A3A6AD">Nama Artis</div>
+    </div>
+    <button aria-label="Jeda" style="width:44px;height:44px;border:0;background:transparent;padding:0;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="#F2F2F3"></rect><rect x="12" y="3" width="4" height="14" rx="1.5" fill="#F2F2F3"></rect></svg></button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Tampilan</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#67CDB1}a:hover{color:#8FE0C9}
+.mono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#A3A6AD}
+.card{background:#17181B;border:1px solid #2A2C31;border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.seg{flex:1;height:44px;border-radius:22px;border:0;font-family:inherit;font-weight:700;font-size:14px;background:transparent;color:#A3A6AD}
+.sw{width:56px;height:32px;border-radius:16px;border:0;position:relative;padding:0;flex-shrink:0}
+.knob{position:absolute;top:3px;width:26px;height:26px;border-radius:50%}
+.sl{display:flex;align-items:center;gap:12px}
+.chip{height:40px;padding:0 16px;border-radius:20px;border:0;font-family:inherit;font-weight:700;font-size:14px;background:#1D1F23;color:#F2F2F3}
+</style>
+</helmet>
+<div style="width:390px;height:1180px;position:relative;overflow:hidden;background:#0B0C0E;color:#F2F2F3;font-family:'Plus Jakarta Sans',sans-serif">
+<div style="padding:52px 16px 40px;display:flex;flex-direction:column;gap:14px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <a href="Profile.dc.html" aria-label="Kembali ke Profil" style="width:44px;height:44px;border-radius:50%;background:#1D1F23;display:flex;align-items:center;justify-content:center">
+      <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="#F2F2F3" stroke-width="2" stroke-linecap="round"></path></svg>
+    </a>
+    <div class="mono">Profil</div>
+  </div>
+
+  <div style="font-size:40px;font-weight:800;letter-spacing:-.05em;padding:8px 4px 6px">Tampilan</div>
+
+  <!-- Tema -->
+  <div class="card">
+    <div class="mono">Tema</div>
+    <div style="display:flex;gap:4px;background:#0B0C0E;border-radius:26px;padding:4px">
+      <button class="seg" style="background:#F2F2F3;color:#0B0C0E">Gelap</button>
+      <button class="seg">Terang</button>
+      <button class="seg">Ikuti sistem</button>
+    </div>
+  </div>
+
+  <!-- Aksen -->
+  <div class="card">
+    <div class="mono">Warna aksen</div>
+    <div style="display:flex;gap:12px">
+      <button aria-label="Teal, terpilih" style="width:44px;height:44px;border-radius:50%;border:3px solid #F2F2F3;background:#67CDB1;padding:0"></button>
+      <button aria-label="Biru" style="width:44px;height:44px;border-radius:50%;border:0;background:#6FA8FF;padding:0"></button>
+      <button aria-label="Ungu" style="width:44px;height:44px;border-radius:50%;border:0;background:#B49CFF;padding:0"></button>
+      <button aria-label="Merah muda" style="width:44px;height:44px;border-radius:50%;border:0;background:#FF8FB1;padding:0"></button>
+      <button aria-label="Jingga" style="width:44px;height:44px;border-radius:50%;border:0;background:#FFB067;padding:0"></button>
+    </div>
+    <div class="sl">
+      <div style="flex-grow:1"><div style="font-weight:700;font-size:15px">Warna mengikuti sampul</div><div style="font-size:12px;color:#A3A6AD">Aksen berubah sesuai lagu yang diputar</div></div>
+      <button class="sw" aria-label="Warna mengikuti sampul aktif" style="background:#67CDB1"><span class="knob" style="right:3px;background:#0B0C0E"></span></button>
+    </div>
+  </div>
+
+  <!-- Sudut sampul (pola Mochy) -->
+  <div class="card" style="padding:0;flex-direction:row;overflow:hidden;height:150px;gap:0">
+    <div style="flex:1;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+      <div style="font-weight:800;font-size:16px;line-height:1.15">Sudut<br>sampul</div>
+      <div style="font-size:34px;font-weight:800;letter-spacing:-.04em">20<span style="font-size:18px;color:#A3A6AD">dp</span></div>
+    </div>
+    <div style="width:150px;position:relative">
+      <div style="position:absolute;left:30px;top:24px;width:150px;height:150px;border-radius:20px;background:#D9D9DC"></div>
+    </div>
+  </div>
+
+  <!-- Pemutar & efek -->
+  <div class="card">
+    <div class="mono">Pemutar &amp; efek</div>
+    <div class="sl">
+      <div style="flex-grow:1"><div style="font-weight:700;font-size:15px">Latar pemutar dari sampul</div><div style="font-size:12px;color:#A3A6AD">Warna sampul diblur di layar Sedang diputar</div></div>
+      <button class="sw" aria-label="Latar pemutar dari sampul aktif" style="background:#67CDB1"><span class="knob" style="right:3px;background:#0B0C0E"></span></button>
+    </div>
+    <div class="sl">
+      <div style="flex-grow:1"><div style="font-weight:700;font-size:15px">Efek kaca</div><div style="font-size:12px;color:#A3A6AD">Matikan bila HP terasa berat</div></div>
+      <button class="sw" aria-label="Efek kaca aktif" style="background:#67CDB1"><span class="knob" style="right:3px;background:#0B0C0E"></span></button>
+    </div>
+    <div style="font-weight:700;font-size:15px">Kecepatan animasi</div>
+    <div style="display:flex;gap:8px">
+      <button class="chip">Pelan</button><button class="chip" style="background:#F2F2F3;color:#0B0C0E">Normal</button><button class="chip">Cepat</button><button class="chip">Mati</button>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
