@@ -17,8 +17,16 @@ internal object SenadaIcons {
     val Home = stroke("Home", HOUSE)
     val HomeFilled = fill("HomeFilled", HOUSE)
     val NavLibrary = stroke("NavLibrary", "M8 4h8q4 0 4 4v8q0 4-4 4H8q-4 0-4-4V8q0-4 4-4Z", "M13.5 8v6.2a2 2 0 1 1-1.5-1.9")
-    val AudioLab = stroke("AudioLab", "M6 4v16M12 4v16M18 4v16", "M6 12a2 2 0 1 0 0 4a2 2 0 1 0 0-4", "M12 6a2 2 0 1 0 0 4a2 2 0 1 0 0-4", "M18 14a2 2 0 1 0 0 4a2 2 0 1 0 0-4")
-    val Appearance = fill("Appearance", "M12 3a9 9 0 1 1 0 18a9 9 0 1 1 0-18ZM12 5a7 7 0 0 0 0 14Z")
+    val AudioLab = icon(
+        "AudioLab", filled = false, paths = arrayOf("M6 4v16M12 4v16M18 4v16"),
+        filledDetail = "M6 11.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8Z" +
+            "M12 5.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8Z" +
+            "M18 13.6a2.4 2.4 0 1 0 0 4.8a2.4 2.4 0 1 0 0-4.8Z",
+    )
+    val Appearance = icon(
+        "Appearance", filled = false, paths = arrayOf("M12 4a8 8 0 1 1 0 16a8 8 0 1 1 0-16Z"),
+        filledDetail = "M12 4a8 8 0 0 1 0 16Z",
+    )
     val PlayOutline = stroke("PlayOutline", "M8 5v14l11-7Z")
     val Backup = stroke("Backup", "M12 4v11M7 10l5 5 5-5M5 20h14")
     val Storage = stroke("Storage", "M5 6a7 2.5 0 1 0 14 0a7 2.5 0 1 0-14 0Z", "M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5")
@@ -53,6 +61,7 @@ internal object SenadaIcons {
     val ChevronDown = stroke("ChevronDown", "M6 9l6 6 6-6")
     val ChevronLeft = stroke("ChevronLeft", "M15 6l-6 6 6 6")
     val ChevronRight = stroke("ChevronRight", "M9 6l6 6-6 6")
+    val ProfileChevron = icon("ProfileChevron", filled = false, paths = arrayOf("M6 3l5 5-5 5"), viewport = 16)
     val Clock = stroke("Clock", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z", "M12 7v5l3.5 2")
     val Import = stroke(
         "Import",
@@ -80,8 +89,14 @@ internal object SenadaIcons {
     private fun stroke(name: String, vararg paths: String) = icon(name, filled = false, paths)
     private fun fill(name: String, vararg paths: String) = icon(name, filled = true, paths)
 
-    private fun icon(name: String, filled: Boolean, paths: Array<out String>): ImageVector =
-        ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
+    private fun icon(
+        name: String,
+        filled: Boolean,
+        paths: Array<out String>,
+        filledDetail: String? = null,
+        viewport: Int = 24,
+    ): ImageVector =
+        ImageVector.Builder(name, viewport.dp, viewport.dp, viewport.toFloat(), viewport.toFloat()).apply {
             for (d in paths) {
                 addPath(
                     pathData = addPathNodes(d),
@@ -92,5 +107,6 @@ internal object SenadaIcons {
                     strokeLineJoin = StrokeJoin.Round,
                 )
             }
+            if (filledDetail != null) addPath(pathData = addPathNodes(filledDetail), fill = SolidColor(Color.Black))
         }.build()
 }
