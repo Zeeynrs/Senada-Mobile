@@ -115,7 +115,7 @@ internal fun ProfileTab(
         for (rows in filtered) {
             if (rows.isNotEmpty()) {
                 SenadaCard {
-                    Column {
+                    Column(Modifier.padding(1.dp)) {
                         rows.forEachIndexed { index, setting ->
                             if (index > 0) HorizontalDivider(Modifier.padding(start = 70.dp), color = colors.outline)
                             SettingRow(setting) {
@@ -131,7 +131,7 @@ internal fun ProfileTab(
         }
         if (!searching) {
             SenadaCard {
-                Row(Modifier.fillMaxWidth().clickable(onClick = onVersionTap).padding(18.dp),
+                Row(Modifier.fillMaxWidth().clickable(onClick = onVersionTap).padding(1.dp).padding(18.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         MonoLabel("Versi & tentang")

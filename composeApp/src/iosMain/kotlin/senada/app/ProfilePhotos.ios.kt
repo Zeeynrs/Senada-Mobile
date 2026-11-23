@@ -121,7 +121,7 @@ internal actual fun saveProfilePhoto(context: PlatformContext, jpeg: ByteArray):
     val directory = profileDirectory().toPath()
     val files = FileSystem.SYSTEM
     files.createDirectories(directory)
-    val name = "${NSUUID().UUIDString}.jpg"
+    val name = "${NSUUID().UUIDString()}.jpg"
     val path = directory / name
     try {
         files.write(path, mustCreate = true) { write(jpeg) }

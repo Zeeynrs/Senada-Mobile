@@ -417,6 +417,7 @@ def screenshot_full_profile() -> None:
     width, height = round(390 * density), round(1320 * density)
     try:
         shell(f"wm size {width}x{height}")
+
         def full_profile_visible():
             root = ui_tree()
             if root is None or not ui_bounds("Halo lagi, Uji!", root=root):
