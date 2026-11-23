@@ -641,11 +641,52 @@ def check_audio_lab_effects() -> bool:
     check(back_lab, "Audio Lab menampilkan status AKTIF · BASS+ setelah Equalizer Bass+ aktif")
     screenshot("v2-50-audiolab")
 
-    # 3. Efek suara: pilih kecepatan 1,25×, lalu tangkap layar.
+    # 3. Efek suara: tangkap layar kontrol redup saat Reverb mati, pastikan tetap bisa diubah, pilih 1,25×, lalu tangkap layar.
     if not check(tap_profile_item("Efek suara") and desc_point("Kembali ke Audio Lab"),
                  "Halaman Efek suara terbuka dari Audio Lab"):
         return_to_profile_tab()
         return False
+
+    reverb_sw = find_interactive("Reverb", attribute="content-desc")
+    reverb_was_on = bool(reverb_sw) and reverb_sw[0][1].get("checked") == "true"
+    if reverb_was_on:
+        reverb_off = tap_desc("Reverb") and bool(wait_for(
+            lambda: [item for item in find_interactive("Reverb", attribute="content-desc")
+                     if item[1].get("checked") == "false"],
+            5,
+        ))
+        check(reverb_off, "Sakelar Reverb dimatikan untuk verifikasi kontrol redup", reverb_sw)
+
+    screenshot("v2-80-soundfx-dim")
+
+    studio_selected = tap_profile_item("Studio") and bool(wait_for(
+        lambda: [item for item in find_interactive("Studio")
+                 if any(item[1].get(attr) == "true" for attr in ("selected", "checked"))],
+        5,
+    ))
+    reverb_still_off = [
+        item for item in find_interactive("Reverb", attribute="content-desc")
+        if item[1].get("checked") == "false"
+    ]
+    check(
+        studio_selected and bool(reverb_still_off),
+        "Chip ruang tetap bisa diubah saat Reverb mati tanpa menyalakan efek",
+        f"studio_selected={studio_selected}, reverb={reverb_still_off}",
+    )
+    kamar_restored = tap_profile_item("Kamar") and bool(wait_for(
+        lambda: [item for item in find_interactive("Kamar")
+                 if any(item[1].get(attr) == "true" for attr in ("selected", "checked"))],
+        5,
+    ))
+    check(kamar_restored, "Chip ruang Kamar dikembalikan setelah uji kontrol redup")
+
+    if reverb_was_on:
+        reverb_restored = tap_desc("Reverb") and bool(wait_for(
+            lambda: [item for item in find_interactive("Reverb", attribute="content-desc")
+                     if item[1].get("checked") == "true"],
+            5,
+        ))
+        check(reverb_restored, "Sakelar Reverb dikembalikan ke keadaan semula")
 
     speed_125 = tap_profile_item("1,25×") and bool(wait_for(
         lambda: [item for item in find_interactive("1,25×")
