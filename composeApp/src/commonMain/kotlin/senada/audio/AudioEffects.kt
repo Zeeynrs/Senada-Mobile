@@ -8,7 +8,15 @@ internal data class AudioEffects(
     val pitchLock: Boolean = true,
     val loudnessMatch: Boolean = false,
     val customPresets: List<EqPreset> = emptyList(),
-)
+) {
+    internal fun bounded() = copy(
+        equalizer = equalizer.bounded(),
+        reverb = reverb.bounded(),
+        bassBoost = bassBoost.bounded(),
+        speed = speed.bounded(0.5f, 2f, 1f),
+        customPresets = customPresets.map { it.copy(gains = it.gains.boundedGains()) },
+    )
+}
 
 /** The gains are authoritative, including when the user edits a selected preset. */
 internal data class EqualizerSettings(

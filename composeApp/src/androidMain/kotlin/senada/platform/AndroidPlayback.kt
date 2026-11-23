@@ -10,14 +10,24 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import senada.app.createPlaybackController
+import senada.audio.AudioEffects
+import senada.audio.AudioEffectsController
+import senada.audio.SenadaEffectsAudioProcessor
+import senada.audio.audioEffectsStore
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.QueueStore
@@ -31,6 +41,7 @@ internal object AndroidPlayback {
         val controller: PlaybackController,
         val sessionPlayer: SessionPlayer,
         val position: () -> Long,
+        val audioEffects: AudioEffectsController,
     )
 
     private var components: Components? = null
@@ -38,12 +49,18 @@ internal object AndroidPlayback {
     fun get(context: Context): Components = components ?: create(context.applicationContext).also { components = it }
 
     private fun create(context: Context): Components {
-        val output = ExoAudioOutput(context)
+        val audioEffects = AudioEffectsController(audioEffectsStore(context))
+        val output = ExoAudioOutput(context, audioEffects.effects.value)
         val controller = createPlaybackController(output, AndroidQueueStore(context), AndroidLocalAudioFiles(context), context)
         val position = { output.positionMs }
-        val sessionPlayer = SessionPlayer(controller, position)
+        val sessionPlayer = SessionPlayer(controller, position) { output.playbackParameters }
         controller.addListener { sessionPlayer.refresh() }
-        return Components(controller, sessionPlayer, position)
+        MainScope().launch {
+            audioEffects.effects.collect { effects ->
+                if (output.updateEffects(effects)) sessionPlayer.refresh()
+            }
+        }
+        return Components(controller, sessionPlayer, position, audioEffects)
     }
 }
 
@@ -64,8 +81,22 @@ private class AndroidQueueStore(context: Context) : QueueStore {
     }
 }
 
-private class ExoAudioOutput(context: Context) : SampleAudioOutput {
-    private val player = ExoPlayer.Builder(context)
+@OptIn(UnstableApi::class)
+private class ExoAudioOutput(context: Context, initialEffects: AudioEffects) : SampleAudioOutput {
+    private val effectsProcessor = SenadaEffectsAudioProcessor()
+    private val renderersFactory = object : DefaultRenderersFactory(context) {
+        override fun buildAudioSink(
+            context: Context,
+            enableFloatOutput: Boolean,
+            enableAudioTrackPlaybackParams: Boolean,
+        ): AudioSink = DefaultAudioSink.Builder(context)
+            // The float output path in Media3 1.7.1 skips the custom processor chain.
+            .setEnableFloatOutput(false)
+            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+            .setAudioProcessors(arrayOf(effectsProcessor))
+            .build()
+    }
+    private val player = ExoPlayer.Builder(context, renderersFactory)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -80,11 +111,22 @@ private class ExoAudioOutput(context: Context) : SampleAudioOutput {
     override var onEvent: (() -> Unit)? = null
 
     init {
+        updateEffects(initialEffects)
         player.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
                 onEvent?.invoke()
             }
         })
+    }
+
+    val playbackParameters: PlaybackParameters get() = player.playbackParameters
+
+    fun updateEffects(effects: AudioEffects): Boolean {
+        effectsProcessor.update(effects)
+        val parameters = PlaybackParameters(effects.speed, if (effects.pitchLock) 1f else effects.speed)
+        if (parameters == playbackParameters) return false
+        player.playbackParameters = parameters
+        return true
     }
 
     override val status: SampleAudioStatus
@@ -127,6 +169,7 @@ private class ExoAudioOutput(context: Context) : SampleAudioOutput {
 internal class SessionPlayer(
     private val playback: PlaybackController,
     private val positionMs: () -> Long,
+    private val playbackParameters: () -> PlaybackParameters,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
 
     fun refresh() = invalidateState()
@@ -136,6 +179,7 @@ internal class SessionPlayer(
         val items = sessionItems(state)
         val builder = SimpleBasePlayer.State.Builder()
             .setAvailableCommands(if (state.canGoNext) SESSION_COMMANDS_WITH_NEXT else SESSION_COMMANDS)
+            .setPlaybackParameters(playbackParameters())
             .setRepeatMode(when (state.queue.repeatMode) {
                 QueueRepeatMode.Off -> Player.REPEAT_MODE_OFF
                 QueueRepeatMode.All -> Player.REPEAT_MODE_ALL

@@ -8,7 +8,7 @@ import kotlin.math.roundToInt
 
 /**
  * In-place DSP for interleaved PCM. Offsets count samples and lengths count frames.
- * One audio thread owns [process], [processShort], and [reset]. [update] may be called concurrently.
+ * One audio thread owns processing, bypass checks, and [reset]. [update] may be called concurrently.
  */
 @OptIn(ExperimentalAtomicApi::class)
 internal class AudioEffectsProcessor(
@@ -81,6 +81,9 @@ internal class AudioEffectsProcessor(
         fadeRemaining = 0
     }
 
+    /** Lets a PCM adapter copy bytes directly while the chain is dry, including after a fade out. */
+    fun tryBypass(): Boolean = bypassIfDry(pending.load())
+
     private fun checkRange(size: Int, offset: Int, frames: Int) {
         require(offset in 0..size && frames in 0..(size - offset) / channels)
     }
@@ -88,15 +91,22 @@ internal class AudioEffectsProcessor(
     private fun prepareBlock(): Boolean {
         val requested = pending.load()
         val current = active
-        if (current == null || (next == null && current.bypass && requested.bypass)) {
+        if (bypassIfDry(requested)) return false
+        if (current == null) {
             active = requested
-            return !requested.bypass
+            return true
         }
         if (next == null && current !== requested) {
             // Finish a fade before accepting another update so fast slider moves stay continuous.
             next = requested
             fadeRemaining = fadeFrames
         }
+        return true
+    }
+
+    private fun bypassIfDry(requested: EffectChain): Boolean {
+        if (!requested.bypass || next != null || active?.bypass == false) return false
+        active = requested
         return true
     }
 

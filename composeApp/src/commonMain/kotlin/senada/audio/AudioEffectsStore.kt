@@ -36,9 +36,10 @@ internal class AudioEffectsStore(private val read: () -> String?, private val wr
     }
 
     fun save(effects: AudioEffects) {
-        val equalizer = effects.equalizer.bounded()
-        val reverb = effects.reverb.bounded()
-        val bassBoost = effects.bassBoost.bounded()
+        val settings = effects.bounded()
+        val equalizer = settings.equalizer
+        val reverb = settings.reverb
+        val bassBoost = settings.bassBoost
         val json = buildJsonObject {
             put("version", VERSION)
             put("equalizer", buildJsonObject {
@@ -57,15 +58,15 @@ internal class AudioEffectsStore(private val read: () -> String?, private val wr
                 put("enabled", bassBoost.enabled)
                 put("strength", bassBoost.strength)
             })
-            put("speed", effects.speed.bounded(0.5f, 2f, 1f))
-            put("pitchLock", effects.pitchLock)
-            put("loudnessMatch", effects.loudnessMatch)
+            put("speed", settings.speed)
+            put("pitchLock", settings.pitchLock)
+            put("loudnessMatch", settings.loudnessMatch)
             put("customPresets", buildJsonArray {
-                for (preset in effects.customPresets) {
+                for (preset in settings.customPresets) {
                     add(buildJsonObject {
                         put("id", preset.id)
                         put("name", preset.name)
-                        put("gains", buildJsonArray { preset.gains.boundedGains().forEach { add(it) } })
+                        put("gains", buildJsonArray { preset.gains.forEach { add(it) } })
                     })
                 }
             })
