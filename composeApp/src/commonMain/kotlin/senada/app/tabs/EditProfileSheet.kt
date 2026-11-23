@@ -68,6 +68,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
         onDismissRequest = { if (!busy) onDismiss() },
         sheetState = sheet,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState())
@@ -81,6 +82,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
             ProfileAvatar(
                 name, size = 84.dp, borderWidth = 0.dp, photoModel = preview,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
+                fallbackBackground = MaterialTheme.colorScheme.surfaceContainer.takeIf { name.isBlank() },
             )
             OutlinedTextField(
                 value = name,

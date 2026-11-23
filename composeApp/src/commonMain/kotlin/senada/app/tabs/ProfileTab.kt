@@ -176,7 +176,7 @@ private fun SettingRow(setting: ProfileSetting, onClick: () -> Unit) {
                 lineHeight = TextUnit.Unspecified, letterSpacing = 0.em, fontWeight = FontWeight.Medium),
                 color = colors.onSurfaceVariant)
         }
-        Icon(SenadaIcons.ChevronRight, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
+        Icon(SenadaIcons.ProfileChevron, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
     }
 }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -95,6 +96,7 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
                                 style = type.headlineSmall.copy(
                                     fontSize = 22.sp, lineHeight = TextUnit.Unspecified, letterSpacing = (-0.02).em,
                                 ),
+                                color = colors.onSurface,
                             )
                         }
                         Box(
@@ -170,7 +172,7 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
                     "Lihat statistik lengkap", Modifier.weight(1f),
                     style = MaterialTheme.typography.labelLarge.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.em),
                 )
-                Icon(SenadaIcons.ChevronRight, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
+                Icon(SenadaIcons.ProfileChevron, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
             }
         }
     }
@@ -179,11 +181,13 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
 @Composable
 private fun ProfileTimeValue(value: Long, unit: String) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val numberLine = with(LocalDensity.current) { 48.sp.toDp() }
     Text(
         buildAnnotatedString {
             append(value.toString())
             withStyle(SpanStyle(color = muted, fontSize = 20.sp)) { append(unit) }
         },
+        modifier = Modifier.height(numberLine).wrapContentHeight(Alignment.CenterVertically, unbounded = true),
         style = MaterialTheme.typography.displayMedium.copy(
             fontSize = 48.sp, lineHeight = 48.sp, letterSpacing = (-0.05).em,
         ),
