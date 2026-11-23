@@ -143,6 +143,10 @@ class IosAudioEffectsTapTest {
                 reverb = ReverbSettings(enabled = true, room = ReverbRoom.Katedral, mix = 0.7f),
             ),
         )
+        // Complete the 10 ms dry-to-wet crossfade (480 frames at 48 kHz) before measuring impulse response.
+        val (warmupList, _) = allocNonInterleavedBufferList(channels = 2, frames = 512)
+        context.onProcess(warmupList.pointed, frames = 512, startOfStream = false)
+
         val (impulseList, impulseChannels) = allocNonInterleavedBufferList(channels = 2, frames = 64)
         for (i in 0 until 64) {
             impulseChannels[0][i] = if (i == 0) 0.5f else 0f
@@ -262,6 +266,7 @@ class IosAudioEffectsTapTest {
         val buffers = list.mBuffers
         val dataPointers = List(channels) { channel ->
             val data = allocArray<FloatVar>(frames)
+            for (i in 0 until frames) data[i] = 0f
             buffers[channel].mNumberChannels = 1u
             buffers[channel].mDataByteSize = (frames * Float.SIZE_BYTES).toUInt()
             buffers[channel].mData = data

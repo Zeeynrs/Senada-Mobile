@@ -247,9 +247,9 @@ internal class IosAudioEffectsHub(initialEffects: AudioEffects) {
         val tap = createAudioProcessingTap(context) ?: return false
         return try {
             val inputParameters = AVMutableAudioMixInputParameters.audioMixInputParametersWithTrack(track)
-            inputParameters.audioTapProcessor = tap
+            inputParameters.setAudioTapProcessor(tap)
             val audioMix = AVMutableAudioMix.audioMix()
-            audioMix.inputParameters = listOf(inputParameters)
+            audioMix.setInputParameters(listOf(inputParameters))
             setActiveTap(context)
             item.setAudioMix(audioMix)
             true
