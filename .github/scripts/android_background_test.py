@@ -574,6 +574,13 @@ def check_https() -> None:
         return
     screenshot("v2-10-profile-developer")
     check_developer_effects()
+    # Sampel lokal dan HTTPS memakai judul yang sama. Akhiri status PLAYING lokal
+    # sebelum menunggu PLAYING untuk HTTPS.
+    local = session()
+    if local and local["state"] == "PLAYING" and f"{FIRST}, null, null" in local["description"]:
+        if not check(pause_for_setup(f"{FIRST}, null, null"), "Sampel lokal dijeda sebelum uji HTTPS"):
+            back_to_profile()
+            return
     if not tap_text("Putar HTTPS", scrolls=8):
         check(False, name, "Tombol 'Putar HTTPS' tidak ditemukan")
         return
