@@ -157,19 +157,19 @@ Karena itu, **PR iOS pertama adalah spike**: tap yang hanya menerapkan preamp da
 
 ## Urutan PR
 
-Setiap PR kecil dan lolos Mobile checks serta uji emulator Android. Pembagian pekerja mengikuti kesepakatan 21 Nov: Claude memegang pemutaran dan iOS, dan PlaybackController tidak boleh disentuh dua agen sekaligus.
+Setiap PR kecil dan lolos Mobile checks serta uji emulator Android. Pembagian pekerja mengikuti kesepakatan 21 Nov: Claude memegang pemutaran dan iOS, dan PlaybackController tidak boleh disentuh dua agen sekaligus. Sejak 23 Nov, Astra (paling kuat tapi mahal) hanya dipakai untuk masalah yang benar-benar rumit atau macet; tugas biasa ke Sol atau Gemini Neon/Hydrogen.
 
 | # | PR | Isi | Pekerja yang diusulkan |
 |---|---|---|---|
-| 1 | Kerangka v2 | Token mono dan label, navbar dengan tombol Profil, `ProfileRoute`, bagian Pengaturan lama dipindah ke halaman Profil apa adanya, skrip emulator diperbarui | Astra |
-| 2 | Profil | Kartu pendengar, ubah nama/foto (dua platform), ringkasan statistik, artis/lagu teratas, kartu versi, gaya baru Statistik | Astra |
+| 1 | Kerangka v2 | Token mono dan label, navbar dengan tombol Profil, `ProfileRoute`, bagian Pengaturan lama dipindah ke halaman Profil apa adanya, skrip emulator diperbarui | Astra (sudah berjalan sebelum aturan hemat) |
+| 2 | Profil | Kartu pendengar, ubah nama/foto (dua platform), ringkasan statistik, artis/lagu teratas, kartu versi, gaya baru Statistik | Sol |
 | 3 | DSP bersama | `senada.audio`: model, preset, penyimpanan, DSP, dan uji `commonTest` | Claude |
 | 4 | Efek Android | AudioProcessor Media3, kecepatan dan kunci nada, uji emulator: memutar dengan EQ nyala tetap berjalan dan posisi tetap maju | Claude |
 | 5 | Spike iOS | Tap dengan preamp dan satu band, **IPA dan uji iPhone** | Claude |
 | 6 | Efek iOS | Tap penuh atau jalur cadangan, kecepatan, dan kunci nada | Claude |
 | 7 | Audio Lab UI | Halaman Audio Lab, Equalizer, Efek suara, dan pintasan dari pemutar | Sol (UI saja, setelah #3) |
 | 8 | Tampilan v2 | Sudut sampul, efek kaca, kecepatan animasi, latar pemutar | Sol |
-| 9 | Beranda v2 | Hero penuh lebar dan kartu baru | Astra |
+| 9 | Beranda v2 | Hero penuh lebar dan kartu baru | Gemini Neon |
 | 10 | Sedang diputar v2 | Gaya BitChord dan baris lirik aktif | Claude (menyentuh pemutar) |
 | 11 | Cari, Library, artis, album | Gaya kartu dan judul baru | Sol |
 | 12 | Samakan volume | Loudness dari respons YouTube Music | Claude |
