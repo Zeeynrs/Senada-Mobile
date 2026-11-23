@@ -20,13 +20,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -37,6 +41,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlin.math.roundToLong
 import senada.app.accessibleDuration
 import senada.app.excludeSystemGestures
@@ -161,15 +167,35 @@ internal fun PlayerPlaybackMenu(state: PlaybackState, playback: PlaybackControll
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun NowPlayingPosition(audio: SampleAudioState, scale: Float, onSeek: (Long) -> Unit) {
+internal fun NowPlayingPosition(audio: SampleAudioState, playback: PlaybackController, scale: Float) {
     val duration = audio.durationMs
-    var scrubFraction by remember(audio.selection, audio.canSeek) { mutableStateOf<Float?>(null) }
-    val progress = scrubFraction ?: duration?.let { (audio.positionMs.toDouble() / it).toFloat().coerceIn(0f, 1f) } ?: 0f
-    val shownPosition = if (duration != null && scrubFraction != null) {
-        (progress * duration.toDouble()).roundToLong()
-    } else {
-        audio.positionMs
+    val positionState = remember(playback) {
+        playback.state.map { it.audio.positionMs }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.audio.positionMs)
+    val scrubState = remember(audio.selection, audio.canSeek) { mutableStateOf<Float?>(null) }
+    val shownSecond by remember(duration, positionState, scrubState) {
+        derivedStateOf {
+            val scrub = scrubState.value
+            val raw = if (duration != null && scrub != null) {
+                (scrub * duration.toDouble()).roundToLong()
+            } else {
+                positionState.value
+            }
+            raw.coerceAtLeast(0L) / 1_000L
+        }
     }
+    val hasRestoredPosition by remember(positionState) {
+        derivedStateOf { positionState.value > 0L }
+    }
+    val sliderValue by remember(duration, positionState, scrubState) {
+        derivedStateOf {
+            scrubState.value ?: duration?.takeIf { it > 0L }?.let {
+                val sec = positionState.value.coerceAtLeast(0L) / 1_000L
+                ((sec * 1_000L).toDouble() / it).toFloat().coerceIn(0f, 1f)
+            } ?: 0f
+        }
+    }
+    val shownPosition = shownSecond * 1_000L
     val spokenPosition = accessibleDuration(shownPosition)
     val spokenProgress = if (duration != null) "$spokenPosition dari ${accessibleDuration(duration)}" else spokenPosition
     val trackHeight = 6.dp * scale
@@ -177,12 +203,14 @@ internal fun NowPlayingPosition(audio: SampleAudioState, scale: Float, onSeek: (
     val touchHeight = (48.dp * scale).coerceAtLeast(48.dp)
 
     Box(Modifier.fillMaxWidth().heightIn(min = touchHeight)) {
-        Box(
-            Modifier.padding(top = 8.dp * scale).fillMaxWidth().height(trackHeight)
-                .background(Color.White.copy(alpha = .25f), trackShape),
-        ) {
-            Box(Modifier.fillMaxWidth(progress).height(trackHeight).background(PlayerWhite, trackShape))
-        }
+        NowPlayingProgressBar(
+            duration = duration,
+            positionProvider = { positionState.value },
+            scrubFractionProvider = { scrubState.value },
+            trackHeight = trackHeight,
+            trackShape = trackShape,
+            scale = scale,
+        )
         Row(
             Modifier.fillMaxWidth().padding(top = 22.dp * scale).clearAndSetSemantics {},
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -199,11 +227,11 @@ internal fun NowPlayingPosition(audio: SampleAudioState, scale: Float, onSeek: (
             }
         }
         Slider(
-            value = progress,
-            onValueChange = { scrubFraction = it },
+            value = sliderValue,
+            onValueChange = { scrubState.value = it },
             onValueChangeFinished = {
-                if (duration != null) scrubFraction?.let { onSeek((it * duration.toDouble()).roundToLong()) }
-                scrubFraction = null
+                if (duration != null) scrubState.value?.let { playback.seekTo((it * duration.toDouble()).roundToLong()) }
+                scrubState.value = null
             },
             enabled = audio.canSeek,
             // Bilah tipis di atas tetap dapat digeser lewat area sentuh 48 dp.
@@ -211,7 +239,7 @@ internal fun NowPlayingPosition(audio: SampleAudioState, scale: Float, onSeek: (
             track = { Spacer(Modifier.fillMaxWidth().height(trackHeight)) },
             modifier = Modifier.fillMaxWidth().height(touchHeight).excludeSystemGestures().semantics {
                 contentDescription = if (duration == null && audio.status == SampleAudioStatus.Paused &&
-                    audio.selection?.isPending == true && shownPosition > 0
+                    audio.selection?.isPending == true && hasRestoredPosition
                 ) {
                     "Posisi jeda $spokenPosition"
                 } else {
@@ -221,6 +249,38 @@ internal fun NowPlayingPosition(audio: SampleAudioState, scale: Float, onSeek: (
             },
         )
     }
+}
+
+@Composable
+private fun NowPlayingProgressBar(
+    duration: Long?,
+    positionProvider: () -> Long,
+    scrubFractionProvider: () -> Float?,
+    trackHeight: Dp,
+    trackShape: RoundedCornerShape,
+    scale: Float,
+) {
+    Box(
+        Modifier.padding(top = 8.dp * scale)
+            .fillMaxWidth()
+            .height(trackHeight)
+            .clip(trackShape)
+            .background(Color.White.copy(alpha = .25f))
+            .drawBehind {
+                val fraction = scrubFractionProvider()
+                    ?: duration?.takeIf { it > 0L }?.let { (positionProvider().toDouble() / it).toFloat().coerceIn(0f, 1f) }
+                    ?: 0f
+                val fillWidth = size.width * fraction
+                if (fillWidth > 0f) {
+                    val corner = size.height / 2f
+                    drawRoundRect(
+                        color = PlayerWhite,
+                        size = Size(fillWidth, size.height),
+                        cornerRadius = CornerRadius(corner, corner),
+                    )
+                }
+            },
+    )
 }
 
 internal fun playbackStatus(state: PlaybackState): String? = when (state.audio.status) {

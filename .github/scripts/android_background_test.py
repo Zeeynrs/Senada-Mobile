@@ -337,7 +337,10 @@ def check_paused_seek(before: dict[str, str]) -> None:
 
 
 def check_app_navigation() -> None:
-    second = tap_desc("Berikutnya") and wait_session("PLAYING", SECOND, 5)
+    next_point = desc_point("Berikutnya")
+    if next_point is not None:
+        tap(next_point)
+    second = next_point is not None and wait_session("PLAYING", SECOND, 5)
     # Bekukan posisi entri kedua sebelum pencarian tombol lewat uiautomator.
     paused = second and pause_for_setup(SECOND)
     early = paused and int(paused["position"]) < 3_000
@@ -1674,6 +1677,9 @@ def scenario() -> None:
 
     # Bekukan lagu contoh yang hanya 12 detik sebelum uiautomator mencari mini player dan tombol tutup.
     ready = pause_for_setup(FIRST)
+    if ready and int(ready["position"]) > 1_000:
+        shell("cmd media_session dispatch previous")
+        ready = wait_session("PAUSED", FIRST, 5, max_ms=1_000)
     check_now_playing_swipes()
     if not check(open_now_playing(), "Mini player membuka Sedang diputar"):
         screenshot("02-ui")
@@ -1681,7 +1687,7 @@ def scenario() -> None:
 
     if not check(ready and tap_desc("Putar"), "Kontrol Putar/Jeda di aplikasi ditemukan saat audio dijeda", ready or session()):
         return
-    pause_point = desc_point("Jeda") if wait_session("PLAYING", FIRST, 5, min_ms=1_500) else None
+    pause_point = wait_for(lambda: desc_point("Jeda"), 5) if wait_session("PLAYING", FIRST, 5, min_ms=1_500) else None
     if pause_point is not None:
         tap(pause_point)
         paused = wait_session("PAUSED", FIRST, 5)
@@ -1711,7 +1717,10 @@ def scenario() -> None:
     open_shade("03-notification")
 
     paused_at = int(paused["position"])
-    resumed = tap_desc("Putar") and wait_session("PLAYING", FIRST, 5)
+    play_point = desc_point("Putar")
+    if play_point is not None:
+        tap(play_point)
+    resumed = play_point is not None and wait_session("PLAYING", FIRST, 5)
     if not check(
         resumed and paused_at >= 1_000 and int(resumed["position"]) >= paused_at - 300,
         "Tombol 'Putar' di aplikasi melanjutkan dari posisi terakhir",

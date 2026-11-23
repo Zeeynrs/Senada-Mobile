@@ -1,6 +1,8 @@
 package senada.app.nowplaying
 
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntSize
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -40,5 +42,12 @@ class NowPlayingTest {
             assertTrue(sourceLabelContrast(playerGlow(cover)) >= 4.5f, "Cover: $cover")
         }
         assertEquals(Color(0xFFB4521E), playerGlow(null))
+    }
+
+    @Test
+    fun backdropCacheSizeDownsamplesSmoothlyAndHandlesEmptyFrames() {
+        assertEquals(IntSize.Zero, backdropCacheSize(Size.Zero))
+        assertEquals(IntSize(270, 600), backdropCacheSize(Size(1080f, 2400f)))
+        assertEquals(IntSize(200, 400), backdropCacheSize(Size(200f, 400f)))
     }
 }

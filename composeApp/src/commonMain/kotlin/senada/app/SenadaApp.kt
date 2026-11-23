@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleStartEffect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
@@ -37,7 +39,9 @@ internal fun SenadaApp(
             }
             .build()
     }
-    val state by playback.state.collectAsState()
+    val artworkUrl by remember(playback) {
+        playback.state.map { it.currentEntry?.track?.artworkUrl }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.currentEntry?.track?.artworkUrl)
     var screenVisible by remember { mutableStateOf(false) }
 
     // Audio tetap berjalan di latar belakang; layar hanya mengatur kapan posisi perlu dibaca berkala.
@@ -50,7 +54,7 @@ internal fun SenadaApp(
         }
     }
 
-    SenadaTheme(state.currentEntry?.track?.artworkUrl, visible = screenVisible) { appearance ->
+    SenadaTheme(artworkUrl, visible = screenVisible) { appearance ->
         AppShell(playback, library, appearance, screenVisible, audioEffects)
     }
 }
