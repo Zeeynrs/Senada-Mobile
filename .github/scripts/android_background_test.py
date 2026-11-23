@@ -688,15 +688,21 @@ def check_audio_lab_effects() -> bool:
         check(eq_off, "Sakelar Equalizer kembali dimatikan")
         tap_desc("Kembali ke Audio Lab")
 
-    if check(tap_profile_item("Kecepatan & nada") and desc_point("Kembali ke Audio Lab"),
-             "Kartu Kecepatan & nada membuka Efek suara dan menggulir ke kartunya"):
+    # Mengetuk kartu Kecepatan & nada membuka Efek suara dan langsung menggulir ke kartunya,
+    # sehingga tombol kembali di puncak daftar berada di luar layar sementara Kunci nada dan 1,00× langsung terlihat.
+    speed_card_opened = tap_profile_item("Kecepatan & nada") and bool(wait_for(
+        lambda: desc_point("Kunci nada") and ui_bounds("1,00×"),
+        5,
+    ))
+    if check(speed_card_opened, "Kartu Kecepatan & nada membuka Efek suara dan menggulir ke kartunya"):
         speed_100 = tap_profile_item("1,00×") and bool(wait_for(
             lambda: [item for item in find_interactive("1,00×")
                      if any(item[1].get(attr) == "true" for attr in ("selected", "checked"))],
             5,
         ))
         check(speed_100, "Chip kecepatan 1,00× terpilih kembali di Efek suara")
-        tap_desc("Kembali ke Audio Lab")
+        shell("input keyevent KEYCODE_BACK")
+        wait_for(lambda: desc_point("Kembali ke Profil"), 5)
 
     restored_lab = bool(wait_for(
         lambda: ui_bounds("MATI") and ui_bounds("1,00× · NADA TERKUNCI"),
