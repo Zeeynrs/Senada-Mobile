@@ -87,6 +87,10 @@ internal const val HERO_MIN_HEIGHT_DP = 300f
 internal const val HERO_GRADIENT_HEIGHT_DP = 260
 internal const val HERO_ARTWORK_SIZE_PX = 544
 internal const val HERO_MINI_ARTWORK_SIZE_PX = 96
+internal const val HOME_TOP_SCRIM_FADE_START_DP = 200f
+internal const val HOME_TOP_SCRIM_FADE_END_DP = 280f
+internal const val HOME_TOP_SCRIM_EXTRA_HEIGHT_DP = 24
+internal const val HOME_TOP_SCRIM_MAX_ALPHA = 0.92f
 
 private val HeroReasonDarkColor = Color(0xFFC9CBD0)
 private val HeroFallbackSurfaceDark = Color(0xFF2B3440)
@@ -138,6 +142,51 @@ internal fun heroHeightDp(screenWidthDp: Float, screenHeightDp: Float): Float {
         widthScaled
     }
     return minOf(widthScaled, heightScaled).coerceIn(HERO_MIN_HEIGHT_DP, HERO_MAX_HEIGHT_DP)
+}
+
+/**
+ * Progres kemunculan scrim atas Beranda (0f..1f): tetap 0 saat di posisi paling atas hingga
+ * offset gulir 200 dp agar tampilan hero persis mockup, lalu memudar naik sampai 1f di 280 dp
+ * (atau saat item hero sudah lewat) agar jam dan ikon status bar tetap terbaca.
+ */
+internal fun homeTopScrimProgress(
+    firstVisibleItemIndex: Int,
+    firstVisibleItemScrollOffsetDp: Float,
+): Float {
+    if (firstVisibleItemIndex > 0) return 1f
+    if (firstVisibleItemScrollOffsetDp <= HOME_TOP_SCRIM_FADE_START_DP) return 0f
+    val span = (HOME_TOP_SCRIM_FADE_END_DP - HOME_TOP_SCRIM_FADE_START_DP).coerceAtLeast(1f)
+    return ((firstVisibleItemScrollOffsetDp - HOME_TOP_SCRIM_FADE_START_DP) / span).coerceIn(0f, 1f)
+}
+
+/**
+ * Scrim tetap di tepi atas Beranda setinggi inset status bar + 24 dp: gradasi vertikal dari
+ * warna latar tema (alpha 0.92) ke transparan, hanya muncul setelah hero mulai tergulir.
+ */
+@Composable
+internal fun HomeTopScrim(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val safeTop = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
+    val totalHeight = safeTop + HOME_TOP_SCRIM_EXTRA_HEIGHT_DP.dp
+    val holdFraction = if (totalHeight > 0.dp) (safeTop / totalHeight).coerceIn(0f, 0.85f) else 0f
+    val background = MaterialTheme.colorScheme.background
+    val brush = remember(background, holdFraction) {
+        Brush.verticalGradient(
+            0f to background.copy(alpha = HOME_TOP_SCRIM_MAX_ALPHA),
+            holdFraction to background.copy(alpha = HOME_TOP_SCRIM_MAX_ALPHA),
+            1f to background.copy(alpha = 0f),
+        )
+    }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(totalHeight)
+            .graphicsLayer { alpha = progress() }
+            .background(brush),
+    )
 }
 
 private val heroArtworkColors = ArtworkAccentCache()
