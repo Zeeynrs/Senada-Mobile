@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
@@ -107,8 +109,6 @@ internal fun NowPlayingScreen(
     var lyricsAttempt by remember(track?.id) { mutableStateOf(0) }
     val lyrics = rememberLyrics(track, SenadaSources.lyrics, screenVisible && immersive, lyricsAttempt)
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
-    val activeLine = synced?.lines?.let { it.getOrNull(activeLineIndex(it, state.audio.positionMs)) }
-        ?.text?.takeIf { it.isNotBlank() }
 
     if (immersive) NowPlayingSystemBars()
     PlatformBackHandler(enabled = immersive && sheet != null) { sheet = null }
@@ -130,7 +130,7 @@ internal fun NowPlayingScreen(
                         PlayerMainContent(
                             state = state, playback = playback, track = track, library = library, actions = actions,
                             sourceLabel = source.playerLabel().takeIf { track != null },
-                            activeLine = activeLine, accent = accent, panel = panel, onClose = onClose,
+                            synced = synced, accent = accent, panel = panel, onClose = onClose,
                             onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
                             onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
                             safeTop = safeTop, safeBottom = safeBottom,
@@ -143,7 +143,7 @@ internal fun NowPlayingScreen(
                             onClose = { sheet = null },
                         ) {
                             if (isLyrics) {
-                                LyricsPanel(track, lyrics, state.audio.positionMs) { lyricsAttempt++ }
+                                PlayerLyricsSheet(track, lyrics, playback) { lyricsAttempt++ }
                             } else {
                                 PlayerQueue(state, playback, library, actions)
                             }
@@ -163,7 +163,7 @@ private fun PlayerMainContent(
     library: LibraryState,
     actions: LibraryActions,
     sourceLabel: String?,
-    activeLine: String?,
+    synced: LyricsDocument.Synced?,
     accent: Color?,
     panel: NowPlayingPanelState,
     onClose: () -> Unit,
@@ -197,8 +197,8 @@ private fun PlayerMainContent(
             )
             Spacer(Modifier.height(4.dp * scale))
             Column(Modifier.padding(horizontal = inset)) {
-                ActiveLyric(activeLine, scale, onLyrics)
-                NowPlayingPosition(state.audio, scale, playback::seekTo)
+                PlayerActiveLyric(synced, playback, scale, onLyrics)
+                NowPlayingPosition(state.audio, playback, scale)
                 Spacer(Modifier.height((70.dp * scale - (48.dp * scale).coerceAtLeast(48.dp)).coerceAtLeast(0.dp)))
                 NowPlayingControls(state, playback, scale)
             }
@@ -364,6 +364,49 @@ private fun PlayerTrackMenu(
             }
         }
     }
+}
+
+@Composable
+private fun PlayerActiveLyric(
+    synced: LyricsDocument.Synced?,
+    playback: PlaybackController,
+    scale: Float,
+    onClick: () -> Unit,
+) {
+    val line = if (synced != null) {
+        val index by remember(synced, playback) {
+            playback.state.map { activeLineIndex(synced.lines, it.audio.positionMs) }.distinctUntilChanged()
+        }.collectAsState(activeLineIndex(synced.lines, playback.state.value.audio.positionMs))
+        synced.lines.getOrNull(index)?.text?.takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+    ActiveLyric(line, scale, onClick)
+}
+
+@Composable
+private fun PlayerLyricsSheet(
+    track: Track?,
+    lyrics: LyricsPanelResult,
+    playback: PlaybackController,
+    onRetry: () -> Unit,
+) {
+    val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
+    val positionMs = if (synced != null) {
+        val activeStartMs by remember(synced, playback) {
+            playback.state.map {
+                val index = activeLineIndex(synced.lines, it.audio.positionMs)
+                if (index >= 0) synced.lines[index].startMs else 0L
+            }.distinctUntilChanged()
+        }.collectAsState(
+            activeLineIndex(synced.lines, playback.state.value.audio.positionMs)
+                .let { if (it >= 0) synced.lines[it].startMs else 0L },
+        )
+        activeStartMs
+    } else {
+        0L
+    }
+    LyricsPanel(track, lyrics, positionMs, onRetry)
 }
 
 @Composable

@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -45,8 +46,10 @@ import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import senada.app.AppearanceSection
 import senada.app.BackupSection
@@ -110,10 +113,13 @@ import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
+import senada.playback.PlaybackState
 import senada.playback.SleepTimerState
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
+
+private fun PlaybackState.withoutPosition(): PlaybackState = copy(audio = audio.copy(positionMs = 0L))
 
 internal data class BottomOverlayVisibility(
     val showNavBar: Boolean,
@@ -146,7 +152,10 @@ internal fun AppShell(
     audioEffects: AudioEffectsController?,
 ) {
     val navigator = rememberAppNavigator()
-    val state by playback.state.collectAsState()
+    // Perubahan posisi berkala hanya dibaca oleh bilah posisi dan lirik tersinkron, bukan seluruh shell.
+    val state by remember(playback) {
+        playback.state.map { it.withoutPosition() }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.withoutPosition())
     LaunchedEffect(state.queue.entries.isEmpty()) {
         if (playback.state.value.queue.entries.isEmpty()) PlaySourceState.current.value = null
     }
@@ -304,6 +313,11 @@ internal fun AppShell(
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
     val nowPlayingPanel = rememberNowPlayingPanel(navigator)
+    val focusManager = LocalFocusManager.current
+    // Hentikan kedipan kursor kolom input di tab belakang saat layar Sedang diputar menutup layar.
+    LaunchedEffect(nowPlayingPanel.visible) {
+        if (nowPlayingPanel.visible) focusManager.clearFocus()
+    }
     val miniPlayerVisible = showsMiniPlayer(state)
     val imeInsets = WindowInsets.ime
     val density = LocalDensity.current

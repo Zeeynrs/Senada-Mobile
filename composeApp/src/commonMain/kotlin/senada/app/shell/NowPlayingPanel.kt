@@ -138,14 +138,16 @@ internal fun Modifier.nowPlayingSwipe(
             try {
                 while (true) {
                     change = awaitVerticalDragOrCancellation(change.id) ?: break
+                    val deltaY = change.positionChange().y
+                    if (deltaY != 0f) {
+                        panel.dragBy(opening, deltaY)
+                    }
                     tracker.addPointerInputChange(change)
                     if (!change.pressed) {
                         panel.releaseSwipe(opening, tracker.calculateVelocity().y, flingThreshold)
                         break
                     }
-                    val deltaY = change.positionChange().y
                     change.consume()
-                    panel.dragBy(opening, deltaY)
                 }
             } finally {
                 panel.cancelSwipe(opening)
