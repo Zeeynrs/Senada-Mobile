@@ -8,6 +8,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.measureTime
 
@@ -21,8 +22,13 @@ class AudioEffectsProcessorTest {
         assertContentEquals(expected, IntArray(samples.size) { samples[it].toRawBits() })
 
         processor.update(allEffects())
-        processor.process(FloatArray(512), offset = 0, frames = 256)
+        processor.process(FloatArray(FADE_FRAMES * 2), offset = 0, frames = FADE_FRAMES)
         processor.update(AudioEffects(equalizer = EqualizerSettings(enabled = true)))
+        val fadeSamples = FADE_FRAMES * 2
+        val fadeAndTail = FloatArray(fadeSamples + samples.size) { 0.1f }
+        samples.copyInto(fadeAndTail, destinationOffset = fadeSamples)
+        processor.process(fadeAndTail, offset = 0, frames = FADE_FRAMES + 3)
+        assertContentEquals(expected, IntArray(samples.size) { fadeAndTail[fadeSamples + it].toRawBits() })
         processor.process(samples, offset = 0, frames = 3)
         assertContentEquals(expected, IntArray(samples.size) { samples[it].toRawBits() })
 
@@ -100,8 +106,42 @@ class AudioEffectsProcessorTest {
         assertTrue(abs(samples.last() - 0.0251f) < 0.001f)
         assertTrue(samples.all { it in 0.025f..0.200f })
         for (index in 1 until samples.size) {
-            assertTrue(abs(samples[index] - samples[index - 1]) < 0.002f, "Jump at sample $index")
+            assertTrue(abs(samples[index] - samples[index - 1]) < MAX_SAMPLE_JUMP, "Jump at sample $index")
         }
+    }
+
+    @Test
+    fun switching_off_bass_eq_and_reverb_fades_across_blocks() {
+        val processor = AudioEffectsProcessor(SAMPLE_RATE, 1)
+        val preset = EqPreset.BuiltIns.first { it.name == "Bass+" }
+        processor.update(AudioEffects(
+            equalizer = EqualizerSettings(enabled = true, presetId = preset.id, gains = preset.gains),
+            reverb = ReverbSettings(enabled = true, mix = 0.7f),
+        ))
+        val dry = 0.1f
+        val halfFade = FADE_FRAMES / 2
+        val warmup = FloatArray(halfFade)
+        repeat(120) {
+            warmup.fill(dry)
+            processor.process(warmup, offset = 0, frames = warmup.size)
+        }
+        val lastWetSample = warmup.last()
+        assertTrue(abs(lastWetSample - dry) > MAX_SAMPLE_JUMP, "Warm reverb must differ from dry input")
+
+        processor.update(AudioEffects())
+        val fade = FloatArray(FADE_FRAMES) { dry }
+        processor.process(fade, offset = 0, frames = halfFade)
+        processor.process(fade, offset = halfFade, frames = halfFade)
+        assertTrue(abs(fade.first() - lastWetSample) < MAX_SAMPLE_JUMP, "Jump at bypass boundary")
+        for (index in 1 until fade.size) {
+            assertTrue(abs(fade[index] - fade[index - 1]) < MAX_SAMPLE_JUMP, "Jump at fade sample $index")
+        }
+        assertEquals(dry.toRawBits(), fade.last().toRawBits())
+
+        val dryBlock = floatArrayOf(-0f, Float.fromBits(0x7fc01234), -2f, 2f, -0.98f, 0.98f)
+        val bits = IntArray(dryBlock.size) { dryBlock[it].toRawBits() }
+        processor.process(dryBlock, offset = 0, frames = dryBlock.size)
+        assertContentEquals(bits, IntArray(dryBlock.size) { dryBlock[it].toRawBits() })
     }
 
     @Test
@@ -141,6 +181,24 @@ class AudioEffectsProcessorTest {
         pcm.processShort(samples, offset = 1, frames = 4)
         floatingPoint.process(floats, offset = 1, frames = 4)
         assertContentEquals(ShortArray(floats.size) { (floats[it] * 32768f).roundToInt().toShort() }, samples)
+    }
+
+    @Test
+    fun pcm_bypass_fades_across_scratch_chunks() {
+        val processor = AudioEffectsProcessor(SAMPLE_RATE, 1, maxPcm16Frames = 127)
+        val dry = 32_000.toShort()
+        processor.update(AudioEffects(equalizer = EqualizerSettings(enabled = true, preamp = -12f)))
+        val warmup = ShortArray(FADE_FRAMES) { dry }
+        processor.processShort(warmup, offset = 0, frames = warmup.size)
+
+        processor.update(AudioEffects())
+        val samples = ShortArray(FADE_FRAMES + 16) { dry }
+        processor.processShort(samples, offset = 0, frames = samples.size)
+        assertTrue(abs(samples.first() - warmup.last()) < MAX_SAMPLE_JUMP * 32768)
+        for (index in 1 until FADE_FRAMES) {
+            assertTrue(abs(samples[index] - samples[index - 1]) < MAX_SAMPLE_JUMP * 32768)
+        }
+        assertTrue((FADE_FRAMES - 1 until samples.size).all { samples[it] == dry })
     }
 
     @Test
@@ -187,5 +245,7 @@ class AudioEffectsProcessorTest {
 
     private companion object {
         const val SAMPLE_RATE = 48_000
+        const val FADE_FRAMES = SAMPLE_RATE / 100
+        const val MAX_SAMPLE_JUMP = 0.002f
     }
 }
