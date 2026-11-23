@@ -1,6 +1,5 @@
 package senada.app.nowplaying
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,10 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -70,6 +66,7 @@ import senada.app.TrackMenu
 import senada.app.minTouchTarget
 import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.PlatformBackHandler
+import senada.app.shell.SenadaIcons
 import senada.app.shell.nowPlayingSwipe
 import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
@@ -192,7 +189,7 @@ private fun PlayerMainContent(
     ) {
         Column(Modifier.fillMaxWidth()) {
             PlayerHeader(sourceLabel ?: "Sedang diputar", scale, safeTop, onClose)
-            Cover(track?.artworkUrl, accent, coverSize, scale)
+            Cover(track?.artworkUrl, accent, coverSize)
             Spacer(Modifier.height(372.dp * scale - coverSize))
             PlayerTrack(
                 state, playback, track, library, actions, onOpenAudioLab, scale,
@@ -393,58 +390,41 @@ private fun ActiveLyric(line: String?, scale: Float, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Cover(url: String?, accent: Color?, size: Dp, scale: Float) {
+private fun Cover(url: String?, accent: Color?, size: Dp) {
     val glow = LocalPlayerBackdrop.current.glow
-    val backdrop = if (accent == null) Color(0xFF3A1C10) else Color(glow.red * .32f, glow.green * .32f, glow.blue * .32f)
-    val shape = RoundedCornerShape(20.dp * scale)
+    val backdrop = if (accent == null) {
+        SenadaPalette.DarkSurfaceHigh
+    } else {
+        Color(glow.red * .32f, glow.green * .32f, glow.blue * .32f)
+    }
+    val shape = RoundedCornerShape(20.dp)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             Modifier.size(size)
-                .coverShadow(scale)
+                .shadow(
+                    elevation = 30.dp,
+                    shape = shape,
+                    ambientColor = Color.Black.copy(alpha = .45f),
+                    spotColor = Color.Black.copy(alpha = .45f),
+                )
                 .clip(shape)
                 .background(backdrop),
+            contentAlignment = Alignment.Center,
         ) {
-            Canvas(Modifier.fillMaxSize()) {
-                val unit = this.size.width / 342f
-                drawCircle(glow, radius = 85f * unit, center = Offset(181f * unit, 145f * unit))
-                drawRect(Color.Black.copy(alpha = .25f), Offset(0f, 232f * unit), Size(this.size.width, 110f * unit))
-            }
+            Icon(
+                imageVector = SenadaIcons.MusicNote,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = .35f),
+                modifier = Modifier.size(size * .30f),
+            )
             if (!url.isNullOrBlank()) {
                 AsyncImage(
                     model = remember(url) { resizeGoogleArtwork(url, 960) },
-                    contentDescription = null, contentScale = ContentScale.Crop,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-        }
-    }
-}
-
-// Sampel Gaussian untuk box-shadow 0 30px 60px rgba(0,0,0,.45).
-// Gambar dari luar ke dalam agar alpha bertambah sesuai kurva tanpa bitmap sebesar sampul.
-private val CoverShadowProfile = listOf(
-    3f to .0013f, 2.5f to .0062f, 2f to .0228f, 1.5f to .0668f, 1f to .1587f,
-    .5f to .3085f, 0f to .5f, -.5f to .6915f, -1f to .8413f, -1.5f to .9332f,
-    -2f to .9772f, -2.5f to .9938f, -3f to .9987f,
-)
-
-private fun Modifier.coverShadow(scale: Float): Modifier = drawWithCache {
-    val deviation = (30.dp * scale).toPx()
-    val corner = (20.dp * scale).toPx()
-    onDrawBehind {
-        var previousAlpha = 0f
-        for ((distance, coverage) in CoverShadowProfile) {
-            val spread = distance * deviation
-            val shadowSize = Size(size.width + 2f * spread, size.height + 2f * spread)
-            if (shadowSize.width <= 0f || shadowSize.height <= 0f) break
-            val opacity = .45f * coverage
-            drawRoundRect(
-                color = Color.Black.copy(alpha = (opacity - previousAlpha) / (1f - previousAlpha)),
-                topLeft = Offset(-spread, deviation - spread),
-                size = shadowSize,
-                cornerRadius = CornerRadius((corner + spread).coerceAtLeast(0f)),
-            )
-            previousAlpha = opacity
         }
     }
 }
