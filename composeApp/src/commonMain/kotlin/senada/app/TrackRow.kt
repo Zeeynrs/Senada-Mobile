@@ -45,6 +45,7 @@ internal fun TrackRow(
     showArtworkWithNumber: Boolean = false,
     onClick: (() -> Unit)? = null,
     playing: Boolean = false,
+    onClickLabel: String = "Putar",
     action: @Composable () -> Unit,
 ) {
     val metadata = listOfNotNull(
@@ -66,7 +67,7 @@ internal fun TrackRow(
                     .fillMaxWidth()
                     .minTouchTarget()
                     .clip(MaterialTheme.shapes.small)
-                    .clickable(onClickLabel = "Putar", role = Role.Button, onClick = onClick)
+                    .clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
                     .padding(vertical = 4.dp)
             } else {
                 Modifier.fillMaxWidth()

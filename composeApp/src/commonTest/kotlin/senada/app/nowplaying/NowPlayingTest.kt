@@ -10,6 +10,9 @@ import senada.app.contrastRatio
 class NowPlayingTest {
     @Test
     fun sourceLabels() {
+        assertEquals("Diputar dari Pencarian", PlaySource.Search.playerLabel())
+        assertEquals("Diputar dari playlist Senja", PlaySource.Playlist("Senja").playerLabel())
+        assertEquals("Diputar dari Antrean", null.playerLabel())
         assertEquals("Dari Favorit", PlaySource.Favorites.label())
         assertEquals("Dari playlist Senja", PlaySource.Playlist("Senja").label())
         assertEquals("Dari Riwayat", PlaySource.History.label())
@@ -29,5 +32,13 @@ class NowPlayingTest {
     fun coverAccentStaysReadableOnDark() {
         val scheme = nowPlayingColorScheme(Color(0xFF1A1A40))
         assertTrue(contrastRatio(scheme.primary, scheme.background) >= 4.5f)
+    }
+
+    @Test
+    fun brightCoversKeepSourceLegible() {
+        for (cover in listOf(Color.White, Color.Yellow, Color.Cyan, Color(0xFFB4521E), null)) {
+            assertTrue(sourceLabelContrast(playerGlow(cover)) >= 4.5f, "Cover: $cover")
+        }
+        assertEquals(Color(0xFFB4521E), playerGlow(null))
     }
 }
