@@ -134,6 +134,25 @@ internal class DiscoverController(
     }
 }
 
+@Composable
+private fun discoverPaddedModifier(horizontalPadding: Dp, top: Dp): Modifier = if (horizontalPadding > 0.dp) {
+    Modifier
+        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+        .padding(top = top, start = horizontalPadding, end = horizontalPadding)
+} else {
+    Modifier
+}
+
+@Composable
+private fun discoverRowModifier(horizontalPadding: Dp, top: Dp): Modifier = if (horizontalPadding > 0.dp) {
+    Modifier
+        .fillMaxWidth()
+        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+        .padding(top = top)
+} else {
+    Modifier.fillMaxWidth()
+}
+
 /** Rak rekomendasi "Untuk kamu" yang dipakai bersama di Beranda dan tab Cari saat kolom cari kosong. */
 internal fun LazyListScope.discoverSection(
     state: DiscoverUiState,
@@ -149,27 +168,10 @@ internal fun LazyListScope.discoverSection(
     val result = state.result
     val personal = result?.personal == true
 
-    fun paddedModifier(top: Dp): Modifier = if (horizontalPadding > 0.dp) {
-        Modifier
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            .padding(top = top, start = horizontalPadding, end = horizontalPadding)
-    } else {
-        Modifier
-    }
-
-    fun rowModifier(top: Dp): Modifier = if (horizontalPadding > 0.dp) {
-        Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            .padding(top = top)
-    } else {
-        Modifier.fillMaxWidth()
-    }
-
     item(key = "discover-header") {
         ShelfTitle(
             title = "Untuk kamu",
-            modifier = paddedModifier(sectionTopSpacing),
+            modifier = discoverPaddedModifier(horizontalPadding, sectionTopSpacing),
             subtitle = if (personal) {
                 "Berdasarkan lagu yang kamu putar dan sukai."
             } else {
@@ -195,7 +197,7 @@ internal fun LazyListScope.discoverSection(
 
     if (state.deferredByDataSaver && result == null) {
         item(key = "discover-data-saver") {
-            Box(modifier = paddedModifier(itemSpacing)) {
+            Box(modifier = discoverPaddedModifier(horizontalPadding, itemSpacing)) {
                 QuietNoticeCard(
                     message = "Hemat data aktif. Rekomendasi tidak dimuat otomatis di jaringan seluler.",
                     actionLabel = "Muat",
@@ -225,7 +227,7 @@ internal fun LazyListScope.discoverSection(
 
     state.error?.let { message ->
         item(key = "discover-error") {
-            Box(modifier = paddedModifier(itemSpacing)) {
+            Box(modifier = discoverPaddedModifier(horizontalPadding, itemSpacing)) {
                 QuietNoticeCard(
                     message = message,
                     actionLabel = "Coba lagi",
@@ -244,7 +246,7 @@ internal fun LazyListScope.discoverSection(
             ShelfTitle(
                 title = if (personal) "Lagu untuk kamu" else "Lagu populer",
                 emphasized = false,
-                modifier = paddedModifier(itemSpacing),
+                modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
         }
         item(key = "discover-tracks-quickpicks") {
@@ -253,7 +255,7 @@ internal fun LazyListScope.discoverSection(
                 library = library,
                 actions = actions,
                 onPlayTrack = { index -> actions.playAll(result.tracks, startIndex = index) },
-                modifier = paddedModifier(itemSpacing),
+                modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
         }
     }
@@ -263,12 +265,12 @@ internal fun LazyListScope.discoverSection(
             ShelfTitle(
                 title = if (personal) "Artis yang mungkin kamu suka" else "Artis populer",
                 emphasized = false,
-                modifier = paddedModifier(itemSpacing),
+                modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
         }
         item(key = "discover-artists-row") {
             LazyRow(
-                modifier = rowModifier(itemSpacing),
+                modifier = discoverRowModifier(horizontalPadding, itemSpacing),
                 contentPadding = PaddingValues(horizontal = horizontalPadding),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -287,12 +289,12 @@ internal fun LazyListScope.discoverSection(
             ShelfTitle(
                 title = if (personal) "Album untuk kamu" else "Album populer",
                 emphasized = false,
-                modifier = paddedModifier(itemSpacing),
+                modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
         }
         item(key = "discover-albums-row") {
             LazyRow(
-                modifier = rowModifier(itemSpacing),
+                modifier = discoverRowModifier(horizontalPadding, itemSpacing),
                 contentPadding = PaddingValues(horizontal = horizontalPadding),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
