@@ -462,6 +462,8 @@ internal fun AppShell(
                         screenVisible = screenVisible,
                         screenWidthDp = shellWidthDp,
                         screenHeightDp = shellHeightDp,
+                        profileName = profile.name,
+                        profilePhoto = profilePhoto,
                         onOpenProfile = { navigator.select(AppDestination.Profile) },
                         onOpenFavorites = {
                             librarySection = LibraryFilter.Favorites

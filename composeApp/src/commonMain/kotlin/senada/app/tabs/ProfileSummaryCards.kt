@@ -197,7 +197,8 @@ private fun ProfileTimeValue(value: Long, unit: String) {
 
 @Composable
 private fun ProfileListeningChart(summary: ListeningSummary?) {
-    val bars = summary?.bars.orEmpty().takeLast(7)
+    val dayCount = 7
+    val bars = summary?.bars.orEmpty().takeLast(dayCount)
     val max = bars.maxOfOrNull { it.listenedMs } ?: 0L
     val colors = MaterialTheme.colorScheme
     val description = "Grafik waktu dengar harian, 7 hari terakhir. " +
@@ -206,15 +207,14 @@ private fun ProfileListeningChart(summary: ListeningSummary?) {
         contentDescription = description
         role = Role.Image
     }) {
-        if (max == 0L) return@Canvas
         val gap = 6.dp.toPx()
-        val width = (size.width - 6 * gap) / 7
-        for ((index, bar) in bars.withIndex()) {
-            if (bar.listenedMs <= 0L) continue
-            val height = size.height * (bar.listenedMs.toFloat() / max)
+        val width = (size.width - (dayCount - 1) * gap).coerceAtLeast(0f) / dayCount
+        repeat(dayCount) { index ->
+            val listenedMs = bars.getOrNull(index + bars.size - dayCount)?.listenedMs ?: 0L
+            val height = (size.height * (listenedMs.toFloat() / max.coerceAtLeast(1L))).coerceAtLeast(4.dp.toPx())
             drawRoundRect(
-                color = if (index == bars.lastIndex) colors.primary else colors.outline,
-                topLeft = Offset((index + 7 - bars.size) * (width + gap), size.height - height),
+                color = if (index == dayCount - 1) colors.primary else colors.outline,
+                topLeft = Offset(index * (width + gap), size.height - height),
                 size = Size(width, height),
                 cornerRadius = CornerRadius(4.dp.toPx()),
             )
