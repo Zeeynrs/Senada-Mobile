@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
@@ -93,10 +95,10 @@ internal fun TrackRow(
                     }
                 }
                 if (showArtwork) {
-                    // Kotak sampul 48 dp radius 8 dp tetap ada tanpa gambar agar daftar sejajar; murni dekoratif.
+                    // Kotak sampul 48 dp memakai sudut sampul daftar dari LocalSenadaLook; murni dekoratif.
                     Box(
                         modifier = Modifier.size(48.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
+                            .clip(RoundedCornerShape(LocalSenadaLook.current.listCoverRadius))
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center,
                     ) {

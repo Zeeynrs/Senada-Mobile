@@ -3,6 +3,7 @@ package senada.app
 import androidx.compose.ui.graphics.Color
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
@@ -26,6 +27,25 @@ class AppearanceTest {
                 }
             }
         }
+        for (coverRadius in listOf(0, 2, 12, 20, 28)) {
+            for (backdrop in listOf(false, true)) {
+                for (glass in listOf(false, true)) {
+                    for (speed in AnimationSpeed.entries) {
+                        val settings = Appearance(
+                            mode = ThemeMode.Dark,
+                            accent = AccentChoice.Indigo,
+                            saveMobileData = true,
+                            coverRadius = coverRadius,
+                            playerBackdropFromCover = backdrop,
+                            glass = glass,
+                            animation = speed,
+                        )
+                        open().save(settings)
+                        assertEquals(settings, open().load())
+                    }
+                }
+            }
+        }
     }
 
     @Test
@@ -37,12 +57,20 @@ class AppearanceTest {
             val settings = store.load()
             assertEquals(ThemeMode.Dark, settings.mode)
             assertTrue(settings.saveMobileData)
+            assertEquals(DEFAULT_COVER_RADIUS_DP, settings.coverRadius)
+            assertTrue(settings.playerBackdropFromCover)
+            assertTrue(settings.glass)
+            assertEquals(AnimationSpeed.Normal, settings.animation)
             store.save(settings)
 
             val updated = Json.parseToJsonElement(saved).jsonObject
-            assertEquals(JsonPrimitive(2), updated["version"])
+            assertEquals(JsonPrimitive(3), updated["version"])
             assertEquals(JsonPrimitive(accent), updated["accent"])
             assertNull(updated["followCover"])
+            assertEquals(JsonPrimitive(20), updated["coverRadius"])
+            assertEquals(JsonPrimitive(true), updated["playerBackdropFromCover"])
+            assertEquals(JsonPrimitive(true), updated["glass"])
+            assertEquals(JsonPrimitive("normal"), updated["animation"])
             assertEquals(settings, store.load())
         }
     }
@@ -54,15 +82,98 @@ class AppearanceTest {
     }
 
     @Test
-    fun version_two_settings_restore_a_named_accent_and_other_preferences() {
+    fun version_two_settings_restore_a_named_accent_with_v3_visual_defaults() {
         var saved = """{"version":2,"mode":"Light","accent":"mint","saveMobileData":true}"""
         val store = AppearanceStore({ saved }, { saved = it })
         val settings = store.load()
         assertEquals(ThemeMode.Light, settings.mode)
         assertEquals(AccentChoice.Mint, settings.accent)
         assertTrue(settings.saveMobileData)
+        assertEquals(DEFAULT_COVER_RADIUS_DP, settings.coverRadius)
+        assertTrue(settings.playerBackdropFromCover)
+        assertTrue(settings.glass)
+        assertEquals(AnimationSpeed.Normal, settings.animation)
         store.save(settings)
-        assertEquals(JsonPrimitive("mint"), Json.parseToJsonElement(saved).jsonObject["accent"])
+
+        val updated = Json.parseToJsonElement(saved).jsonObject
+        assertEquals(JsonPrimitive(3), updated["version"])
+        assertEquals(JsonPrimitive("mint"), updated["accent"])
+        assertEquals(settings, store.load())
+    }
+
+    @Test
+    fun out_of_range_cover_radius_is_clamped_on_load_and_save() {
+        val negativeJson = """{"version":3,"mode":"Dark","accent":"senada","coverRadius":-12,"glass":false,"playerBackdropFromCover":false,"animation":"fast"}"""
+        val loadedLow = AppearanceStore({ negativeJson }, {}).load()
+        assertEquals(MIN_COVER_RADIUS_DP, loadedLow.coverRadius)
+        assertFalse(loadedLow.glass)
+        assertFalse(loadedLow.playerBackdropFromCover)
+        assertEquals(AnimationSpeed.Fast, loadedLow.animation)
+
+        val hugeJson = """{"version":3,"mode":"Dark","accent":"senada","coverRadius":999}"""
+        assertEquals(MAX_COVER_RADIUS_DP, AppearanceStore({ hugeJson }, {}).load().coverRadius)
+
+        val overflowJson = """{"version":3,"mode":"Dark","accent":"senada","coverRadius":999999999999}"""
+        assertEquals(MAX_COVER_RADIUS_DP, AppearanceStore({ overflowJson }, {}).load().coverRadius)
+
+        val badTypesJson = """{"version":3,"mode":"Dark","accent":"senada","coverRadius":"20","glass":"false","playerBackdropFromCover":"false","animation":"unknown"}"""
+        val fallbackFields = AppearanceStore({ badTypesJson }, {}).load()
+        assertEquals(DEFAULT_COVER_RADIUS_DP, fallbackFields.coverRadius)
+        assertTrue(fallbackFields.glass)
+        assertTrue(fallbackFields.playerBackdropFromCover)
+        assertEquals(AnimationSpeed.Normal, fallbackFields.animation)
+
+        var saved: String? = null
+        val store = AppearanceStore({ saved }, { saved = it })
+        store.save(Appearance(coverRadius = -8))
+        assertEquals(MIN_COVER_RADIUS_DP, store.load().coverRadius)
+        store.save(Appearance(coverRadius = 48))
+        assertEquals(MAX_COVER_RADIUS_DP, store.load().coverRadius)
+    }
+
+    @Test
+    fun cover_radius_drag_and_step_snap_to_two_dp_within_bounds() {
+        assertEquals(20, dragCoverRadius(20, deltaPx = 0f, dragSpanPx = 280f))
+        assertEquals(22, dragCoverRadius(20, deltaPx = 20f, dragSpanPx = 280f))
+        assertEquals(18, dragCoverRadius(20, deltaPx = -20f, dragSpanPx = 280f))
+        assertEquals(28, dragCoverRadius(20, deltaPx = 500f, dragSpanPx = 280f))
+        assertEquals(0, dragCoverRadius(20, deltaPx = -500f, dragSpanPx = 280f))
+        assertEquals(20, dragCoverRadius(20, deltaPx = 100f, dragSpanPx = 0f))
+
+        assertEquals(22, stepCoverRadiusBy(20, 1))
+        assertEquals(18, stepCoverRadiusBy(20, -1))
+        assertEquals(28, stepCoverRadiusBy(28, 1))
+        assertEquals(0, stepCoverRadiusBy(0, -1))
+    }
+
+    @Test
+    fun follow_cover_switch_restores_last_fixed_accent_or_senada() = runTest {
+        var saved: String? = null
+        val preferences = AppearancePreferences(AppearanceStore({ saved }, { saved = it }))
+        preferences.restore()
+        assertEquals(AccentChoice.FollowCover, preferences.settings?.accent)
+
+        // Default tanpa warna tetap sebelumnya kembali ke Senada.
+        preferences.setFollowCover(false)
+        assertEquals(AccentChoice.Senada, preferences.settings?.accent)
+
+        // Memilih warna tetap lalu menyalakan & mematikan FollowCover mengembalikan warna terakhir.
+        preferences.selectAccent(AccentChoice.Indigo)
+        assertEquals(AccentChoice.Indigo, preferences.settings?.accent)
+        preferences.setFollowCover(true)
+        assertEquals(AccentChoice.FollowCover, preferences.settings?.accent)
+        preferences.setFollowCover(false)
+        assertEquals(AccentChoice.Indigo, preferences.settings?.accent)
+
+        // Pengaturan visual lain tersimpan dan clamp bekerja.
+        preferences.setCoverRadius(40)
+        assertEquals(MAX_COVER_RADIUS_DP, preferences.settings?.coverRadius)
+        preferences.setGlass(false)
+        assertEquals(false, preferences.settings?.glass)
+        preferences.setPlayerBackdropFromCover(false)
+        assertEquals(false, preferences.settings?.playerBackdropFromCover)
+        preferences.selectAnimationSpeed(AnimationSpeed.Slow)
+        assertEquals(AnimationSpeed.Slow, preferences.settings?.animation)
     }
 
     @Test
@@ -85,7 +196,8 @@ class AppearanceTest {
             """{"version":2,"mode":"Dark","accent":"unknown","saveMobileData":true}""",
             """{"version":2,"mode":"Dark","accent":null}""",
             """{"version":2,"mode":"Dark","accent":{"name":"mint"}}""",
-            """{"version":3,"mode":"Dark","accent":"mint"}""",
+            """{"version":3,"mode":"Dark","accent":"unknown"}""",
+            """{"version":4,"mode":"Dark","accent":"mint"}""",
         )) {
             assertEquals(defaults, AppearanceStore({ bad }, {}).load(), bad)
         }

@@ -936,6 +936,156 @@ def check_home_shelves() -> None:
     )
 
 
+def screenshot_full_appearance() -> None:
+    """Perpanjang layar sebentar agar keempat kartu Tampilan terlihat pada kanvas 390×1180 dp."""
+    original_size = re.search(r"Override size: (\d+x\d+)", shell("wm size"))
+    density = screen_density() / 160
+    width, height = round(390 * density), round(1180 * density)
+    try:
+        shell(f"wm size {width}x{height}")
+
+        def full_appearance_visible():
+            root = ui_tree()
+            if root is None or not ui_bounds("Tampilan", root=root):
+                return False
+            return any(
+                y2 < overlay_top(root, height)
+                for _, _, _, y2 in ui_bounds("Mati", root=root)
+            )
+
+        check(wait_for(full_appearance_visible, 10), "Seluruh kartu Tampilan terlihat pada kanvas v2-70-appearance")
+        screenshot("v2-70-appearance")
+    finally:
+        shell("wm size " + (original_size.group(1) if original_size else "reset"))
+        wait_for(lambda: ui_bounds("Tampilan") and desc_point("Kembali ke Profil"), 5)
+
+
+def is_selected_label(label: str, *, attribute: str = "text", root: ET.Element | None = None) -> bool:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return False
+    parents = parent_map(tree)
+    for node in tree.iter("node"):
+        if node.get(attribute) != label:
+            continue
+        for candidate in (node, parents.get(node), interactive_node(node, parents)):
+            if candidate is not None and any(candidate.get(attr) == "true" for attr in ("selected", "checked")):
+                return True
+    return False
+
+
+def is_disabled_label(label: str, *, attribute: str = "text", root: ET.Element | None = None) -> bool:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return False
+    parents = parent_map(tree)
+    for node in tree.iter("node"):
+        if node.get(attribute) != label:
+            continue
+        for candidate in (node, parents.get(node), interactive_node(node, parents)):
+            if candidate is not None and candidate.get("enabled") == "false":
+                return True
+    return False
+
+
+def check_appearance_v2() -> None:
+    if not check(
+        open_tab("Profil") and (scroll_to_top(2) or True) and tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"),
+        "Halaman Tampilan v2 dapat dibuka dari Profil",
+    ):
+        return
+
+    # Emulator CI memakai disable-animations=true (animator_duration_scale=0): pastikan chip Mati terkunci.
+    width, height = screen_size()
+    locked_ok = False
+    for _ in range(4):
+        tree = ui_tree()
+        if tree is not None and ui_bounds("Diatur oleh sistem", root=tree) and ui_bounds("Mati", root=tree):
+            locked_ok = is_selected_label("Mati", root=tree) and is_disabled_label("Mati", root=tree)
+            break
+        shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 300")
+        time.sleep(0.5)
+    check(
+        locked_ok,
+        "Pengurangan gerak sistem mengunci kecepatan animasi ke Mati dengan keterangan 'Diatur oleh sistem'",
+    )
+
+    try:
+        shell("settings put global animator_duration_scale 1.0")
+        unlocked = wait_for(
+            lambda: (t := ui_tree()) is not None
+            and not ui_bounds("Diatur oleh sistem", root=t)
+            and is_selected_label("Normal", root=t),
+            5,
+        )
+        check(bool(unlocked), "Kecepatan animasi kembali ke Normal saat pengurangan gerak sistem dimatikan")
+        scroll_to_top(3)
+
+        dark_selected = tap_text("Gelap", scrolls=0) and bool(wait_for(lambda: is_selected_label("Gelap"), 5))
+        check(dark_selected, "Segmen tema Gelap dapat dipilih")
+        screenshot_full_appearance()
+
+        light_selected = tap_text("Terang", scrolls=0) and bool(wait_for(lambda: is_selected_label("Terang"), 5))
+        system_selected = tap_text("Ikuti sistem", scrolls=0) and bool(wait_for(lambda: is_selected_label("Ikuti sistem"), 5))
+        check(light_selected and system_selected, "Segmen tema Terang dan Ikuti sistem dapat dipilih")
+
+        follow_on = wait_for(
+            lambda: [item for item in find_interactive("Warna mengikuti sampul") if item[1].get("checked") == "true"],
+            5,
+        )
+        indigo_picked = bool(follow_on) and tap_desc("Warna aksen Indigo") and bool(wait_for(
+            lambda: [item for item in find_interactive("Warna mengikuti sampul") if item[1].get("checked") == "false"],
+            5,
+        ))
+        follow_re_on = indigo_picked and tap_text("Warna mengikuti sampul", scrolls=0) and bool(wait_for(
+            lambda: [item for item in find_interactive("Warna mengikuti sampul") if item[1].get("checked") == "true"],
+            5,
+        ))
+        restored_indigo = follow_re_on and tap_text("Warna mengikuti sampul", scrolls=0) and bool(wait_for(
+            lambda: is_selected_label("Warna aksen Indigo", attribute="content-desc"),
+            5,
+        ))
+        reset_follow = restored_indigo and tap_desc("Warna aksen Senada") and tap_text("Warna mengikuti sampul", scrolls=0) and bool(wait_for(
+            lambda: [item for item in find_interactive("Warna mengikuti sampul") if item[1].get("checked") == "true"],
+            5,
+        ))
+        check(
+            bool(reset_follow),
+            "Bulatan warna aksen dan sakelar Warna mengikuti sampul bekerja serta memulihkan warna terakhir",
+        )
+
+        radius_default = bool(ui_bounds("20dp")) or tap_profile_item("20dp")
+        radius_inc = radius_default and tap_desc("Tambah sudut sampul") and bool(wait_for(lambda: ui_bounds("22dp"), 5))
+        radius_dec = radius_inc and tap_desc("Kurangi sudut sampul") and bool(wait_for(lambda: ui_bounds("20dp"), 5))
+        check(radius_dec, "Kartu Sudut sampul dapat ditambah dan dikurangi dengan langkah 2 dp")
+
+        glass_off = tap_profile_item("Efek kaca") and bool(wait_for(
+            lambda: [item for item in find_interactive("Efek kaca") if item[1].get("checked") == "false"],
+            5,
+        ))
+        check(glass_off, "Efek kaca dapat dimatikan di halaman Tampilan")
+
+        if glass_off and back_to_profile() and open_tab("Beranda"):
+            scroll_to_top(2)
+            wait_for(lambda: ui_bounds("Baru diputar"), 5)
+            screenshot("v2-71-glass-off")
+
+        glass_restored = (
+            open_tab("Profil")
+            and (scroll_to_top(2) or True)
+            and tap_profile_item("Tampilan")
+            and tap_profile_item("Efek kaca")
+            and bool(wait_for(
+                lambda: [item for item in find_interactive("Efek kaca") if item[1].get("checked") == "true"],
+                5,
+            ))
+        )
+        check(glass_restored, "Efek kaca kembali dinyalakan setelah tangkapan layar Beranda")
+        back_to_profile()
+    finally:
+        shell("settings put global animator_duration_scale 0.0")
+
+
 def check_home_hero_play() -> None:
     shell("input keyevent KEYCODE_BACK")
     wait_for(now_playing_closed, 5)
@@ -1262,16 +1412,27 @@ def check_large_font_accessibility() -> None:
         f"lebar {width}px, hilang {cari_missing}, terpotong/kekecilan {cari_clipped}",
     )
 
-    settings_opened = open_tab("Profil") and tap_profile_item("Tampilan")
+    settings_opened = open_tab("Profil") and (scroll_to_top(2) or True) and tap_profile_item("Tampilan")
     if not check(settings_opened, "Tampilan dapat dibuka dari Profil pada skala font 200%"):
         return
 
     screenshot("07-settings-large-font")
-    accent_labels = [
-        f"Warna aksen {label}" for label in (
-            "Senada", "Ikuti sampul", "Mint", "Indigo", "Sky", "Aurora", "Sunset", "Ocean",
-            "Forest", "Berry", "Amber", "Rose", "Carbon", "Chrome",
-        )
+    visible_accents = [
+        f"Warna aksen {label}" for label in ("Senada", "Mint", "Indigo", "Sky")
+    ]
+    appearance_targets = [
+        ("Gelap", "text"),
+        ("Terang", "text"),
+        ("Ikuti sistem", "text"),
+        ("Warna mengikuti sampul", "text"),
+        ("Kurangi sudut sampul", "content-desc"),
+        ("Tambah sudut sampul", "content-desc"),
+        ("Latar pemutar dari sampul", "text"),
+        ("Efek kaca", "text"),
+        ("Pelan", "text"),
+        ("Normal", "text"),
+        ("Cepat", "text"),
+        ("Mati", "text"),
     ]
     settings_targets = [
         ("Ikuti sistem", "text"),
@@ -1280,9 +1441,9 @@ def check_large_font_accessibility() -> None:
         ("Putar lokal", "text"),
         ("Putar HTTPS", "text"),
     ]
-    accent_targets = [(label, "content-desc") for label in accent_labels]
+    accent_targets = [(label, "content-desc") for label in visible_accents]
     settings_found = collect_while_scrolling(
-        [("Ikuti sistem", "text")] + accent_targets, scrolls=7, save_first="07-settings-ui.xml",
+        appearance_targets + accent_targets, scrolls=9, save_first="07-settings-ui.xml",
     )
     if back_to_profile() and tap_profile_item("Backup library"):
         settings_found.update(collect_while_scrolling(settings_targets[1:3]))
@@ -1294,37 +1455,49 @@ def check_large_font_accessibility() -> None:
     radio_ok = radio_node is not None and (
         radio_node.get("checkable") == "true" or radio_node.get("selected") == "true"
     )
+    follow_switch = settings_found["Warna mengikuti sampul"][1] if "Warna mengikuti sampul" in settings_found else None
+    follow_ok = follow_switch is not None and follow_switch.get("checked") == "true"
     selected_accents = [
-        label for label in accent_labels if label in settings_found
+        label for label in visible_accents if label in settings_found
         and any(settings_found[label][1].get(attr) == "true" for attr in ("checked", "selected"))
     ]
     check(
-        radio_ok and selected_accents == ["Warna aksen Ikuti sampul"],
-        "Pilihan radio tema dan warna aksen di Pengaturan mengumumkan statusnya",
+        radio_ok and follow_ok and selected_accents == ["Warna aksen Senada"],
+        "Pilihan tema, warna aksen, dan sakelar Warna mengikuti sampul di Tampilan mengumumkan statusnya",
         f"radio={radio_node.attrib if radio_node is not None else None}, "
+        f"follow={follow_switch.attrib if follow_switch is not None else None}, "
         f"aksen dipilih={selected_accents}",
     )
-    accent_missing = [label for label in accent_labels if label not in settings_found]
+    accent_missing = [label for label in visible_accents if label not in settings_found]
     accent_clipped = [
         f"{label}={box}"
         for label, (box, _) in settings_found.items()
-        if label in accent_labels
+        if label in visible_accents
         and (box[0] < 0 or box[2] > width or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px)
     ]
     check(
         not accent_missing and not accent_clipped,
-        "Semua pilihan warna aksen memiliki label dan minimal 48 dp pada skala font 200%",
+        "Bulatan warna aksen yang terlihat memiliki label dan minimal 48 dp pada skala font 200%",
         f"lebar {width}px, hilang {accent_missing}, terpotong/kekecilan {accent_clipped}",
     )
-    accent_boxes = [settings_found[label][0] for label in accent_labels if label in settings_found]
-    columns = sorted({box[0] for box in accent_boxes})
-    cell_widths = [box[2] - box[0] for box in accent_boxes]
+    accent_boxes = [settings_found[label][0] for label in visible_accents if label in settings_found]
+    row_aligned = bool(accent_boxes) and all(abs(box[1] - accent_boxes[0][1]) <= 2 for box in accent_boxes)
+    appearance_missing = [label for label, _ in appearance_targets if label not in settings_found]
+    appearance_clipped = [
+        f"{label}={settings_found[label][0]}"
+        for label, _ in appearance_targets
+        if label in settings_found
+        and (
+            settings_found[label][0][0] < 0
+            or settings_found[label][0][2] > width
+            or (settings_found[label][0][2] - settings_found[label][0][0]) < min_px
+            or (settings_found[label][0][3] - settings_found[label][0][1]) < min_px
+        )
+    ]
     check(
-        not accent_missing and 3 <= len(columns) <= 5
-        and max(cell_widths) - min(cell_widths) <= 1
-        and all(box[0] == columns[index % len(columns)] for index, box in enumerate(accent_boxes)),
-        "Kisi warna aksen memiliki kolom rata dan lebar sel seragam pada skala font 200%",
-        f"kolom {columns}, lebar sel {cell_widths}",
+        row_aligned and not appearance_missing and not appearance_clipped,
+        "Semua kontrol halaman Tampilan sejajar, tidak terpotong, dan minimal 48 dp pada skala font 200%",
+        f"lebar {width}px, sejajar={row_aligned}, hilang {appearance_missing}, terpotong/kekecilan {appearance_clipped}",
     )
     backup_clipped = [
         f"{label}={settings_found[label][0]}"
@@ -1604,6 +1777,7 @@ def scenario() -> None:
     check_https()
     check_listening_stats()
     check_home_shelves()
+    check_appearance_v2()
     check_collection_header()
     check_large_font_accessibility()
     check_now_playing_queue()
