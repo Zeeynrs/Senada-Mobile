@@ -67,10 +67,12 @@ import senada.app.tabs.CatalogDetailStore
 import senada.app.tabs.CatalogPlaylistSaveOutcome
 import senada.app.tabs.DiscoverController
 import senada.app.tabs.HomeShelvesController
+import senada.app.tabs.HomeTopScrim
 import senada.app.tabs.LibraryFilter
 import senada.app.tabs.PlaylistSaveStatus
 import senada.app.tabs.catalogDetailScreen
 import senada.app.tabs.homeTab
+import senada.app.tabs.homeTopScrimProgress
 import senada.app.tabs.libraryTab
 import senada.app.tabs.listeningStatsScreen
 import senada.app.tabs.mostPlayedScreen
@@ -302,10 +304,11 @@ internal fun AppShell(
                 }
                 .clipToBounds(),
         ) {
+            val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
+                rememberLazyListState()
+            }
             LazyColumn(
-                state = key(navigator.destination, currentCatalogRoute, profileRoute) {
-                    rememberLazyListState()
-                },
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(glassState)
@@ -506,6 +509,18 @@ internal fun AppShell(
                         }
                     }
                 }
+            }
+
+            if (homePage) {
+                HomeTopScrim(
+                    progress = {
+                        homeTopScrimProgress(
+                            firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                            firstVisibleItemScrollOffsetDp = listState.firstVisibleItemScrollOffset / density.density,
+                        )
+                    },
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
             }
 
             CompositionLocalProvider(LocalGlassState provides glassState) {

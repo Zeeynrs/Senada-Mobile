@@ -63,4 +63,15 @@ class HomeHeroTest {
         // Belum terukur -> kembali ke tinggi baku 440 dp.
         assertEquals(440f, heroHeightDp(0f, 0f), absoluteTolerance = 0.01f)
     }
+
+    @Test
+    fun topScrimStaysHiddenAtTopAndFadesInAsHeroScrollsUnderStatusBar() {
+        assertEquals(0f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 0f), 0.001f)
+        assertEquals(0f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 150f), 0.001f)
+        assertEquals(0f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 200f), 0.001f)
+        assertEquals(0.5f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 240f), 0.001f)
+        assertEquals(1f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 280f), 0.001f)
+        assertEquals(1f, homeTopScrimProgress(firstVisibleItemIndex = 0, firstVisibleItemScrollOffsetDp = 360f), 0.001f)
+        assertEquals(1f, homeTopScrimProgress(firstVisibleItemIndex = 1, firstVisibleItemScrollOffsetDp = 0f), 0.001f)
+    }
 }
