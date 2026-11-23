@@ -2,7 +2,6 @@ package senada.app
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -27,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 
 private val SwitchTrackWidth = 56.dp
@@ -77,18 +77,19 @@ internal fun SenadaSwitch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val look = LocalSenadaLook.current
     val targetColors = senadaSwitchColors(MaterialTheme.colorScheme, checked)
     val trackColor by animateColorAsState(
         targetValue = targetColors.track,
-        animationSpec = tween(durationMillis = SwitchAnimationDurationMs),
+        animationSpec = look.tweenOrSnap(SwitchAnimationDurationMs),
     )
     val thumbColor by animateColorAsState(
         targetValue = targetColors.thumb,
-        animationSpec = tween(durationMillis = SwitchAnimationDurationMs),
+        animationSpec = look.tweenOrSnap(SwitchAnimationDurationMs),
     )
     val thumbOffset by animateDpAsState(
         targetValue = if (checked) SwitchThumbTravel else 0.dp,
-        animationSpec = tween(durationMillis = SwitchAnimationDurationMs),
+        animationSpec = look.tweenOrSnap(SwitchAnimationDurationMs),
     )
     val interactionSource = remember { MutableInteractionSource() }
 

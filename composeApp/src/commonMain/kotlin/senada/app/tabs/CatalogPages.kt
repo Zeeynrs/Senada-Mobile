@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -74,6 +75,7 @@ import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
 import senada.app.shell.CatalogRoute
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.catalog.AlbumDetail
 import senada.catalog.AlbumSummary
 import senada.catalog.ArtistDetail
@@ -333,7 +335,7 @@ internal fun LazyListScope.albumSearchResults(
             title = album.title,
             subtitle = album.subtitle,
             artworkUrl = album.artworkUrl,
-            artworkShape = MaterialTheme.shapes.extraSmall,
+            artworkShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius),
             fallbackIcon = SenadaIcons.Album,
             accessibilityLabel = label,
             onClick = {
@@ -1098,7 +1100,7 @@ private fun ReleaseCard(album: AlbumSummary, onClick: () -> Unit) {
         Column {
             CatalogArtwork(
                 artworkUrl = album.artworkUrl,
-                shape = MaterialTheme.shapes.medium,
+                shape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius),
                 fallbackIcon = SenadaIcons.Album,
                 imageSize = 320,
                 modifier = Modifier.fillMaxWidth().aspectRatio(1f),

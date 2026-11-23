@@ -1,5 +1,6 @@
 package senada.app.shell
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,6 +92,7 @@ import senada.app.tabs.ProfileTab
 import senada.app.tabs.profileHeader
 import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
+import senada.app.theme.LocalSenadaLook
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.catalog.youtube.DiscoverSeeds
@@ -362,6 +364,15 @@ internal fun AppShell(
     }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
+    val look = LocalSenadaLook.current
+    val pageKey = ShellPageKey(
+        destination = navigator.destination,
+        profileDepth = navigator.profileStack.size,
+        profileRoute = profileRoute,
+        catalogDepth = navigator.catalogStack.size,
+        catalogId = currentCatalogRoute?.id,
+        openedPlaylistId = openedPlaylistId,
+    )
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
             Modifier
@@ -377,7 +388,8 @@ internal fun AppShell(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .hazeSource(glassState)
+                    .shellPageMotion(pageKey, look)
+                    .then(if (look.glass) Modifier.hazeSource(glassState) else Modifier)
                     .then(
                         if (homePage) Modifier
                         else Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
@@ -616,33 +628,43 @@ internal fun AppShell(
             }
 
             CompositionLocalProvider(LocalGlassState provides glassState) {
-                if (overlay.visible) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
-                            .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                            .padding(start = 16.dp, end = 16.dp, bottom = maxOf(24.dp, safeBottom)),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
+                        .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = if (overlay.visible) maxOf(24.dp, safeBottom) else 0.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AnimatedVisibility(
+                        visible = overlay.showMiniPlayer,
+                        enter = shellOverlayEnter(look),
+                        exit = shellOverlayExit(look),
                     ) {
-                        if (overlay.showMiniPlayer) {
-                            MiniPlayer(
-                                state = state,
-                                onOpen = navigator::openNowPlaying,
-                                onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
-                                onNext = if (profilePage) null else playback::next,
-                                modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
-                            )
-                        }
-                        if (overlay.showNavBar) {
-                            FloatingNavBar(
-                                current = navigator.destination,
-                                onSelect = navigator::select,
-                                profileName = profile.name,
-                                profilePhoto = profilePhoto,
-                            )
-                        }
+                        MiniPlayer(
+                            state = state,
+                            onOpen = navigator::openNowPlaying,
+                            onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
+                            onNext = if (profilePage) null else playback::next,
+                            modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = overlay.showNavBar,
+                        enter = shellOverlayEnter(look),
+                        exit = shellOverlayExit(look),
+                    ) {
+                        FloatingNavBar(
+                            current = navigator.destination,
+                            onSelect = navigator::select,
+                            profileName = profile.name,
+                            profilePhoto = profilePhoto,
+                        )
                     }
                 }
             }

@@ -57,6 +57,7 @@ import senada.app.SenadaCard
 import senada.app.UserProfile
 import senada.app.shell.ProfileAvatar
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.MonoLabel
 import senada.app.theme.SenadaPalette
 import senada.app.theme.SenadaType
@@ -240,7 +241,7 @@ internal fun ProfileRankings(
         }
         ProfileRankingCard(Modifier.weight(1f), "Lagu teratas", track?.track?.title, track?.plays, onOpenTrack) {
             CatalogArtwork(
-                track?.track?.artworkUrl, RoundedCornerShape(10.dp), SenadaIcons.MusicNote, imageSize = 104,
+                track?.track?.artworkUrl, RoundedCornerShape(LocalSenadaLook.current.listCoverRadius), SenadaIcons.MusicNote, imageSize = 104,
                 modifier = Modifier.size(52.dp), background = Color(0xFF5A2A22),
             )
         }

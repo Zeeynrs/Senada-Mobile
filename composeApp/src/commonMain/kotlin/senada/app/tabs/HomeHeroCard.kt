@@ -74,6 +74,7 @@ import senada.app.shell.GlassSurface
 import senada.app.shell.LocalGlassState
 import senada.app.shell.ProfileAvatar
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
@@ -255,6 +256,7 @@ internal fun HomeHeroCard(
     }
     val largeFont = density.fontScale >= 1.5f
     val heroGlassState = remember { HazeState() }
+    val glassEnabled = LocalSenadaLook.current.glass
 
     val topBarTextColor = if (darkTheme) SenadaPalette.DarkText else colors.onSurface
     val topBarWaveColor = if (darkTheme) SenadaPalette.AccentDark else colors.primary
@@ -271,7 +273,7 @@ internal fun HomeHeroCard(
             modifier = Modifier
                 .matchParentSize()
                 .background(baseColor)
-                .hazeSource(heroGlassState),
+                .then(if (glassEnabled) Modifier.hazeSource(heroGlassState) else Modifier),
         ) {
             if (!artworkUrl.isNullOrBlank()) {
                 AsyncImage(

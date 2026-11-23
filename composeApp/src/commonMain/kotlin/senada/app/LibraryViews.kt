@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -63,6 +64,7 @@ import senada.app.nowplaying.PlaySourceState
 import senada.app.shell.SenadaIcons
 import senada.app.tabs.CatalogPlaylistSaveOutcome
 import senada.app.tabs.saveCatalogPlaylist
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
@@ -814,7 +816,7 @@ private fun PlaylistRowCover(cover: PlaylistCover) {
     Box(
         modifier = Modifier
             .size(56.dp)
-            .clip(MaterialTheme.shapes.extraSmall)
+            .clip(RoundedCornerShape(LocalSenadaLook.current.listCoverRadius))
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center,
     ) {

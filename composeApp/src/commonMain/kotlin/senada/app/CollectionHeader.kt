@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import senada.app.shell.SenadaIcons
 import senada.app.tabs.PlaylistSaveStatus
+import senada.app.theme.LocalSenadaLook
 import senada.catalog.AlbumDetail
 import senada.catalog.PlaylistDetail
 import senada.catalog.youtube.resizeGoogleArtwork
@@ -362,7 +364,7 @@ private fun CollectionCoverTile(
     val containerColor = cover.containerColor ?: MaterialTheme.colorScheme.surfaceContainerHigh
     val iconColor = cover.iconColor ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     Box(
-        modifier = modifier.clip(MaterialTheme.shapes.medium).background(containerColor),
+        modifier = modifier.clip(RoundedCornerShape(LocalSenadaLook.current.coverRadius)).background(containerColor),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

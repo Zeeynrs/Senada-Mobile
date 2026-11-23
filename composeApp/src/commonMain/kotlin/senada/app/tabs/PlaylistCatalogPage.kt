@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -30,6 +31,7 @@ import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
 import senada.app.shell.CatalogRoute
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.youTubePlaylistCollectionMeta
 import senada.catalog.PlaylistDetail
 import senada.catalog.PlaylistSummary
@@ -122,7 +124,7 @@ internal fun LazyListScope.playlistSearchResults(
             title = playlist.title,
             subtitle = playlist.subtitle,
             artworkUrl = playlist.artworkUrl,
-            artworkShape = MaterialTheme.shapes.extraSmall,
+            artworkShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius),
             fallbackIcon = SenadaIcons.Library,
             accessibilityLabel = label,
             onClick = {
