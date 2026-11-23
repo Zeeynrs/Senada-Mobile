@@ -12,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import senada.app.minTouchTarget
-import senada.app.shell.SenadaIcons
 import senada.playback.PlaybackController
 import senada.playback.SleepTimerState
 import senada.playback.sleepTimerMinutes
@@ -24,17 +23,18 @@ internal fun SleepTimerState.statusText(minuteUnit: String): String? = when (thi
 }
 
 @Composable
-internal fun SleepTimerButton(state: SleepTimerState, canStopAfterTrack: Boolean, playback: PlaybackController) {
+internal fun SleepTimerButton(state: SleepTimerState, canStopAfterTrack: Boolean, playback: PlaybackController, scale: Float) {
     var expanded by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     val running = state != SleepTimerState.Off
     val label = state.statusText("menit")?.let { "Timer tidur. $it" } ?: "Timer tidur"
 
     Box {
-        PlayerIcon(
-            icon = SenadaIcons.Clock,
+        PlayerGlassButton(
+            icon = NowPlayingIcons.Moon,
             label = label,
-            tint = if (running) colors.primary else colors.onSurfaceVariant,
+            scale = scale,
+            tint = if (running) colors.primary else PlayerWhite,
         ) { expanded = true }
         SleepTimerMenu(
             expanded = expanded,

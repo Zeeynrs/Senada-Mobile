@@ -655,8 +655,13 @@ internal fun AppShell(
                     actions = actions,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
+                    onOpenAudioLab = {
+                        navigator.closeNowPlaying()
+                        navigator.openProfileRoute(ProfileRoute.AudioLab)
+                    },
                     panel = nowPlayingPanel,
                     immersive = navigator.nowPlayingOpen,
+                    backdropFromCover = true,
                     modifier = Modifier.graphicsLayer { translationY = (1f - nowPlayingPanel.progress) * size.height },
                 )
             }

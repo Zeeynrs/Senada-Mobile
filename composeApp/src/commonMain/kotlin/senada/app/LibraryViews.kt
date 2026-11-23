@@ -315,6 +315,8 @@ internal fun TrackMenu(
     actions: LibraryActions,
     onEnqueue: () -> Unit = { actions.enqueue(track) },
     onRemoveFromQueue: (() -> Unit)? = null,
+    trigger: (@Composable (open: () -> Unit) -> Unit)? = null,
+    leadingItems: @Composable (close: () -> Unit) -> Unit = {},
     extra: @Composable ColumnScope.(close: () -> Unit) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
@@ -325,17 +327,22 @@ internal fun TrackMenu(
         if (actions.canOpenArtists && canOpenArtist(track)) artistChoicesFor(track) else emptyList()
     }
     Box {
-        IconButton(
-            onClick = { open = true },
-            modifier = Modifier.minTouchTarget().semantics { contentDescription = "Buka menu ${track.title}" },
-        ) {
-            Icon(
-                imageVector = SenadaIcons.More,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (trigger != null) {
+            trigger { open = true }
+        } else {
+            IconButton(
+                onClick = { open = true },
+                modifier = Modifier.minTouchTarget().semantics { contentDescription = "Buka menu ${track.title}" },
+            ) {
+                Icon(
+                    imageVector = SenadaIcons.More,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            leadingItems { open = false }
             if (onRemoveFromQueue != null) {
                 DropdownMenuItem(
                     text = { Text("Hapus dari antrean") },
@@ -343,7 +350,7 @@ internal fun TrackMenu(
                         open = false
                         onRemoveFromQueue()
                     },
-                    modifier = Modifier.minTouchTarget(),
+                    modifier = Modifier.minTouchTarget().semantics { contentDescription = "Hapus ${track.title} dari antrean" },
                 )
             }
             DropdownMenuItem(

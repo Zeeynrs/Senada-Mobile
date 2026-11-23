@@ -24,6 +24,7 @@ import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.minTouchTarget
+import senada.app.nowplaying.PlaySource
 import senada.catalog.CatalogException
 import senada.catalog.CatalogRepository
 import senada.catalog.DemoCatalog
@@ -98,7 +99,7 @@ internal fun LazyListScope.searchResults(
             favorite = track.id in library.favoriteIds,
             onClick = {
                 onResultUsed()
-                actions.playAll(listOf(track))
+                actions.playAll(listOf(track), PlaySource.Search)
             },
         ) {
             TrackMenu(

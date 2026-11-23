@@ -1164,7 +1164,7 @@ def scroll_to_top(swipes: int = 4) -> None:
 
 
 def check_now_playing_queue() -> None:
-    if not check(open_now_playing() and tap_text("Antrean"), "Tab Antrean di Sedang diputar dapat dibuka"):
+    if not check(open_now_playing() and tap_desc("Antrean"), "Panel Antrean di Sedang diputar dapat dibuka"):
         return
 
     row_label = f"{SECOND}, Senada, 12 detik"
@@ -1190,6 +1190,8 @@ def check_now_playing_queue() -> None:
         lambda: find_interactive(f"{row_label}, Sedang diputar", attribute="content-desc"), 5,
     )
     check(playing and marked, "Ketukan pada baris Antrean memutar lagu dan mengumumkan 'Sedang diputar'", session())
+    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    check(wait_session("PAUSED", SECOND, 5), "Ketukan pada lagu aktif di Antrean menjeda lagu", session())
 
     first_menu = f"Buka menu {FIRST}"
     if not check(tap_desc(first_menu), "Menu ⋯ pada baris pertama Antrean dapat dibuka"):
@@ -1210,6 +1212,7 @@ def check_now_playing_queue() -> None:
         5,
     )
     check(removed, "Hapus dari antrean hanya menghapus baris yang dipilih")
+    tap_desc("Tutup antrean")
 
 
 def check_large_font_accessibility() -> None:
@@ -1230,15 +1233,22 @@ def check_large_font_accessibility() -> None:
     queue_targets = queue_menu_targets(menu_label) if menu_label in cari_found else []
     if queue_targets:
         cari_found[QUEUE_ACTION] = queue_targets[0]
+    menu_targets = [(label, "content-desc") for label in ("Acak: mati", "Ulangi: mati")]
     player_targets = [
         (label, "content-desc")
-        for label in ("Tutup", "Sebelumnya", "Berikutnya", "Acak: mati", "Ulangi: mati", "Timer tidur")
+        for label in ("Tutup", "Menu lainnya", "Sebelumnya", "Berikutnya", "Timer tidur")
     ]
-    player_found = collect_while_scrolling(player_targets, scrolls=4) if open_now_playing() else {}
+    player_found = {}
+    if open_now_playing():
+        if tap_desc("Menu lainnya"):
+            player_found.update(collect_while_scrolling(menu_targets, scrolls=3))
+            shell("input keyevent KEYCODE_BACK")
+            time.sleep(0.6)
+        player_found.update(collect_while_scrolling(player_targets, scrolls=4))
     shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
     found = {**cari_found, **player_found}
-    targets = cari_targets + [(QUEUE_ACTION, "text")] + player_targets
+    targets = cari_targets + [(QUEUE_ACTION, "text")] + player_targets + menu_targets
     cari_missing = [label for label, _ in targets if label not in found]
     cari_clipped = [
         f"{label}={box}"
@@ -1507,6 +1517,15 @@ def scenario() -> None:
         return
 
     screenshot("02-paused")
+    screenshot("v2-60-nowplaying")
+    if check(tap_desc("Lirik") and wait_for(lambda: ui_bounds("Lirik tidak tersedia"), 5),
+             "Tombol Lirik membuka panel lirik untuk lagu contoh tanpa lirik"):
+        screenshot("v2-61-nowplaying-lyrics")
+        check(tap_desc("Tutup lirik"), "Panel lirik dapat ditutup")
+    if check(tap_desc("Antrean") and wait_for(lambda: desc_point("Tutup antrean"), 5),
+             "Tombol Antrean membuka panel antrean"):
+        screenshot("v2-62-nowplaying-queue")
+        check(tap_desc("Tutup antrean"), "Panel antrean dapat ditutup")
     paused_tree = ui_tree()
     paused_readable = paused_tree is not None and any(
         "Dijeda" in (node.get("text") or "") or "Dijeda" in (node.get("content-desc") or "")
