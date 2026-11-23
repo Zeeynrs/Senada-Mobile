@@ -1,5 +1,6 @@
 package senada.app.audiolab
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -12,11 +13,14 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -24,11 +28,25 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 import senada.app.SenadaCard
 import senada.app.SenadaSwitch
+import senada.app.theme.LocalSenadaLook
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.audio.ReverbRoom
 import senada.audio.ReverbSettings
 import senada.audio.BassBoostSettings
+
+private const val EffectDimmedAlpha = 0.4f
+private const val EffectDimAnimationMs = 150
+private const val EffectOffStateDescription = "Efek mati"
+
+@Composable
+private fun rememberEffectControlAlpha(effectEnabled: Boolean): Float {
+    val alpha by animateFloatAsState(
+        targetValue = if (effectEnabled) 1f else EffectDimmedAlpha,
+        animationSpec = LocalSenadaLook.current.tweenOrSnap(EffectDimAnimationMs),
+    )
+    return alpha
+}
 
 /** Indeks item kartu "Kecepatan & nada" di LazyColumn halaman Efek suara. */
 internal fun soundFxSpeedItemIndex(effectsAvailable: Boolean): Int = if (effectsAvailable) 4 else 5
@@ -103,6 +121,7 @@ private fun ReverbCard(
     onSizeChange: (Float) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val controlsAlpha = rememberEffectControlAlpha(reverb.enabled)
 
     SenadaCard {
         Column(
@@ -139,16 +158,28 @@ private fun ReverbCard(
             }
 
             FlowRow(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // AudioLabChip sudah meredupkan dirinya sendiri saat enabled=false.
+                    .graphicsLayer { alpha = if (enabled) controlsAlpha else 1f },
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 for (room in ReverbRoom.entries) {
+                    val selected = reverb.room == room
                     AudioLabChip(
                         label = room.name,
-                        selected = reverb.room == room,
+                        selected = selected,
                         enabled = enabled,
                         onClick = { onRoomSelect(room) },
+                        modifier = if (reverb.enabled) {
+                            Modifier
+                        } else {
+                            Modifier.semantics {
+                                stateDescription =
+                                    "${if (selected) "Dipilih" else "Tidak dipilih"}, $EffectOffStateDescription"
+                            }
+                        },
                     )
                 }
             }
@@ -157,6 +188,8 @@ private fun ReverbCard(
                 label = "Campuran",
                 value = reverb.mix,
                 enabled = enabled,
+                effectEnabled = reverb.enabled,
+                controlsAlpha = controlsAlpha,
                 accessibilityLabel = "Campuran reverb",
                 onValueChange = onMixChange,
             )
@@ -164,6 +197,8 @@ private fun ReverbCard(
                 label = "Ukuran ruang",
                 value = reverb.size,
                 enabled = enabled,
+                effectEnabled = reverb.enabled,
+                controlsAlpha = controlsAlpha,
                 accessibilityLabel = "Ukuran ruang reverb",
                 onValueChange = onSizeChange,
                 modifier = Modifier.padding(top = 4.dp),
@@ -180,6 +215,7 @@ private fun BassBoostCard(
     onStrengthChange: (Float) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val controlsAlpha = rememberEffectControlAlpha(bassBoost.enabled)
 
     SenadaCard {
         Column(
@@ -218,6 +254,8 @@ private fun BassBoostCard(
                 label = "Kekuatan",
                 value = bassBoost.strength,
                 enabled = enabled,
+                effectEnabled = bassBoost.enabled,
+                controlsAlpha = controlsAlpha,
                 accessibilityLabel = "Kekuatan bass boost",
                 onValueChange = onStrengthChange,
             )
@@ -300,16 +338,21 @@ private fun PercentSliderBlock(
     label: String,
     value: Float,
     enabled: Boolean,
+    effectEnabled: Boolean,
+    controlsAlpha: Float,
     accessibilityLabel: String,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
     val percentText = formatPercent(value)
+    val sliderStateDescription = if (effectEnabled) percentText else "$percentText, $EffectOffStateDescription"
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = controlsAlpha },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -336,8 +379,9 @@ private fun PercentSliderBlock(
             step = 0.01f,
             enabled = enabled,
             contentDescription = accessibilityLabel,
-            stateDescription = percentText,
+            stateDescription = sliderStateDescription,
             onValueChange = onValueChange,
+            modifier = Modifier.graphicsLayer { alpha = if (enabled) controlsAlpha else 1f },
         )
     }
 }
