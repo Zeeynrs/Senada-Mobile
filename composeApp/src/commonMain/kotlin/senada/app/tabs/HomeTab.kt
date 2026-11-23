@@ -105,6 +105,7 @@ internal fun LazyListScope.homeTab(
     onOpenCatalogPlaylist: (HomeItem.Playlist) -> Unit,
     onOpenMood: (MoodChip) -> Unit,
     profileName: String = "",
+    profilePhoto: String? = null,
 ) {
     val sections = buildHomeSections(
         recentItems = recentItems,
@@ -122,6 +123,7 @@ internal fun LazyListScope.homeTab(
                         screenWidthDp = screenWidthDp,
                         screenHeightDp = screenHeightDp,
                         profileName = profileName,
+                        profilePhoto = profilePhoto,
                         onOpenProfile = onOpenProfile,
                         onPrimary = {
                             when (hero) {
