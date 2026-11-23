@@ -362,7 +362,6 @@ private fun HomeFavoritesTile(
         modifier = modifier
             .width(tileWidth)
             .minTouchTarget()
-            .clip(RoundedCornerShape(12.dp))
             .clickable(role = Role.Button, onClick = onClick),
     ) {
         Box(

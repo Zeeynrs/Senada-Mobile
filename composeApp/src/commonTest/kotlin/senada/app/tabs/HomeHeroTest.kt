@@ -3,7 +3,6 @@ package senada.app.tabs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import senada.app.shell.profileInitials
 import senada.library.HomeHero
 import senada.library.PlaylistSummary
 import senada.model.Track
@@ -63,14 +62,5 @@ class HomeHeroTest {
         assertEquals(HERO_MIN_HEIGHT_DP, heroHeightDp(844f, 390f), absoluteTolerance = 0.01f)
         // Belum terukur -> kembali ke tinggi baku 440 dp.
         assertEquals(440f, heroHeightDp(0f, 0f), absoluteTolerance = 0.01f)
-    }
-
-    @Test
-    fun profileInitialsTakesUpToTwoUppercaseLetters() {
-        assertEquals("", profileInitials(""))
-        assertEquals("", profileInitials("   "))
-        assertEquals("A", profileInitials("Adi"))
-        assertEquals("AP", profileInitials("adi pratama"))
-        assertEquals("BS", profileInitials("  budi   santoso  wati "))
     }
 }

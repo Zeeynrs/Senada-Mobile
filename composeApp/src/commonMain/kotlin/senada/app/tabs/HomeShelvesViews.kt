@@ -399,7 +399,6 @@ internal fun ShelfSquareCard(
         modifier = modifier
             .width(cardWidth)
             .minTouchTarget()
-            .clip(coverShape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = accessibilityLabel
