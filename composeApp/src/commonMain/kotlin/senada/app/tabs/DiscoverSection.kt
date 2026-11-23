@@ -58,7 +58,7 @@ internal fun shouldRefreshDiscover(
     return when (destination) {
         AppDestination.Home -> !mostPlayedOpen && !listeningStatsOpen
         AppDestination.Search -> searchQueryBlank
-        AppDestination.Library, AppDestination.Settings -> false
+        AppDestination.Library, AppDestination.Profile -> false
     }
 }
 

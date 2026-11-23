@@ -31,7 +31,7 @@ import coil3.compose.AsyncImage
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.playback.PlaybackState
 
-private val MiniArtworkSize = 48.dp
+private val MiniArtworkSize = 44.dp
 private const val OpenNowPlayingLabel = "Buka Sedang diputar"
 
 /** Mini player tampil bila ada yang bisa diputar: antrean berisi lagu, atau sampel uji sedang dipilih. */
@@ -46,7 +46,7 @@ internal fun MiniPlayer(
     state: PlaybackState,
     onOpen: () -> Unit,
     onPlayPause: () -> Unit,
-    onNext: () -> Unit,
+    onNext: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val track = state.currentEntry?.track ?: state.queue.entries.firstOrNull()?.track
@@ -64,7 +64,7 @@ internal fun MiniPlayer(
                         true
                     })
                 }
-                .heightIn(min = FloatingBarHeight)
+                .heightIn(min = 60.dp)
                 .padding(start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -105,14 +105,16 @@ internal fun MiniPlayer(
                 onClick = onPlayPause,
                 modifier = Modifier.semantics { contentDescription = if (playing) "Jeda" else "Putar" },
             ) {
-                Icon(if (playing) SenadaIcons.Pause else SenadaIcons.Play, contentDescription = null)
+                Icon(if (playing) SenadaIcons.Pause else SenadaIcons.Play, null, Modifier.size(20.dp))
             }
-            IconButton(
-                onClick = onNext,
-                enabled = state.canGoNext,
-                modifier = Modifier.semantics { contentDescription = "Berikutnya" },
-            ) {
-                Icon(SenadaIcons.Next, contentDescription = null)
+            if (onNext != null) {
+                IconButton(
+                    onClick = onNext,
+                    enabled = state.canGoNext,
+                    modifier = Modifier.semantics { contentDescription = "Berikutnya" },
+                ) {
+                    Icon(SenadaIcons.MiniNext, null, Modifier.size(22.dp))
+                }
             }
         }
     }

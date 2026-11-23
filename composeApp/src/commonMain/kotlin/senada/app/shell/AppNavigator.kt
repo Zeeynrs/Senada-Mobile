@@ -14,7 +14,21 @@ internal enum class AppDestination(val label: String) {
     Home("Beranda"),
     Search("Cari"),
     Library("Library"),
-    Settings("Pengaturan"),
+    Profile("Profil"),
+}
+
+internal enum class ProfileRoute(val label: String) {
+    Stats("Statistik dengar"),
+    MostPlayed("Paling sering diputar"),
+    AudioLab("Audio Lab"),
+    Equalizer("Equalizer"),
+    SoundFx("Efek suara"),
+    Appearance("Tampilan"),
+    Playback("Pemutaran"),
+    Backup("Backup library"),
+    Storage("Penyimpanan"),
+    About("Tentang Senada"),
+    Developer("Pengembang"),
 }
 
 /** Rute halaman katalog di atas tab (artis, album, playlist, atau mood), disusun sebagai tumpukan kembali. */
@@ -72,9 +86,8 @@ internal class AppNavigator(
     destination: AppDestination = AppDestination.Home,
     nowPlayingOpen: Boolean = false,
     openedPlaylistId: String? = null,
-    mostPlayedOpen: Boolean = false,
     catalogStack: List<CatalogRoute> = emptyList(),
-    listeningStatsOpen: Boolean = false,
+    profileStack: List<ProfileRoute> = emptyList(),
 ) {
     var destination by mutableStateOf(destination)
         private set
@@ -82,36 +95,31 @@ internal class AppNavigator(
         private set
     var openedPlaylistId by mutableStateOf(openedPlaylistId)
         private set
-    var mostPlayedOpen by mutableStateOf(mostPlayedOpen)
-        private set
     var catalogStack by mutableStateOf(catalogStack)
         private set
-    var listeningStatsOpen by mutableStateOf(listeningStatsOpen)
+    var profileStack by mutableStateOf(profileStack)
         private set
+
+    val currentProfileRoute: ProfileRoute? get() = profileStack.lastOrNull()
 
     val currentCatalogRoute: CatalogRoute?
         get() = catalogStack.lastOrNull()
 
     /** Label layar sebelum rute katalog teratas, dipakai untuk tombol kembali. */
     fun previousCatalogLabel(): String =
-        catalogStack.dropLast(1).lastOrNull()?.label ?: when {
-            listeningStatsOpen -> "Statistik dengar"
-            mostPlayedOpen -> "Paling sering diputar"
-            else -> destination.label
-        }
+        catalogStack.dropLast(1).lastOrNull()?.label ?: currentProfileRoute?.label ?: destination.label
 
     /** Benar bila tombol kembali masih punya sesuatu untuk ditutup sebelum keluar aplikasi. */
     val canGoBack: Boolean
-        get() = nowPlayingOpen || mostPlayedOpen || listeningStatsOpen || catalogStack.isNotEmpty() ||
+        get() = nowPlayingOpen || profileStack.isNotEmpty() || catalogStack.isNotEmpty() ||
             openedPlaylistId != null || destination != AppDestination.Home
 
     /** Pindah tab menutup layar detail tab sebelumnya. */
     fun select(destination: AppDestination) {
         this.destination = destination
         openedPlaylistId = null
-        mostPlayedOpen = false
+        profileStack = emptyList()
         catalogStack = emptyList()
-        listeningStatsOpen = false
     }
 
     fun openNowPlaying() {
@@ -126,9 +134,9 @@ internal class AppNavigator(
         openedPlaylistId = id
     }
 
-    fun openMostPlayed() {
-        listeningStatsOpen = false
-        mostPlayedOpen = true
+    fun openProfileRoute(route: ProfileRoute) {
+        if (destination != AppDestination.Profile) select(AppDestination.Profile)
+        if (route != currentProfileRoute) profileStack = profileStack + route
     }
 
     fun openArtist(id: String, name: String = "", artworkUrl: String? = null) {
@@ -170,18 +178,12 @@ internal class AppNavigator(
         catalogStack = catalogStack + CatalogRoute.Mood(cleanId, title, cleanParams)
     }
 
-    fun openListeningStats() {
-        mostPlayedOpen = false
-        listeningStatsOpen = true
-    }
-
     /** Menutup lapisan paling atas: Sedang diputar, halaman artis/album/playlist, detail tab, lalu kembali ke Beranda. */
     fun back(): Boolean {
         when {
             nowPlayingOpen -> nowPlayingOpen = false
             catalogStack.isNotEmpty() -> catalogStack = catalogStack.dropLast(1)
-            listeningStatsOpen -> listeningStatsOpen = false
-            mostPlayedOpen -> mostPlayedOpen = false
+            profileStack.isNotEmpty() -> profileStack = profileStack.dropLast(1)
             openedPlaylistId != null -> openedPlaylistId = null
             destination != AppDestination.Home -> destination = AppDestination.Home
             else -> return false
@@ -199,7 +201,7 @@ internal class AppNavigator(
                     add(nav.destination.name)
                     add(nav.nowPlayingOpen)
                     add(nav.openedPlaylistId)
-                    add(nav.mostPlayedOpen)
+                    add(nav.profileStack.joinToString(",") { it.name })
                     nav.catalogStack.forEach { route ->
                         when (route) {
                             is CatalogRoute.Artist -> {
@@ -232,8 +234,6 @@ internal class AppNavigator(
                             }
                         }
                     }
-                    // Simpan penanda setelah blok rute agar susunan rute lama tetap bisa dipulihkan.
-                    add(nav.listeningStatsOpen)
                 }
             },
             restore = { saved ->
@@ -256,13 +256,22 @@ internal class AppNavigator(
                         i += ROUTE_FIELDS
                     }
                 }
+                // Slot keempat dahulu boolean MostPlayed; Stats tersimpan setelah blok katalog.
+                val profileStack = when (val field = saved[3]) {
+                    is String -> field.split(",").mapNotNull { name -> ProfileRoute.entries.find { it.name == name } }
+                    else -> when {
+                        saved.size > BASE_FIELDS && saved.last() == true -> listOf(ProfileRoute.Stats)
+                        field == true -> listOf(ProfileRoute.MostPlayed)
+                        else -> emptyList()
+                    }
+                }
                 AppNavigator(
-                    destination = AppDestination.valueOf(saved[0] as String),
+                    destination = if (saved[0] == "Settings" || profileStack.isNotEmpty()) AppDestination.Profile
+                        else AppDestination.valueOf(saved[0] as String),
                     nowPlayingOpen = saved[1] as Boolean,
                     openedPlaylistId = saved[2] as String?,
-                    mostPlayedOpen = saved[3] as Boolean,
+                    profileStack = profileStack,
                     catalogStack = routes,
-                    listeningStatsOpen = saved.size > BASE_FIELDS && saved.lastOrNull() == true,
                 )
             },
         )
