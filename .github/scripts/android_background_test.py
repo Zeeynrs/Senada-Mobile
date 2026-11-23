@@ -419,7 +419,21 @@ def check_profile_shell() -> None:
     if not check(tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"), "Tampilan terbuka dari Profil"):
         return
     screenshot("v2-03-profile-appearance")
-    check(back_to_profile(), "Kembali dari Tampilan ke Profil")
+    if not check(back_to_profile(), "Kembali dari Tampilan ke Profil"):
+        return
+    for label, screen in (
+        ("Audio Lab", "v2-04-profile-audio-lab"),
+        ("Pemutaran", "v2-05-profile-playback"),
+        ("Backup library", "v2-06-profile-backup"),
+        ("Penyimpanan", "v2-07-profile-storage"),
+        ("Tentang Senada", "v2-08-profile-about"),
+        ("Paling sering diputar", "v2-09-profile-most-played"),
+    ):
+        if not check(tap_profile_item(label) and desc_point("Kembali ke Profil"), f"Profil membuka {label}"):
+            return
+        screenshot(screen)
+        if not check(back_to_profile(), f"Kembali dari {label} ke Profil"):
+            return
 
 
 def check_https() -> None:
@@ -432,6 +446,7 @@ def check_https() -> None:
     if not check(open_tab("Profil") and tap_profile_item("VERSI & TENTANG", taps=7)
                  and tap_profile_item("Pengembang"), "Tujuh ketukan kartu versi membuka Pengembang"):
         return
+    screenshot("v2-10-profile-developer")
     if not tap_text("Putar HTTPS", scrolls=8):
         check(False, name, "Tombol 'Putar HTTPS' tidak ditemukan")
         return
