@@ -26,6 +26,7 @@ import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
+import platform.AVFoundation.setForwardPlaybackEndTime
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
@@ -241,6 +242,8 @@ private class AvAudioOutput : SampleAudioOutput {
     private val player = AVPlayer()
     private var pendingSeek: PendingSeek? = null
     private var reachedEnd = false
+    /** Akhir audio yang sebenarnya dari sumber; AVPlayer bisa menebak durasi MP4 terfragmen terlalu panjang. */
+    private var knownEndMs: Long? = null
     private val observers = mutableListOf<Any>()
 
     override var onEvent: (() -> Unit)? = null
@@ -287,21 +290,28 @@ private class AvAudioOutput : SampleAudioOutput {
         }
 
     override val durationMs: Long?
-        get() = player.currentItem()?.let { CMTimeGetSeconds(it.duration()) }
-            ?.takeIf { it.isFinite() && it > 0 }
-            ?.let { (it * 1_000).roundToLong() }
+        get() {
+            val reported = player.currentItem()?.let { CMTimeGetSeconds(it.duration()) }
+                ?.takeIf { it.isFinite() && it > 0 }
+                ?.let { (it * 1_000).roundToLong() }
+            val known = knownEndMs
+            return if (known != null && reported != null) minOf(known, reported) else known ?: reported
+        }
 
     override var volume: Float
         get() = player.volume()
         set(value) { player.setVolume(value) }
 
-    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         if (restart) {
             pendingSeek = null
             reachedEnd = false
             player.pause()
-            val url = NSURL.URLWithString(uri)
-            player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
+            knownEndMs = endAtMs?.takeIf { it > 0 }
+            val item = NSURL.URLWithString(uri)?.let { AVPlayerItem.playerItemWithURL(it) }
+            // Berhenti tepat di akhir audio; AVPlayer lalu mengirim DidPlayToEndTime seperti akhir biasa.
+            knownEndMs?.let { item?.setForwardPlaybackEndTime(CMTimeMake(it, 1_000)) }
+            player.replaceCurrentItemWithPlayerItem(item)
             // AVPlayer menahan permintaan seek sampai item baru siap diputar.
             if (startAtMs > 0 && player.currentItem() != null) seekTo(startAtMs)
         }
