@@ -5,12 +5,16 @@ package senada.platform
 import coil3.PlatformContext
 import kotlin.math.roundToLong
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionOptionKey
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
 import platform.AVFAudio.AVAudioSessionModeDefault
+import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
@@ -19,13 +23,20 @@ import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerTimeControlStatusPaused
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
+import platform.AVFoundation.asset
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
+import platform.AVFoundation.loadTracksWithMediaType
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
+import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
+import platform.AVFoundation.setAudioMix
+import platform.AVFoundation.setAudioTimePitchAlgorithm
+import platform.AVFoundation.setDefaultRate
+import platform.AVFoundation.setRate
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
@@ -63,6 +74,12 @@ import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlaybackController
+import senada.audio.AudioEffects
+import senada.audio.AudioEffectsController
+import senada.audio.IosAudioEffectsHub
+import senada.audio.audioEffectsStore
+import senada.audio.audioTimePitchAlgorithm
+import senada.audio.nowPlayingPlaybackRate
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.QueueStore
@@ -71,8 +88,9 @@ import senada.playback.SampleAudioStatus
 
 /** Pemutar dan controller hidup selama proses aplikasi, terpisah dari layar Compose. */
 internal object IosPlayback {
+    val audioEffects: AudioEffectsController by lazy { AudioEffectsController(audioEffectsStore(PlatformContext.INSTANCE)) }
     val controller: PlaybackController by lazy(::create)
-    private val output by lazy { AvAudioOutput() }
+    private val output by lazy { AvAudioOutput(audioEffects.effects.value) }
 
     fun position(): Long = output.positionMs
 
@@ -113,6 +131,11 @@ internal object IosPlayback {
                 state.audio.positionMs
             }
             updateNowPlaying(state.copy(audio = state.audio.copy(positionMs = position)))
+        }
+        MainScope().launch {
+            audioEffects.effects.collect { effects ->
+                if (output.updateEffects(effects)) refreshNowPlaying()
+            }
         }
         return controller
     }
@@ -181,8 +204,9 @@ internal object IosPlayback {
         val info = linkedMapOf<String, Any>(
             MPMediaItemPropertyTitle to (track?.title ?: selection.title),
             MPNowPlayingInfoPropertyElapsedPlaybackTime to NSNumber(double = state.audio.positionMs / 1_000.0),
-            MPNowPlayingInfoPropertyPlaybackRate to
-                NSNumber(double = if (state.audio.status == SampleAudioStatus.Playing) 1.0 else 0.0),
+            MPNowPlayingInfoPropertyPlaybackRate to NSNumber(
+                double = nowPlayingPlaybackRate(state.audio.status == SampleAudioStatus.Playing, output.playbackRate),
+            ),
         )
         track?.artists?.joinToString()?.takeIf { it.isNotEmpty() }?.let { info[MPMediaItemPropertyArtist] = it }
         state.audio.durationMs?.let { info[MPMediaItemPropertyPlaybackDuration] = NSNumber(double = it / 1_000.0) }
@@ -237,15 +261,20 @@ private class IosQueueStore : QueueStore {
     }
 }
 
-private class AvAudioOutput : SampleAudioOutput {
+private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
     private val player = AVPlayer()
+    private val effectsHub = IosAudioEffectsHub(initialEffects)
+    private var currentEffects = initialEffects.bounded()
     private var pendingSeek: PendingSeek? = null
     private var reachedEnd = false
     private val observers = mutableListOf<Any>()
 
     override var onEvent: (() -> Unit)? = null
 
+    val playbackRate: Float get() = currentEffects.speed
+
     init {
+        player.setDefaultRate(currentEffects.speed)
         val center = NSNotificationCenter.defaultCenter
         for (name in listOf(AVPlayerItemDidPlayToEndTimeNotification, AVPlayerItemFailedToPlayToEndTimeNotification)) {
             observers += center.addObserverForName(name, null, NSOperationQueue.mainQueue) { notification ->
@@ -259,6 +288,22 @@ private class AvAudioOutput : SampleAudioOutput {
         observers += player.addPeriodicTimeObserverForInterval(CMTimeMake(5, 1), dispatch_get_main_queue()) { _ ->
             onEvent?.invoke()
         }
+    }
+
+    fun updateEffects(effects: AudioEffects): Boolean {
+        val bounded = effects.bounded()
+        val speedChanged = bounded.speed != currentEffects.speed
+        val pitchChanged = bounded.pitchLock != currentEffects.pitchLock
+        currentEffects = bounded
+        effectsHub.update(bounded)
+        player.setDefaultRate(bounded.speed)
+        if (speedChanged && player.rate() != 0f) {
+            player.setRate(bounded.speed)
+        }
+        if (pitchChanged) {
+            player.currentItem()?.let { applyPitchAlgorithm(it, bounded.pitchLock) }
+        }
+        return speedChanged
     }
 
     override val status: SampleAudioStatus
@@ -300,18 +345,33 @@ private class AvAudioOutput : SampleAudioOutput {
             pendingSeek = null
             reachedEnd = false
             player.pause()
-            val url = NSURL.URLWithString(uri)
-            player.replaceCurrentItemWithPlayerItem(url?.let { AVPlayerItem.playerItemWithURL(it) })
-            // AVPlayer menahan permintaan seek sampai item baru siap diputar.
-            if (startAtMs > 0 && player.currentItem() != null) seekTo(startAtMs)
+            player.currentItem()?.setAudioMix(null)
+            effectsHub.clearActiveTap()
+            val item = NSURL.URLWithString(uri)?.let { AVPlayerItem.playerItemWithURL(it) }
+            if (item != null) {
+                applyPitchAlgorithm(item, currentEffects.pitchLock)
+            }
+            player.replaceCurrentItemWithPlayerItem(item)
+            if (item != null) {
+                attachAudioTap(item)
+                // AVPlayer menahan permintaan seek sampai item baru siap diputar.
+                if (startAtMs > 0) seekTo(startAtMs)
+            }
         }
-        if (player.currentItem() != null) player.play()
+        if (player.currentItem() != null) {
+            player.setDefaultRate(currentEffects.speed)
+            player.play()
+            if (player.rate() != currentEffects.speed) {
+                player.setRate(currentEffects.speed)
+            }
+        }
     }
 
     override fun pause() = player.pause()
 
     override fun seekTo(positionMs: Long) {
         reachedEnd = false
+        effectsHub.requestReset()
         val request = PendingSeek(positionMs)
         pendingSeek = request
         val zeroTolerance = CMTimeMake(0, 1_000)
@@ -326,7 +386,37 @@ private class AvAudioOutput : SampleAudioOutput {
     override fun release() {
         pendingSeek = null
         player.pause()
+        player.currentItem()?.setAudioMix(null)
+        effectsHub.clearActiveTap()
         player.replaceCurrentItemWithPlayerItem(null)
+    }
+
+    private fun applyPitchAlgorithm(item: AVPlayerItem, pitchLock: Boolean) {
+        audioTimePitchAlgorithm(pitchLock)?.let { item.setAudioTimePitchAlgorithm(it) }
+    }
+
+    private fun attachAudioTap(item: AVPlayerItem) {
+        val mediaType = AVMediaTypeAudio ?: run {
+            println("[SenadaFX] AVMediaTypeAudio tidak tersedia; putar tanpa efek")
+            return
+        }
+        item.asset().loadTracksWithMediaType(mediaType) { tracks, error ->
+            dispatch_async(dispatch_get_main_queue()) {
+                if (player.currentItem() !== item) return@dispatch_async
+                if (error != null) {
+                    println("[SenadaFX] Gagal memuat track audio: ${error.localizedDescription}")
+                    return@dispatch_async
+                }
+                val track = tracks?.filterIsInstance<AVAssetTrack>()?.firstOrNull()
+                if (track == null) {
+                    println("[SenadaFX] Track audio tidak ditemukan; putar tanpa efek")
+                    return@dispatch_async
+                }
+                if (!effectsHub.attachToItem(item, track)) {
+                    println("[SenadaFX] Tap efek gagal dipasang; putar tanpa efek")
+                }
+            }
+        }
     }
 
     private class PendingSeek(val positionMs: Long)
