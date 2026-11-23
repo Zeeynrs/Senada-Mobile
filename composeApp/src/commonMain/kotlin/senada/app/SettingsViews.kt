@@ -37,18 +37,24 @@ import senada.backup.exportBackup
 import senada.backup.importBackup
 import senada.library.LibraryRepository
 
+@Composable
+internal fun SenadaCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier.fillMaxWidth(),
+        content = content,
+    )
+}
+
 /** Kartu permukaan radius 24 dp dengan judul untuk satu bagian di tab Pengaturan. */
 @Composable
 internal fun SettingsCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    SenadaCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

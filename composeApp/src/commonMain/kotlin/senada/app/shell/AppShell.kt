@@ -46,6 +46,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import senada.app.AppearanceSection
+import senada.app.BackupSection
+import senada.app.DataSection
+import senada.app.DeveloperSection
+import senada.app.StorageSection
+import senada.app.versionName
 import senada.app.AppearancePreferences
 import senada.app.ArtistOpenBanner
 import senada.app.ArtistOpenController
@@ -71,7 +77,8 @@ import senada.app.tabs.mostPlayedScreen
 import senada.app.tabs.rememberCatalogPageState
 import senada.app.tabs.rememberSearchTabState
 import senada.app.tabs.searchTab
-import senada.app.tabs.settingsTab
+import senada.app.tabs.ProfileTab
+import senada.app.tabs.profileHeader
 import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
 import senada.catalog.youtube.DiscoverSeeds
@@ -143,13 +150,17 @@ internal fun AppShell(
     } else {
         emptyList()
     }
-    val mostPlayed = if (navigator.mostPlayedOpen) {
+    val profileRoute = navigator.currentProfileRoute
+    val mostPlayedOpen = profileRoute == ProfileRoute.MostPlayed
+    val listeningStatsOpen = profileRoute == ProfileRoute.Stats
+    var versionTaps by rememberSaveable { mutableStateOf(0) }
+    val mostPlayed = if (mostPlayedOpen) {
         remember(library, screenVisible) { library.mostPlayed() }.collectAsState(emptyList()).value
     } else {
         emptyList()
     }
     var listenPeriod by rememberSaveable { mutableStateOf(ListenPeriod.Month) }
-    val listeningSummary = if (navigator.listeningStatsOpen) {
+    val listeningSummary = if (listeningStatsOpen) {
         key(listenPeriod) {
             remember(library, screenVisible) { library.listeningStats(listenPeriod) }.collectAsState(null).value
         }
@@ -180,8 +191,8 @@ internal fun AppShell(
     }
     LaunchedEffect(
         navigator.destination,
-        navigator.mostPlayedOpen,
-        navigator.listeningStatsOpen,
+        mostPlayedOpen,
+        listeningStatsOpen,
         currentCatalogRoute,
         search.query.isBlank(),
         discoverSeeds,
@@ -195,8 +206,8 @@ internal fun AppShell(
                 screenVisible = screenVisible,
                 destination = navigator.destination,
                 hasCatalogRoute = currentCatalogRoute != null,
-                mostPlayedOpen = navigator.mostPlayedOpen,
-                listeningStatsOpen = navigator.listeningStatsOpen,
+                mostPlayedOpen = mostPlayedOpen,
+                listeningStatsOpen = listeningStatsOpen,
                 searchQueryBlank = search.query.isBlank(),
             )
         ) {
@@ -205,8 +216,8 @@ internal fun AppShell(
     }
     LaunchedEffect(
         navigator.destination,
-        navigator.mostPlayedOpen,
-        navigator.listeningStatsOpen,
+        mostPlayedOpen,
+        listeningStatsOpen,
         currentCatalogRoute,
         saveData,
         screenVisible,
@@ -216,8 +227,8 @@ internal fun AppShell(
                 screenVisible = screenVisible,
                 destination = navigator.destination,
                 hasCatalogRoute = currentCatalogRoute != null,
-                mostPlayedOpen = navigator.mostPlayedOpen,
-                listeningStatsOpen = navigator.listeningStatsOpen,
+                mostPlayedOpen = mostPlayedOpen,
+                listeningStatsOpen = listeningStatsOpen,
             )
         ) {
             homeShelvesController.refreshIfNeeded(saveData = saveData)
@@ -240,13 +251,21 @@ internal fun AppShell(
     // Tinggi bilah bawah diukur, bukan ditebak: dengan font besar mini player dan navigasi ikut membesar,
     // dan baris terakhir tetap harus bisa digulir ke atasnya.
     var overlayHeight by remember { mutableStateOf(0.dp) }
-    val bottomPadding = if (imeVisible) BelowContentGap else overlayHeight + BelowContentGap
+    val profilePage = navigator.destination == AppDestination.Profile && currentCatalogRoute == null
+    val profileDetail = profilePage && profileRoute != null
+    val safeTop = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
+    val safeBottom = with(density) { WindowInsets.safeDrawing.getBottom(this).toDp() }
+    val bottomPadding = when {
+        imeVisible -> BelowContentGap
+        profileDetail -> maxOf(40.dp, safeBottom)
+        else -> overlayHeight + BelowContentGap
+    }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize().onSizeChanged { nowPlayingPanel.updateHeight(it.height) }.clipToBounds()) {
             LazyColumn(
-                state = key(navigator.destination, navigator.mostPlayedOpen, currentCatalogRoute, navigator.listeningStatsOpen) {
+                state = key(navigator.destination, currentCatalogRoute, profileRoute) {
                     rememberLazyListState()
                 },
                 modifier = Modifier
@@ -255,12 +274,12 @@ internal fun AppShell(
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     .windowInsetsPadding(imeInsets),
                 contentPadding = PaddingValues(
-                    start = 20.dp,
-                    end = 20.dp,
-                    top = 16.dp,
+                    start = if (profilePage) 16.dp else 20.dp,
+                    end = if (profilePage) 16.dp else 20.dp,
+                    top = if (profilePage) ((if (profileDetail) 52.dp else 56.dp) - safeTop).coerceAtLeast(0.dp) else 16.dp,
                     bottom = bottomPadding,
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(if (profilePage) 14.dp else 12.dp),
             ) {
                 if (currentCatalogRoute != null) {
                     catalogDetailScreen(
@@ -313,17 +332,24 @@ internal fun AppShell(
                     )
                     return@LazyColumn
                 }
-                if (navigator.listeningStatsOpen) {
-                    listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions, { listenPeriod = it }) {
+                if (profileRoute != null) {
+                    profileHeader(profileRoute, navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label) {
                         navigator.back()
+                    }
+                    when (profileRoute) {
+                        ProfileRoute.Stats -> listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions) { listenPeriod = it }
+                        ProfileRoute.MostPlayed -> mostPlayedScreen(mostPlayed, favoriteIds, actions)
+                        ProfileRoute.Appearance -> item { AppearanceSection(appearance) }
+                        ProfileRoute.Playback -> item { DataSection(appearance) }
+                        ProfileRoute.Backup -> item { BackupSection(library) }
+                        ProfileRoute.Storage -> item { StorageSection(playback, library) }
+                        ProfileRoute.Developer -> item { DeveloperSection(playback) }
+                        ProfileRoute.About -> item { Text("Senada " + versionName()) }
+                        ProfileRoute.AudioLab, ProfileRoute.Equalizer, ProfileRoute.SoundFx -> item { Text("Segera hadir") }
                     }
                     return@LazyColumn
                 }
-                if (navigator.mostPlayedOpen) {
-                    mostPlayedScreen(mostPlayed, favoriteIds, actions, onClose = { navigator.back() })
-                    return@LazyColumn
-                }
-                if (navigator.destination != AppDestination.Home && navigator.openedPlaylistId == null) {
+                if (!profilePage && navigator.destination != AppDestination.Home && navigator.openedPlaylistId == null) {
                     item(key = "title-${navigator.destination}") {
                         Text(
                             navigator.destination.label,
@@ -347,8 +373,8 @@ internal fun AppShell(
                             navigator.select(AppDestination.Library)
                             navigator.openPlaylist(id)
                         },
-                        onOpenMostPlayed = navigator::openMostPlayed,
-                        onOpenListeningStats = navigator::openListeningStats,
+                        onOpenMostPlayed = { navigator.openProfileRoute(ProfileRoute.MostPlayed) },
+                        onOpenListeningStats = { navigator.openProfileRoute(ProfileRoute.Stats) },
                         onRefreshDiscover = refreshDiscover,
                         onRefreshHomeShelves = refreshHomeShelves,
                         onOpenArtist = { artist ->
@@ -405,19 +431,23 @@ internal fun AppShell(
                         reorderingPlaylist = reorderingPlaylist,
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
-                    AppDestination.Settings -> settingsTab(appearance, library, playback)
+                    AppDestination.Profile -> item(key = "profile") {
+                        ProfileTab(navigator::openProfileRoute, developerUnlocked = versionTaps == 7) {
+                            if (versionTaps < 7) versionTaps++
+                        }
+                    }
                 }
             }
 
             CompositionLocalProvider(LocalGlassState provides glassState) {
-                if (!imeVisible) {
+                if (!imeVisible && !profileDetail) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
                             .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(start = 16.dp, end = 16.dp, bottom = maxOf(24.dp, safeBottom)),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (miniPlayerVisible) {
@@ -425,7 +455,7 @@ internal fun AppShell(
                                 state = state,
                                 onOpen = navigator::openNowPlaying,
                                 onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
-                                onNext = playback::next,
+                                onNext = if (profilePage) null else playback::next,
                                 modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
                             )
                         }

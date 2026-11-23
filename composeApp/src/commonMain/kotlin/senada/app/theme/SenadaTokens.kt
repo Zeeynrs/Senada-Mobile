@@ -2,6 +2,8 @@ package senada.app.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -14,9 +16,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
 import senada.app.accessibleAccent
 import senada.app.textOnAccent
+import senada.resources.jetbrains_mono_medium
 import senada.resources.Res
 import senada.resources.plus_jakarta_sans_bold
 import senada.resources.plus_jakarta_sans_extrabold
@@ -29,6 +33,7 @@ internal object SenadaPalette {
     val DarkSurface = Color(0xFF17181B)
     val DarkSurfaceHigh = Color(0xFF1D1F23)
     val DarkOutline = Color(0xFF2A2C31)
+    val Decoration = Color(0xFF3A3D44)
     val DarkText = Color(0xFFF2F2F3)
     val DarkTextMuted = Color(0xFFA3A6AD)
 
@@ -84,6 +89,22 @@ internal fun senadaColorScheme(dark: Boolean, accent: Color?): ColorScheme {
             outline = p.LightOutline, outlineVariant = p.LightSurfaceHigh,
         )
     }
+}
+
+internal object SenadaType {
+    val monoLabel: TextStyle
+        @Composable get() = TextStyle(
+            fontFamily = FontFamily(Font(Res.font.jetbrains_mono_medium, FontWeight.Medium)),
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            letterSpacing = 0.08.em,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+}
+
+@Composable
+internal fun MonoLabel(text: String) {
+    Text(text.uppercase(), style = SenadaType.monoLabel)
 }
 
 /** Satu keluarga huruf untuk seluruh aplikasi; judul display memakai 800 dengan jarak huruf rapat. */

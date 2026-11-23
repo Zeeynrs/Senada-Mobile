@@ -386,19 +386,59 @@ def check_sleep_timer() -> None:
         check(resumed, "Putar melanjutkan ke entri kedua setelah timer habis", resumed or session())
 
 
+def tap_profile_item(label: str, taps: int = 1) -> bool:
+    """Ketuk teks saat terlihat di atas mini player, termasuk pada skala font besar."""
+    width, height = screen_size()
+    for _ in range(9):
+        root = ui_tree()
+        if root is not None:
+            for x1, y1, x2, y2 in ui_bounds(label, root=root):
+                y = (y1 + y2) // 2
+                if y < overlay_top(root, height) and y2 > y1:
+                    for _ in range(taps):
+                        tap(((x1 + x2) // 2, y))
+                    time.sleep(0.7)
+                    return True
+        shell(f"input swipe {width // 2} {height * 3 // 5} {width // 2} {height // 4} 350")
+        time.sleep(0.5)
+    return False
+
+
+def back_to_profile() -> bool:
+    shell("input keyevent KEYCODE_BACK")
+    return bool(wait_for(lambda: desc_point("Profil"), 5))
+
+
+def check_profile_shell() -> None:
+    if not check(open_tab("Beranda"), "Beranda terbuka dengan navbar v2"):
+        return
+    screenshot("v2-01-home-navbar")
+    if not check(open_tab("Profil") and ui_bounds("Halo!"), "Profil menampilkan sapaan"):
+        return
+    screenshot("v2-02-profile")
+    if not check(tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"), "Tampilan terbuka dari Profil"):
+        return
+    screenshot("v2-03-profile-appearance")
+    check(back_to_profile(), "Kembali dari Tampilan ke Profil")
+
+
 def check_https() -> None:
     name = "Tombol 'Putar HTTPS' memutar sampel internet (PLAYING)"
     shell("input keyevent KEYCODE_WAKEUP")
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
     prior_errors = shell("logcat -d -s ExoPlayerImplInternal:E")
-    open_tab("Pengaturan")
+    check_profile_shell()
+    if not check(open_tab("Profil") and tap_profile_item("VERSI & TENTANG", taps=7)
+                 and tap_profile_item("Pengembang"), "Tujuh ketukan kartu versi membuka Pengembang"):
+        return
     if not tap_text("Putar HTTPS", scrolls=8):
         check(False, name, "Tombol 'Putar HTTPS' tidak ditemukan")
         return
 
     # Sampel HTTPS tampil sendiri di sesi media tanpa metadata artis dari antrean.
     playing = wait_session("PLAYING", f"{FIRST}, null, null", 45)
+    back_to_profile()
     if playing:
         check(playing, name, playing)
         return
@@ -418,6 +458,9 @@ def check_https() -> None:
 def check_listening_stats() -> None:
     opened = open_tab("Beranda") and tap_text("Statistik dengar")
     if not check(opened, "Statistik dengar dapat dibuka dari Beranda"):
+        return
+    opened = back_to_profile() and tap_profile_item("Statistik dengar")
+    if not check(opened, "Statistik dengar dapat dibuka dari Profil"):
         return
 
     def chart_description():
@@ -603,7 +646,7 @@ def check_initial_accessibility() -> None:
     min_px = min_touch_px()
     targets = [
         (label, find_interactive(label, attribute="content-desc", root=root))
-        for label in (menu_label, "Beranda", "Cari", "Library", "Pengaturan")
+        for label in (menu_label, "Beranda", "Cari", "Library", "Profil")
     ]
     targets.append((QUEUE_ACTION, queue_menu_targets(menu_label)))
     missing = []
@@ -795,8 +838,8 @@ def check_large_font_accessibility() -> None:
         f"lebar {width}px, hilang {cari_missing}, terpotong/kekecilan {cari_clipped}",
     )
 
-    settings_opened = open_tab("Pengaturan")
-    if not check(settings_opened, "Tab Pengaturan dapat dibuka pada skala font 200%"):
+    settings_opened = open_tab("Profil") and tap_profile_item("Tampilan")
+    if not check(settings_opened, "Tampilan dapat dibuka dari Profil pada skala font 200%"):
         return
 
     screenshot("07-settings-large-font")
@@ -815,8 +858,13 @@ def check_large_font_accessibility() -> None:
     ]
     accent_targets = [(label, "content-desc") for label in accent_labels]
     settings_found = collect_while_scrolling(
-        settings_targets + accent_targets, scrolls=7, save_first="07-settings-ui.xml",
+        [("Ikuti sistem", "text")] + accent_targets, scrolls=7, save_first="07-settings-ui.xml",
     )
+    if back_to_profile() and tap_profile_item("Backup library"):
+        settings_found.update(collect_while_scrolling(settings_targets[1:3]))
+    if back_to_profile() and tap_profile_item("Pengembang"):
+        settings_found.update(collect_while_scrolling(settings_targets[3:]))
+    back_to_profile()
     settings_missing = [label for label, _ in settings_targets if label not in settings_found]
     radio_node = settings_found["Ikuti sistem"][1] if "Ikuti sistem" in settings_found else None
     radio_ok = radio_node is not None and (
@@ -971,6 +1019,7 @@ def check_large_font_accessibility() -> None:
 def scenario() -> None:
     run("adb", "install", "-r", APK)
     shell("logcat -c")
+    shell("cmd uimode night yes")
     # ANR aplikasi sistem di emulator CI tidak boleh menutupi Senada; crash Senada tetap terdeteksi lewat logcat.
     shell("settings put global hide_error_dialogs 1")
     shell("input keyevent KEYCODE_WAKEUP")

@@ -11,6 +11,30 @@ import senada.catalog.MoodChip
 
 class AppNavigatorTest {
     @Test
+    fun restoresLegacySettingsTabAndStatsFlag() {
+        val legacy = assertNotNull(AppNavigator.Saver.restore(listOf("Settings", false, null, false)))
+        assertEquals(AppDestination.Profile, legacy.destination)
+        assertNull(legacy.currentProfileRoute)
+        val stats = assertNotNull(AppNavigator.Saver.restore(listOf("Home", false, null, false, true)))
+        assertEquals(AppDestination.Profile, stats.destination)
+        assertEquals(ProfileRoute.Stats, stats.currentProfileRoute)
+    }
+
+    @Test
+    fun profileStackRestoresPopsAndClearsOnTabChange() {
+        val navigator = AppNavigator()
+        navigator.openProfileRoute(ProfileRoute.AudioLab)
+        navigator.openProfileRoute(ProfileRoute.Equalizer)
+        val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
+        val restored = assertNotNull(AppNavigator.Saver.restore(assertNotNull(saved)))
+        assertEquals(ProfileRoute.Equalizer, restored.currentProfileRoute)
+        assertTrue(restored.back())
+        assertEquals(ProfileRoute.AudioLab, restored.currentProfileRoute)
+        restored.select(AppDestination.Library)
+        assertTrue(restored.profileStack.isEmpty())
+    }
+
+    @Test
     fun backClosesNowPlayingFirst() {
         val navigator = AppNavigator()
         navigator.select(AppDestination.Library)
@@ -40,43 +64,47 @@ class AppNavigatorTest {
     }
 
     @Test
-    fun backClosesMostPlayedBeforeLeavingHome() {
+    fun backClosesMostPlayedBeforeLeavingProfile() {
         val navigator = AppNavigator()
-        navigator.openMostPlayed()
+        navigator.openProfileRoute(ProfileRoute.MostPlayed)
 
         assertTrue(navigator.canGoBack)
         assertTrue(navigator.back())
-        assertFalse(navigator.mostPlayedOpen)
+        assertNull(navigator.currentProfileRoute)
+        assertEquals(AppDestination.Profile, navigator.destination)
+        assertTrue(navigator.back())
         assertFalse(navigator.back())
     }
 
     @Test
     fun listeningStatsStaysOpenUnderNowPlayingAndClosesWhenChangingTab() {
         val navigator = AppNavigator()
-        navigator.openListeningStats()
+        navigator.openProfileRoute(ProfileRoute.Stats)
         navigator.openNowPlaying()
         assertTrue(navigator.back())
-        assertTrue(navigator.listeningStatsOpen)
+        assertEquals(ProfileRoute.Stats, navigator.currentProfileRoute)
         assertTrue(navigator.back())
-        assertFalse(navigator.listeningStatsOpen)
+        assertNull(navigator.currentProfileRoute)
+        assertEquals(AppDestination.Profile, navigator.destination)
+        assertTrue(navigator.back())
         assertFalse(navigator.canGoBack)
 
-        navigator.openListeningStats()
+        navigator.openProfileRoute(ProfileRoute.Stats)
         navigator.select(AppDestination.Search)
-        assertFalse(navigator.listeningStatsOpen)
+        assertNull(navigator.currentProfileRoute)
     }
 
     @Test
     fun selectingATabClosesDetailScreens() {
         val navigator = AppNavigator()
         navigator.openPlaylist("p")
-        navigator.openMostPlayed()
+        navigator.openProfileRoute(ProfileRoute.MostPlayed)
         navigator.openArtist("UC1", "Tulus")
 
         navigator.select(AppDestination.Search)
 
         assertNull(navigator.openedPlaylistId)
-        assertFalse(navigator.mostPlayedOpen)
+        assertNull(navigator.currentProfileRoute)
         assertNull(navigator.currentCatalogRoute)
         assertEquals(AppDestination.Search, navigator.destination)
     }
@@ -182,12 +210,12 @@ class AppNavigatorTest {
     @Test
     fun saverRestoresStatsBeneathCatalogAndAcceptsOlderSavedState() {
         val navigator = AppNavigator()
-        navigator.openListeningStats()
+        navigator.openProfileRoute(ProfileRoute.Stats)
         navigator.openArtist("UC_tulus", "Tulus")
         navigator.openCatalogPlaylist("PL_sore", "Chill Sore", "YouTube Music · 20 lagu", "https://example.invalid/pl")
         val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
         val restored = assertNotNull(AppNavigator.Saver.restore(assertNotNull(saved)))
-        assertTrue(restored.listeningStatsOpen)
+        assertEquals(ProfileRoute.Stats, restored.currentProfileRoute)
         assertEquals(
             CatalogRoute.Playlist("PL_sore", "Chill Sore", "YouTube Music · 20 lagu", "https://example.invalid/pl"),
             restored.currentCatalogRoute,
@@ -195,12 +223,11 @@ class AppNavigatorTest {
         assertTrue(restored.back())
         assertEquals("UC_tulus", restored.currentCatalogRoute?.id)
         assertTrue(restored.back())
-        assertTrue(restored.listeningStatsOpen)
+        assertEquals(ProfileRoute.Stats, restored.currentProfileRoute)
         assertNull(restored.currentCatalogRoute)
 
         val old = assertNotNull(AppNavigator.Saver.restore(listOf("Home", false, null, true)))
-        assertTrue(old.mostPlayedOpen)
-        assertFalse(old.listeningStatsOpen)
+        assertEquals(ProfileRoute.MostPlayed, old.currentProfileRoute)
     }
 
     @Test
@@ -214,7 +241,7 @@ class AppNavigatorTest {
             CatalogRoute.Playlist("PL_lama", "Playlist lama", "10 lagu", "https://example.invalid/lama"),
             restored.currentCatalogRoute,
         )
-        assertFalse(restored.listeningStatsOpen)
+        assertNull(restored.currentProfileRoute)
     }
 
     @Test
@@ -238,7 +265,7 @@ class AppNavigatorTest {
     @Test
     fun openArtistFromNowPlayingOverMostPlayedReturnsToMostPlayedOnBack() {
         val navigator = AppNavigator()
-        navigator.openMostPlayed()
+        navigator.openProfileRoute(ProfileRoute.MostPlayed)
         navigator.openNowPlaying()
 
         navigator.openArtist("UC_tulus", "Tulus")
@@ -247,15 +274,15 @@ class AppNavigatorTest {
         assertEquals("Paling sering diputar", navigator.previousCatalogLabel())
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
-        assertTrue(navigator.mostPlayedOpen)
+        assertEquals(ProfileRoute.MostPlayed, navigator.currentProfileRoute)
         assertTrue(navigator.back())
-        assertFalse(navigator.mostPlayedOpen)
+        assertNull(navigator.currentProfileRoute)
     }
 
     @Test
     fun openArtistFromNowPlayingOverListeningStatsReturnsToStatsOnBack() {
         val navigator = AppNavigator()
-        navigator.openListeningStats()
+        navigator.openProfileRoute(ProfileRoute.Stats)
         navigator.openNowPlaying()
 
         navigator.openArtist("UC_tulus", "Tulus")
@@ -264,9 +291,9 @@ class AppNavigatorTest {
         assertEquals("Statistik dengar", navigator.previousCatalogLabel())
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
-        assertTrue(navigator.listeningStatsOpen)
+        assertEquals(ProfileRoute.Stats, navigator.currentProfileRoute)
         assertTrue(navigator.back())
-        assertFalse(navigator.listeningStatsOpen)
+        assertNull(navigator.currentProfileRoute)
     }
 
     @Test

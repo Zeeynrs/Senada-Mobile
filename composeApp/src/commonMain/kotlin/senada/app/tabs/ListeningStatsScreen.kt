@@ -27,7 +27,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
-import senada.app.CollectionBackButton
 import senada.app.LibraryActions
 import senada.app.SettingsCard
 import senada.app.TrackRow
@@ -42,16 +41,9 @@ internal fun LazyListScope.listeningStatsScreen(
     favoriteIds: Set<String>,
     actions: LibraryActions,
     onPeriod: (ListenPeriod) -> Unit,
-    onClose: () -> Unit,
 ) {
     item(key = "listening-header") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            CollectionBackButton("Beranda", onClose)
-            Text(
-                "Statistik dengar",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.semantics { heading() },
-            )
             Text("Disimpan di perangkat ini.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(
                 modifier = Modifier.fillMaxWidth().selectableGroup(),

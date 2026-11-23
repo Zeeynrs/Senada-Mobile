@@ -14,7 +14,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import senada.app.CollectionBackButton
 import senada.app.LibraryActions
 import senada.app.TrackRow
 import senada.app.minTouchTarget
@@ -24,16 +23,9 @@ internal fun LazyListScope.mostPlayedScreen(
     tracks: List<Track>,
     favoriteIds: Set<String>,
     actions: LibraryActions,
-    onClose: () -> Unit,
 ) {
     item(key = "most-played-header") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            CollectionBackButton("Beranda", onClose)
-            Text(
-                "Paling sering diputar",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.semantics { heading() },
-            )
             if (tracks.isEmpty()) {
                 Text("Belum ada lagu yang diputar dalam 30 hari terakhir.")
             } else {
