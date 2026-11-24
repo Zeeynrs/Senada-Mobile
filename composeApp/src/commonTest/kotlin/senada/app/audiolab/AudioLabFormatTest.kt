@@ -78,6 +78,7 @@ class AudioLabFormatTest {
         assertEquals(CardStatus("Reverb", active = true), soundFxStatus(reverbOnly))
         val bassOnly = defaults.copy(bassBoost = BassBoostSettings(enabled = true))
         assertEquals(CardStatus("Bass boost", active = true), soundFxStatus(bassOnly))
+        assertEquals(CardStatus("Samakan volume", active = true), soundFxStatus(defaults.copy(loudnessMatch = true)))
     }
 
     @Test

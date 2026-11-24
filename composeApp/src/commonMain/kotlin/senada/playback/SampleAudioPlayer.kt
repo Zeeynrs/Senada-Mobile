@@ -15,6 +15,7 @@ internal data class SampleAudioSelection(
     val expiresAtEpochMs: Long? = null,
     /** Panjang audio menurut sumbernya; null bila hanya pemutar native yang tahu. */
     val durationMs: Long? = null,
+    val loudnessDb: Float? = null,
 ) {
     /** Entri antrean yang alamat audionya belum didapat. */
     val isPending get() = uri.isEmpty()
@@ -66,6 +67,11 @@ internal interface SampleAudioOutput {
      * [endAtMs] adalah akhir audio yang sebenarnya bila sumbernya tahu; pemutar berhenti di sana.
      */
     fun play(uri: String, restart: Boolean, startAtMs: Long = 0, endAtMs: Long? = null)
+    fun play(selection: SampleAudioSelection, startAtMs: Long) {
+        play(selection.uri, restart = true, startAtMs = startAtMs, endAtMs = selection.knownDurationMs)
+    }
+    /** Pilihan lama sudah tidak menjadi lagu aktif, walaupun item native masih dijeda. */
+    fun clearSelection() {}
     fun pause()
     fun seekTo(positionMs: Long)
     fun release()
@@ -93,6 +99,7 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
      */
     fun prepare(selection: SampleAudioSelection, positionMs: Long = 0) {
         if (state.isActive && !awaitingSource) output.pause()
+        output.clearSelection()
         awaitingSource = true
         state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = positionMs)
     }
@@ -115,7 +122,7 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
             output.play(selection.uri, restart = false)
             state = state.copy(status = SampleAudioStatus.Loading)
         } else {
-            output.play(selection.uri, restart = true, startAtMs = startAtMs, endAtMs = selection.knownDurationMs)
+            output.play(selection, startAtMs)
             state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = startAtMs)
         }
         refresh()
@@ -173,6 +180,7 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         if (state.selection?.queueEntryId != entryId) return
         awaitingSource = false
         output.pause()
+        output.clearSelection()
         state = SampleAudioState()
     }
 }

@@ -1,6 +1,8 @@
 package senada.catalog.youtube
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.floatOrNull
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
 import senada.catalog.ResolvedAudio
@@ -47,6 +49,9 @@ internal fun parsePlayer(response: JsonObject, nowMs: Long, saveData: Boolean = 
         mimeType = "audio/mp4",
         expiresAtEpochMs = expiresInSeconds?.let { nowMs + it * 1_000 },
         durationMs = durationMs,
+        // VISIONOS mengirim offset dari level acuan pada format AAC yang dipilih.
+        loudnessDb = (format.at("loudnessDb") as? JsonPrimitive)
+            ?.takeUnless { it.isString }?.floatOrNull?.takeIf { it.isFinite() },
     )
 }
 
