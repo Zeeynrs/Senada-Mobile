@@ -5,21 +5,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import senada.app.AdaptiveRow
+import senada.app.BrowseLoadMoreButton
+import senada.app.BrowseMonoHeading
+import senada.app.BrowseNoticeCard
+import senada.app.BrowseRowSkeletonCard
+import senada.app.BrowseSectionHeader
 import senada.app.CollectionCover
 import senada.app.CollectionHeader
 import senada.app.CollectionKind
@@ -87,25 +89,20 @@ internal fun LazyListScope.playlistSearchResults(
 ) {
     if (state.query.isEmpty()) {
         item(key = "playlist-search-prompt") {
-            Text(
-                "Ketik nama atau topik playlist untuk mencari di YouTube Music.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            BrowseNoticeCard(
+                eyebrow = "Cari playlist",
+                message = "Ketik nama atau topik playlist untuk mencari di YouTube Music.",
+                polite = false,
             )
         }
         return
     }
     item(key = "playlist-search-heading") {
-        Text(
-            "Playlist di YouTube Music",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.semantics { heading() },
-        )
+        BrowseMonoHeading("Playlist di YouTube Music")
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "playlist-search-loading") {
-            PoliteStatusText("Mencari playlist…")
+            BrowseRowSkeletonCard(statusLabel = "Mencari playlist…", rowCount = 3)
         }
     }
     state.error?.let { message ->
@@ -115,7 +112,10 @@ internal fun LazyListScope.playlistSearchResults(
     }
     if (!state.loading && state.error == null && state.items.isEmpty()) {
         item(key = "playlist-search-empty") {
-            PoliteStatusText("Playlist tidak ditemukan.")
+            BrowseNoticeCard(
+                eyebrow = "Hasil kosong",
+                message = "Playlist tidak ditemukan.",
+            )
         }
     }
     items(state.items, key = { "playlist-result-${it.id}" }) { playlist ->
@@ -135,14 +135,7 @@ internal fun LazyListScope.playlistSearchResults(
     }
     if (state.nextPageToken != null && state.error == null) {
         item(key = "playlist-search-more") {
-            OutlinedButton(
-                onClick = onLoadMore,
-                enabled = !state.loading,
-                shape = CircleShape,
-                modifier = Modifier.fillMaxWidth().minTouchTarget(),
-            ) {
-                Text(if (state.loading) "Memuat…" else "Muat lebih banyak")
-            }
+            BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
     }
 }
@@ -193,6 +186,7 @@ internal fun LazyListScope.playlistDetailScreen(
             onShuffle = { actions.playShuffled(tracks, PlaySource.Playlist(displayTitle)) },
             backLabel = previousLabel,
             onBack = onBack,
+            eyebrow = if (isMix) "Mix / Radio" else "Playlist",
             footer = {
                 if (isMix) {
                     Text(
@@ -256,7 +250,7 @@ internal fun LazyListScope.playlistDetailScreen(
 
     if (state.loading && detail == null) {
         item(key = "playlist-loading-${route.id}") {
-            PoliteStatusText("Memuat halaman playlist…")
+            BrowseRowSkeletonCard(statusLabel = "Memuat halaman playlist…", rowCount = 5)
         }
     }
     state.error?.let { message ->
@@ -266,11 +260,10 @@ internal fun LazyListScope.playlistDetailScreen(
     }
     if (tracks.isNotEmpty()) {
         item(key = "playlist-tracks-heading-${route.id}") {
-            Text(
-                "Daftar lagu",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+            BrowseSectionHeader(
+                title = "Daftar lagu",
+                monoLabel = "${tracks.size} lagu",
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
         itemsIndexed(tracks, key = { index, track -> "playlist-track-${route.id}-$index-${track.id}" }) { index, track ->
@@ -286,7 +279,10 @@ internal fun LazyListScope.playlistDetailScreen(
     }
     if (!state.loading && state.error == null && detail != null && tracks.isEmpty()) {
         item(key = "playlist-empty-${route.id}") {
-            PoliteStatusText("Belum ada lagu di playlist ini.")
+            BrowseNoticeCard(
+                eyebrow = "Daftar lagu",
+                message = "Belum ada lagu di playlist ini.",
+            )
         }
     }
 }
