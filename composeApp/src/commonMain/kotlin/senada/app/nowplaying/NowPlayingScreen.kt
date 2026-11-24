@@ -1,5 +1,15 @@
 package senada.app.nowplaying
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -70,6 +81,8 @@ import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.PlatformBackHandler
 import senada.app.shell.SenadaIcons
 import senada.app.shell.nowPlayingSwipe
+import senada.app.theme.LocalSenadaLook
+import senada.app.theme.SenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
@@ -86,7 +99,41 @@ import senada.playback.SampleAudioStatus
 
 private enum class PlayerSheet { Lyrics, Queue }
 
+internal const val PLAYER_SHEET_OPEN_MS = 220
+internal const val PLAYER_SHEET_CLOSE_MS = 200
+
 internal fun playerSp(size: Int, scale: Float) = (size * scale).sp
+
+internal fun largeCoverShape(coverRadius: Dp): RoundedCornerShape =
+    RoundedCornerShape(coverRadius.coerceAtLeast(0.dp))
+
+internal fun playerSheetTransitionSpec(opening: Boolean, look: SenadaLook): ContentTransform {
+    val duration = look.durationMillis(if (opening) PLAYER_SHEET_OPEN_MS else PLAYER_SHEET_CLOSE_MS)
+    if (duration == 0) {
+        return ContentTransform(
+            targetContentEnter = EnterTransition.None,
+            initialContentExit = ExitTransition.None,
+            sizeTransform = null,
+        )
+    }
+    return if (opening) {
+        ContentTransform(
+            targetContentEnter = fadeIn(tween(durationMillis = duration)) +
+                slideInVertically(tween(durationMillis = duration, easing = FastOutSlowInEasing)) { it / 12 },
+            initialContentExit = fadeOut(tween(durationMillis = duration)),
+            targetContentZIndex = 1f,
+            sizeTransform = null,
+        )
+    } else {
+        ContentTransform(
+            targetContentEnter = fadeIn(tween(durationMillis = duration)),
+            initialContentExit = fadeOut(tween(durationMillis = duration)) +
+                slideOutVertically(tween(durationMillis = duration, easing = FastOutSlowInEasing)) { it / 12 },
+            targetContentZIndex = -1f,
+            sizeTransform = null,
+        )
+    }
+}
 
 @Composable
 internal fun NowPlayingScreen(
@@ -122,30 +169,36 @@ internal fun NowPlayingScreen(
                 val insets = WindowInsets.safeDrawing
                 val safeTop = with(density) { insets.getTop(this).toDp() }
                 val safeBottom = with(density) { insets.getBottom(this).toDp() }
-                val backdrop = remember(accent, backdropFromCover, scale) { PlayerBackdrop(accent, backdropFromCover, scale) }
+                val look = LocalSenadaLook.current
+                val backdrop = rememberPlayerBackdrop(accent, backdropFromCover, scale)
                 NowPlayingBackdrop(backdrop)
                 CompositionLocalProvider(LocalPlayerBackdrop provides backdrop) {
-                    val currentSheet = sheet
-                    if (currentSheet == null) {
-                        PlayerMainContent(
-                            state = state, playback = playback, track = track, library = library, actions = actions,
-                            sourceLabel = source.playerLabel().takeIf { track != null },
-                            synced = synced, accent = accent, panel = panel, onClose = onClose,
-                            onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
-                            onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
-                            safeTop = safeTop, safeBottom = safeBottom,
-                        )
-                    } else {
-                        val isLyrics = currentSheet == PlayerSheet.Lyrics
-                        PlayerSheetContent(
-                            title = if (isLyrics) "Lirik" else "Antrean",
-                            closeLabel = if (isLyrics) "Tutup lirik" else "Tutup antrean",
-                            onClose = { sheet = null },
-                        ) {
-                            if (isLyrics) {
-                                PlayerLyricsSheet(track, lyrics, playback) { lyricsAttempt++ }
-                            } else {
-                                PlayerQueue(state, playback, library, actions)
+                    AnimatedContent(
+                        targetState = sheet,
+                        transitionSpec = { playerSheetTransitionSpec(opening = targetState != null, look = look) },
+                        modifier = Modifier.fillMaxSize(),
+                    ) { currentSheet ->
+                        if (currentSheet == null) {
+                            PlayerMainContent(
+                                state = state, playback = playback, track = track, library = library, actions = actions,
+                                sourceLabel = source.playerLabel().takeIf { track != null },
+                                synced = synced, accent = accent, panel = panel, onClose = onClose,
+                                onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
+                                onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
+                                safeTop = safeTop, safeBottom = safeBottom,
+                            )
+                        } else {
+                            val isLyrics = currentSheet == PlayerSheet.Lyrics
+                            PlayerSheetContent(
+                                title = if (isLyrics) "Lirik" else "Antrean",
+                                closeLabel = if (isLyrics) "Tutup lirik" else "Tutup antrean",
+                                onClose = { sheet = null },
+                            ) {
+                                if (isLyrics) {
+                                    PlayerLyricsSheet(track, lyrics, playback) { lyricsAttempt++ }
+                                } else {
+                                    PlayerQueue(state, playback, library, actions)
+                                }
                             }
                         }
                     }
@@ -434,13 +487,8 @@ private fun ActiveLyric(line: String?, scale: Float, onClick: () -> Unit) {
 
 @Composable
 private fun Cover(url: String?, accent: Color?, size: Dp) {
-    val glow = LocalPlayerBackdrop.current.glow
-    val backdrop = if (accent == null) {
-        SenadaPalette.DarkSurfaceHigh
-    } else {
-        Color(glow.red * .32f, glow.green * .32f, glow.blue * .32f)
-    }
-    val shape = RoundedCornerShape(20.dp)
+    val backdropState = LocalPlayerBackdrop.current
+    val shape = largeCoverShape(LocalSenadaLook.current.coverRadius)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Box(
             Modifier.size(size)
@@ -451,7 +499,15 @@ private fun Cover(url: String?, accent: Color?, size: Dp) {
                     spotColor = Color.Black.copy(alpha = .45f),
                 )
                 .clip(shape)
-                .background(backdrop),
+                .drawBehind {
+                    val glow = backdropState.glow
+                    val backdrop = if (accent == null) {
+                        SenadaPalette.DarkSurfaceHigh
+                    } else {
+                        Color(glow.red * .32f, glow.green * .32f, glow.blue * .32f)
+                    }
+                    drawRect(backdrop)
+                },
             contentAlignment = Alignment.Center,
         ) {
             Icon(

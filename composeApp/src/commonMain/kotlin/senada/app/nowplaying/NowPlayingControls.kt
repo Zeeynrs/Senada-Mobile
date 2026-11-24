@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -49,6 +50,7 @@ import senada.app.excludeSystemGestures
 import senada.app.minTouchTarget
 import senada.app.playbackTime
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.RepeatMode
@@ -58,6 +60,24 @@ import senada.playback.SampleAudioStatus
 
 internal val PlayerGlassTint = Color.White.copy(alpha = .12f)
 internal val PlayerGlassBorder = Color.White.copy(alpha = .14f)
+
+internal data class PlayerGlassStyle(
+    val useBackdropBlur: Boolean,
+    val fillColor: Color = PlayerGlassTint,
+    val borderColor: Color = PlayerGlassBorder,
+)
+
+internal fun playerGlassStyle(glassEnabled: Boolean): PlayerGlassStyle =
+    PlayerGlassStyle(useBackdropBlur = glassEnabled)
+
+@Composable
+internal fun Modifier.playerGlass(shape: Shape, borderWidth: Dp = 1.dp): Modifier {
+    val style = playerGlassStyle(LocalSenadaLook.current.glass)
+    return clip(shape)
+        .then(if (style.useBackdropBlur) Modifier.playerGlassBackdrop() else Modifier)
+        .background(style.fillColor)
+        .border(borderWidth, style.borderColor, shape)
+}
 
 @Composable
 internal fun PlayerGlassButton(
@@ -77,10 +97,7 @@ internal fun PlayerGlassButton(
     ) {
         Box(
             Modifier.size(44.dp * scale)
-                .clip(CircleShape)
-                .playerGlassBackdrop()
-                .background(PlayerGlassTint)
-                .border(1.dp * scale, PlayerGlassBorder, CircleShape),
+                .playerGlass(CircleShape, borderWidth = 1.dp * scale),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, null, Modifier.size(20.dp * scale), tint = if (enabled) tint else tint.copy(alpha = .38f))

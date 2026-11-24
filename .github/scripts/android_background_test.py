@@ -1032,6 +1032,88 @@ def is_disabled_label(label: str, *, attribute: str = "text", root: ET.Element |
     return False
 
 
+def find_visible_node(
+    label: str, *, attribute: str = "text", scrolls: int = 4,
+) -> tuple[tuple[int, int, int, int], ET.Element] | None:
+    width, height = screen_size()
+    min_px = min_touch_px()
+
+    def current_match():
+        root = ui_tree()
+        if root is None:
+            return None
+        top = overlay_top(root, height)
+        for box, node in find_interactive(label, attribute=attribute, root=root):
+            if box[1] > 0 and box[3] < top and (box[3] - box[1]) >= min_px:
+                return box, node
+        return None
+
+    hit = current_match()
+    if hit is not None:
+        return hit
+    scroll_to_top(2)
+    for _ in range(scrolls + 1):
+        hit = current_match()
+        if hit is not None:
+            return hit
+        shell(f"input swipe {width // 2} {height * 3 // 5} {width // 2} {height // 4} 350")
+        time.sleep(0.5)
+    return None
+
+
+def current_cover_radius(root: ET.Element | None = None) -> int | None:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return None
+    for node in tree.iter("node"):
+        match = re.fullmatch(r"(\d+)dp", (node.get("text") or "").strip())
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def set_cover_radius(target_dp: int) -> bool:
+    for _ in range(4):
+        current = current_cover_radius()
+        if current == target_dp:
+            return True
+        desc = "Kurangi sudut sampul" if current is None or target_dp < current else "Tambah sudut sampul"
+        match = find_visible_node(desc, attribute="content-desc")
+        if match is None:
+            return False
+        current = current_cover_radius()
+        if current == target_dp:
+            return True
+        if current is None:
+            return False
+        steps = abs(target_dp - current) // 2
+        if steps == 0:
+            return False
+        x1, y1, x2, y2 = match[0]
+        pt = ((x1 + x2) // 2, (y1 + y2) // 2)
+        for _ in range(steps):
+            tap(pt)
+        if wait_for(lambda: ui_bounds(f"{target_dp}dp"), 2):
+            return True
+    return bool(ui_bounds(f"{target_dp}dp"))
+
+
+def set_appearance_switch(label: str, target_checked: bool) -> bool:
+    expected = "true" if target_checked else "false"
+    match = find_visible_node(label)
+    if match is None:
+        return False
+    if match[1].get("checked") == expected:
+        return True
+    x1, y1, x2, y2 = match[0]
+    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    time.sleep(0.7)
+    return bool(wait_for(
+        lambda: [item for item in find_interactive(label) if item[1].get("checked") == expected],
+        5,
+    ))
+
+
 def check_appearance_v2() -> None:
     if not check(
         open_tab("Profil") and (scroll_to_top(2) or True) and tap_profile_item("Tampilan") and desc_point("Kembali ke Profil"),
@@ -1125,6 +1207,29 @@ def check_appearance_v2() -> None:
             ))
         )
         check(glass_restored, "Efek kaca kembali dinyalakan setelah tangkapan layar Beranda")
+
+        plain_backdrop = set_appearance_switch("Latar pemutar dari sampul", False)
+        check(plain_backdrop, "Latar pemutar dari sampul dapat dimatikan di halaman Tampilan")
+        radius_zero = set_cover_radius(0)
+        check(radius_zero, "Sudut sampul dapat diatur ke 0dp lewat tombol kurang")
+
+        plain_opened = open_now_playing()
+        if plain_opened:
+            time.sleep(0.4)
+            screenshot("v2-63-nowplaying-plain")
+        plain_closed = plain_opened and tap_desc("Tutup") and bool(wait_for(now_playing_closed, 5))
+        check(
+            plain_opened and plain_closed,
+            "Sedang diputar dapat dibuka dengan latar polos dan sudut sampul 0dp",
+        )
+
+        radius_restored = set_cover_radius(20)
+        backdrop_restored = set_appearance_switch("Latar pemutar dari sampul", True)
+        check(
+            radius_restored and backdrop_restored,
+            "Latar pemutar dari sampul dan sudut sampul 20dp dikembalikan ke bawaan",
+            f"radius={radius_restored}, backdrop={backdrop_restored}",
+        )
         back_to_profile()
     finally:
         shell("settings put global animator_duration_scale 0.0")

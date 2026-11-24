@@ -697,7 +697,7 @@ internal fun AppShell(
                     },
                     panel = nowPlayingPanel,
                     immersive = navigator.nowPlayingOpen,
-                    backdropFromCover = true,
+                    backdropFromCover = LocalSenadaLook.current.playerBackdropFromCover,
                     modifier = Modifier.graphicsLayer { translationY = (1f - nowPlayingPanel.progress) * size.height },
                 )
             }
