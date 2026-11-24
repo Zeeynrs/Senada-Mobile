@@ -166,10 +166,14 @@ def parent_map(root: ET.Element) -> dict[ET.Element, ET.Element]:
 
 
 def interactive_node(node: ET.Element, parents: dict[ET.Element, ET.Element]) -> ET.Element:
-    """Naik ke node tombol/sakelar/radio pembungkus karena uiautomator memisahkan anak TextView."""
+    """Naik ke node tombol/sakelar/radio/tab pembungkus karena uiautomator memisahkan anak TextView."""
     current: ET.Element | None = node
     while current is not None:
-        if current.get("clickable") == "true" or current.get("checkable") == "true":
+        if (
+            current.get("clickable") == "true"
+            or current.get("checkable") == "true"
+            or current.get("selected") == "true"
+        ):
             return current
         current = parents.get(current)
     return node
@@ -1535,6 +1539,7 @@ def check_browse_v2() -> None:
                 time.sleep(0.5)
 
             if album_hit is not None:
+                screenshot("v2-94b-artist-albums")
                 ax1, ay1, ax2, ay2 = album_hit[0]
                 tap(((ax1 + ax2) // 2, (ay1 + ay2) // 2))
 
@@ -1618,6 +1623,7 @@ def check_browse_light_theme() -> None:
             screenshot("v2-99c-search-light")
         if open_tab("Library"):
             scroll_to_top(2)
+            tap_text("Favorit", scrolls=0)
             wait_for(lambda: ui_bounds("Putar Favorit", attribute="content-desc"), 5)
             screenshot("v2-99d-library-light")
     finally:
@@ -1689,8 +1695,9 @@ def check_search_keyboard() -> None:
 
     if not check(wait_for(keyboard_visible, 5), "Papan ketik tab Cari terbuka"):
         return
-    screenshot("v2-91-search-keyboard")
+    wait_for(lambda: (t := ui_tree()) is not None and visible_bars(t) == [], 5)
     typing = ui_tree(save_as="search-keyboard-open.xml")
+    screenshot("v2-91-search-keyboard")
     visible = visible_bars(typing) if typing is not None else None
     check(visible == [], "Navigasi dan mini player tersembunyi saat papan ketik terbuka", visible)
 
