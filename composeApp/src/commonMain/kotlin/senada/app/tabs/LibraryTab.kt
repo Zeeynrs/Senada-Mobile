@@ -1,21 +1,13 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,9 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import senada.app.CollectionPlayButtons
@@ -35,12 +24,12 @@ import senada.app.ImportAudioStatusMessage
 import senada.app.LibraryActions
 import senada.app.LibraryEmptyState
 import senada.app.LibraryState
+import senada.app.SenadaFilterPill
 import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.collectionMeta
 import senada.app.favoritesTab
 import senada.app.historyTab
-import senada.app.minTouchTarget
 import senada.app.playlistsTab
 import senada.app.rememberAudioImportController
 import senada.app.sumKnownDurationMs
@@ -97,7 +86,7 @@ internal fun LazyListScope.libraryTab(
     }
 }
 
-/** Deret chip filter pil yang dapat digeser mendatar agar tetap rapi pada skala font besar. */
+/** Deret chip filter pil v2 yang dapat digeser mendatar agar tetap rapi pada skala font besar. */
 @Composable
 private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter) -> Unit) {
     Row(
@@ -109,28 +98,11 @@ private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for (filter in LibraryFilter.entries) {
-            val active = filter == selected
-            Surface(
-                shape = CircleShape,
-                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-                border = if (active) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .minTouchTarget()
-                        .selectable(selected = active, role = Role.Tab, onClick = { onSelect(filter) })
-                        .semantics { stateDescription = if (active) "Dipilih" else "Tidak dipilih" }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        filter.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-            }
+            SenadaFilterPill(
+                label = filter.label,
+                selected = filter == selected,
+                onClick = { onSelect(filter) },
+            )
         }
     }
 }
@@ -160,6 +132,7 @@ private fun ImportedTracksContent(
         CompactCollectionHeader(
             title = "File impor",
             meta = meta,
+            eyebrow = "Penyimpanan lokal",
         ) {
             CollectionPlayButtons(
                 title = "File impor",

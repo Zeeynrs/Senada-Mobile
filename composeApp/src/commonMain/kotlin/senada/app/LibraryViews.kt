@@ -2,6 +2,7 @@ package senada.app
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,13 +18,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -49,9 +46,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
@@ -442,7 +440,7 @@ internal fun NameDialog(
     )
 }
 
-/** Tampilan kosong seragam untuk tiap chip di tab Library: satu kalimat singkat + aksi relevan. */
+/** Tampilan kosong seragam bergaya kartu v2 untuk tiap chip di tab Library: kalimat singkat + aksi relevan. */
 @Composable
 internal fun LibraryEmptyState(
     message: String,
@@ -450,32 +448,15 @@ internal fun LibraryEmptyState(
     onAction: () -> Unit,
     actionEnabled: Boolean = true,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.Start,
-        ) {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Button(
-                onClick = onAction,
-                enabled = actionEnabled,
-                shape = CircleShape,
-                modifier = Modifier.minTouchTarget(),
-            ) {
-                Text(actionLabel)
-            }
-        }
-    }
+    BrowseNoticeCard(
+        eyebrow = "Belum ada isi",
+        message = message,
+        polite = false,
+        actionLabel = actionLabel,
+        actionEnabled = actionEnabled,
+        primaryAction = true,
+        onAction = onAction,
+    )
 }
 
 /** Satu daftar lagu library dengan menu ⋯. */
@@ -528,6 +509,7 @@ internal fun LazyListScope.favoritesTab(
             canPlay = library.favoriteTotal > 0,
             onPlay = { actions.playAllFavorites() },
             onShuffle = { actions.shuffleFavorites() },
+            eyebrow = "Koleksi favorit",
         )
     }
     if (library.favoriteTotal == 0) {
@@ -569,6 +551,7 @@ internal fun LazyListScope.historyTab(
         CompactCollectionHeader(
             title = "Riwayat",
             meta = meta,
+            eyebrow = "Baru diputar",
         ) {
             CollectionPlayButtons(
                 title = "Riwayat",
@@ -716,79 +699,85 @@ private fun PlaylistRow(
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    AdaptiveRow(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp),
-        minPrimaryWidth = 180.dp,
-        horizontalSpacing = 12.dp,
-        primary = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .minTouchTarget()
-                    .clip(MaterialTheme.shapes.small)
-                    .clickable(onClickLabel = "Buka", role = Role.Button, onClick = onOpen)
-                    .semantics { contentDescription = "Buka playlist ${playlist.name}" }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                PlaylistRowCover(cover)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+    SenadaCard {
+        AdaptiveRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 68.dp)
+                .padding(1.dp)
+                .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            minPrimaryWidth = 180.dp,
+            horizontalSpacing = 12.dp,
+            primary = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .minTouchTarget()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClickLabel = "Buka", role = Role.Button, onClick = onOpen)
+                        .semantics { contentDescription = "Buka playlist ${playlist.name}" }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = playlist.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = playlistRowSubtitle(playlist.trackCount),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    PlaylistRowCover(cover)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = playlist.name,
+                            style = browseRowTitleStyle(),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = playlistRowSubtitle(playlist.trackCount),
+                            style = browseRowSubtitleStyle(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-            }
-        },
-        trailing = {
-            Box {
-                IconButton(
-                    onClick = { menuOpen = true },
-                    modifier = Modifier.minTouchTarget().semantics {
-                        contentDescription = "Buka menu playlist ${playlist.name}"
-                    },
-                ) {
-                    Icon(
-                        imageVector = SenadaIcons.More,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Ganti nama") },
-                        onClick = {
-                            menuOpen = false
-                            renaming = true
+            },
+            trailing = {
+                Box {
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.minTouchTarget().semantics {
+                            contentDescription = "Buka menu playlist ${playlist.name}"
                         },
-                        modifier = Modifier.minTouchTarget(),
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Hapus playlist") },
-                        onClick = {
-                            menuOpen = false
-                            deleting = true
-                        },
-                        modifier = Modifier.minTouchTarget(),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = SenadaIcons.More,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Ganti nama") },
+                            onClick = {
+                                menuOpen = false
+                                renaming = true
+                            },
+                            modifier = Modifier.minTouchTarget(),
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Hapus playlist") },
+                            onClick = {
+                                menuOpen = false
+                                deleting = true
+                            },
+                            modifier = Modifier.minTouchTarget(),
+                        )
+                    }
                 }
-            }
-        },
-    )
+            },
+        )
+    }
     if (renaming) {
         RenamePlaylistDialog(
             currentName = playlist.name,
@@ -813,11 +802,13 @@ private fun PlaylistRow(
 
 @Composable
 private fun PlaylistRowCover(cover: PlaylistCover) {
+    val coverShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius)
     Box(
         modifier = Modifier
             .size(56.dp)
-            .clip(RoundedCornerShape(LocalSenadaLook.current.listCoverRadius))
-            .background(MaterialTheme.colorScheme.primaryContainer),
+            .clip(coverShape)
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), coverShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -870,25 +861,28 @@ private fun CompactActionChip(
     val colors = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
-        shape = MaterialTheme.shapes.extraSmall,
-        color = if (emphasized) colors.primaryContainer else Color.Transparent,
-        contentColor = if (emphasized) colors.onPrimaryContainer else colors.onSurface,
+        shape = RoundedCornerShape(20.dp),
+        color = if (emphasized) colors.onSurface else colors.surfaceContainerHigh,
+        contentColor = if (emphasized) colors.background else colors.onSurface,
         border = if (emphasized) null else BorderStroke(1.dp, colors.outline),
         modifier = Modifier.minTouchTarget().semantics { role = Role.Button },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -903,6 +897,7 @@ private fun PlaylistListHeader(playlistCount: Int, actions: LibraryActions, onOp
     CompactCollectionHeader(
         title = "Playlist",
         meta = playlistListMeta(playlistCount),
+        eyebrow = "Daftar putar",
     ) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1021,16 +1016,16 @@ private fun PlaylistHeader(
         backLabel = "semua playlist",
         onBack = onClose,
         chips = {
-            FilterChip(
+            SenadaFilterPill(
+                label = "Urutkan",
                 selected = reordering,
-                onClick = onToggleReorder,
                 enabled = playlist.entryCount > 1,
-                label = { Text("Urutkan") },
-                modifier = Modifier.minTouchTarget().semantics {
-                    stateDescription = if (reordering) "Sedang mengurutkan" else "Tidak aktif"
-                },
+                role = Role.Button,
+                stateLabel = if (reordering) "Sedang mengurutkan" else "Tidak aktif",
+                onClick = onToggleReorder,
             )
         },
+        eyebrow = "Playlist",
     )
     if (renaming) {
         RenamePlaylistDialog(

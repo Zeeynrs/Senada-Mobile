@@ -65,6 +65,7 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
 import senada.app.UserProfileController
+import senada.app.browseDisplayTitleStyle
 import senada.app.audiolab.audioLabScreen
 import senada.app.audiolab.equalizerScreen
 import senada.app.audiolab.soundFxScreen
@@ -366,8 +367,7 @@ internal fun AppShell(
     val horizontalPadding = when {
         homePage -> 0.dp
         profileRoute == ProfileRoute.AudioLab -> 12.dp
-        profilePage -> 16.dp
-        else -> 20.dp
+        else -> 16.dp
     }
     val verticalSpacing = when {
         homePage -> 0.dp
@@ -415,7 +415,8 @@ internal fun AppShell(
                     top = when {
                         homePage -> 0.dp
                         profilePage -> ((if (profileDetail) 52.dp else 56.dp) - safeTop).coerceAtLeast(0.dp)
-                        else -> 16.dp
+                        imeVisible -> 8.dp
+                        else -> (52.dp - safeTop).coerceAtLeast(12.dp)
                     },
                     bottom = bottomPadding,
                 ),
@@ -523,8 +524,9 @@ internal fun AppShell(
                     item(key = "title-${navigator.destination}") {
                         Text(
                             navigator.destination.label,
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier.semantics { heading() },
+                            style = browseDisplayTitleStyle(),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() },
                         )
                     }
                 }

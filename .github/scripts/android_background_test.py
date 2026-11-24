@@ -1279,6 +1279,7 @@ def check_collection_header() -> None:
         [box for box, _ in play_matches],
     )
     screenshot("09-favorites-header")
+    screenshot("v2-96-library-favorites")
     check_library_chips(min_px)
 
 
@@ -1304,6 +1305,24 @@ def check_library_chips(min_px: int) -> None:
             f"row={row_matches}, menu={menu_matches}, no_buka={no_buka_button}",
         )
         screenshot("09b-library-playlists")
+        screenshot("v2-97-library-playlists")
+        if row_matches:
+            x1, y1, x2, y2 = row_matches[0][0]
+            tap(((x1 + x2) // 2, (y1 + y2) // 2))
+            back_btn = wait_for(lambda: find_interactive("Kembali ke semua playlist", attribute="content-desc"), 5) or []
+            empty_msg = ui_bounds("Playlist ini masih kosong.")
+            detail_ok = bool(back_btn) and bool(empty_msg) and all(
+                (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
+                for box, _ in back_btn
+            )
+            check(
+                detail_ok,
+                "Halaman detail playlist di Library menampilkan tombol kembali v2 minimal 48 dp dan kartu kosong",
+                f"back={back_btn}, empty={empty_msg}",
+            )
+            screenshot("v2-98-library-playlist-detail")
+            shell("input keyevent KEYCODE_BACK")
+            wait_for(lambda: find_interactive("Playlist baru"), 5)
 
     if tap_text("Riwayat", scrolls=0):
         history_play = wait_for(lambda: find_interactive("Putar Riwayat", attribute="content-desc"), 5) or []
@@ -1318,6 +1337,7 @@ def check_library_chips(min_px: int) -> None:
             f"play={history_play}, shuffle={history_shuffle}",
         )
         screenshot("09c-library-history")
+        screenshot("v2-99-library-history")
 
     if tap_text("File impor", scrolls=0):
         imported_action = wait_for(lambda: find_interactive("Impor file audio"), 5) or []
@@ -1332,8 +1352,239 @@ def check_library_chips(min_px: int) -> None:
             f"action={imported_action}, play={imported_play}",
         )
         screenshot("09d-library-imported")
+        screenshot("v2-99b-library-imported")
 
     tap_text("Favorit", scrolls=0)
+
+
+def find_interactive_prefix(
+    prefix: str, *, attribute: str = "content-desc", root: ET.Element | None = None,
+) -> list[tuple[tuple[int, int, int, int], ET.Element, str]]:
+    tree = root if root is not None else ui_tree()
+    if tree is None:
+        return []
+    parents = parent_map(tree)
+    matches = []
+    for node in tree.iter("node"):
+        value = node.get(attribute) or ""
+        if value.startswith(prefix):
+            target = interactive_node(node, parents)
+            box = parse_bounds(target)
+            if box:
+                matches.append((box, target, value))
+    return sorted(matches, key=lambda item: item[0][1] + item[0][3])
+
+
+def check_browse_v2() -> None:
+    """Verifikasi tampilan dan navigasi v2 untuk Cari, riwayat pencarian, halaman artis, dan halaman album."""
+    if not check(open_tab("Cari"), "Tab Cari v2 dapat dibuka"):
+        return
+    scroll_to_top(2)
+    min_px = min_touch_px()
+    width, height = screen_size()
+    search_tree = ui_tree(save_as="v2-90-search-ui.xml")
+    screenshot("v2-90-search")
+
+    chip_labels = ("Lagu", "Artis", "Album", "Playlist")
+    chip_targets = [
+        (label, find_interactive(label, root=search_tree) if search_tree is not None else [])
+        for label in chip_labels
+    ]
+    chip_bad = [
+        f"{label}={matches[0][0] if matches else None}"
+        for label, matches in chip_targets
+        if not matches
+        or (matches[0][0][2] - matches[0][0][0]) < min_px
+        or (matches[0][0][3] - matches[0][0][1]) < min_px
+    ]
+    check(
+        search_tree is not None
+        and bool(ui_bounds("Cari", root=search_tree))
+        and bool(ui_bounds("Cari judul atau artis", root=search_tree))
+        and not chip_bad,
+        "Tab Cari v2 menampilkan judul, kolom cari, dan keempat chip filter minimal 48 dp",
+        chip_bad,
+    )
+
+    if tap_text("Artis", scrolls=0):
+        prompt_ok = bool(wait_for(lambda: ui_bounds("Ketik nama artis untuk mencari di YouTube Music."), 5))
+        check(prompt_ok, "Filter Artis tanpa kueri menampilkan kartu petunjuk pencarian")
+
+    if not tap_text("Cari judul atau artis", scrolls=0):
+        tap_text("Lagu", scrolls=0)
+        return
+    shell("input text Tulus")
+    time.sleep(0.4)
+    shell("input keyevent KEYCODE_ENTER")
+    time.sleep(0.8)
+    if "mInputShown=true" in shell("dumpsys input_method"):
+        shell("input keyevent KEYCODE_BACK")
+        time.sleep(0.5)
+
+    def artist_search_settled():
+        tree = ui_tree()
+        if tree is None:
+            return None
+        artists = find_interactive_prefix("Buka artis ", root=tree)
+        if artists:
+            return ("artists", artists, tree)
+        if ui_bounds("Coba lagi", root=tree) or ui_bounds("Artis tidak ditemukan.", root=tree):
+            return ("fallback", [], tree)
+        return None
+
+    outcome = wait_for(artist_search_settled, 15, interval=1.0)
+    if outcome and outcome[0] == "artists":
+        screenshot("v2-92-search-artists")
+        artists = outcome[1]
+        artist_tree = outcome[2]
+        top_limit = overlay_top(artist_tree, height)
+        visible_artists = [item for item in artists if item[0][1] > 0 and item[0][3] < top_limit]
+        picked = visible_artists[0] if visible_artists else artists[0]
+        x1, y1, x2, y2 = picked[0]
+        tap(((x1 + x2) // 2, (y1 + y2) // 2))
+
+        def artist_page_ready():
+            tree = ui_tree()
+            if tree is None:
+                return None
+            if not find_interactive("Kembali ke Cari", attribute="content-desc", root=tree):
+                return None
+            if (
+                ui_bounds("Lagu terpopuler", root=tree)
+                or ui_bounds("Album terpopuler", root=tree)
+                or ui_bounds("Album terbaru", root=tree)
+                or ui_bounds("Coba lagi", root=tree)
+                or ui_bounds("Belum ada lagu atau album untuk artis ini.", root=tree)
+            ):
+                return tree
+            return None
+
+        artist_page = wait_for(artist_page_ready, 15, interval=1.0)
+        screenshot("v2-94-artist")
+        if artist_page is not None:
+            back_artist = find_interactive("Kembali ke Cari", attribute="content-desc", root=artist_page)
+            play_artist = find_interactive_prefix("Putar lagu terpopuler ", root=artist_page)
+            shuffle_artist = find_interactive_prefix("Putar acak lagu terpopuler ", root=artist_page)
+            artist_targets = [
+                ("Kembali ke Cari", back_artist[0][0] if back_artist else None),
+                ("Putar artis", play_artist[0][0] if play_artist else None),
+                ("Acak artis", shuffle_artist[0][0] if shuffle_artist else None),
+            ]
+            artist_bad = [
+                f"{label}={box}"
+                for label, box in artist_targets
+                if box is None or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+            ]
+            check(
+                not artist_bad,
+                "Halaman artis v2 menampilkan tombol kembali, Putar, dan Acak minimal 48 dp",
+                artist_bad,
+            )
+
+            album_hit = None
+            for _ in range(5):
+                tree = ui_tree()
+                if tree is not None:
+                    limit = overlay_top(tree, height)
+                    albums = [
+                        item for item in find_interactive_prefix("Buka album ", root=tree)
+                        if item[0][1] > 0 and item[0][3] < limit and (item[0][3] - item[0][1]) >= min_px
+                    ]
+                    if albums:
+                        album_hit = albums[0]
+                        break
+                shell(f"input swipe {width // 2} {height * 3 // 4} {width // 2} {height // 4} 350")
+                time.sleep(0.5)
+
+            if album_hit is not None:
+                ax1, ay1, ax2, ay2 = album_hit[0]
+                tap(((ax1 + ax2) // 2, (ay1 + ay2) // 2))
+
+                def album_page_ready():
+                    tree = ui_tree()
+                    if tree is None:
+                        return None
+                    if not find_interactive_prefix("Kembali ke ", root=tree):
+                        return None
+                    if (
+                        ui_bounds("Daftar lagu", root=tree)
+                        or ui_bounds("Belum ada lagu di album ini.", root=tree)
+                        or ui_bounds("Coba lagi", root=tree)
+                    ):
+                        return tree
+                    return None
+
+                album_page = wait_for(album_page_ready, 15, interval=1.0)
+                screenshot("v2-95-album")
+                if album_page is not None:
+                    back_album = find_interactive_prefix("Kembali ke ", root=album_page)
+                    menu_album = find_interactive_prefix("Buka menu ", root=album_page)
+                    shuffle_album = find_interactive_prefix("Putar acak ", root=album_page)
+                    play_album = [
+                        item for item in find_interactive_prefix("Putar ", root=album_page)
+                        if not item[2].startswith("Putar acak ")
+                    ]
+                    album_targets = [
+                        ("Kembali album", back_album[0][0] if back_album else None),
+                        ("Menu album", menu_album[0][0] if menu_album else None),
+                        ("Acak album", shuffle_album[0][0] if shuffle_album else None),
+                        ("Putar album", play_album[0][0] if play_album else None),
+                    ]
+                    album_bad = [
+                        f"{label}={box}"
+                        for label, box in album_targets
+                        if box is None or (box[2] - box[0]) < min_px or (box[3] - box[1]) < min_px
+                    ]
+                    check(
+                        not album_bad,
+                        "Halaman album v2 menampilkan tombol kembali, menu ⋯, Acak, dan Putar minimal 48 dp",
+                        album_bad,
+                    )
+                else:
+                    record("DILEWATI", "Halaman album v2 dimuat dari halaman artis", "Waktu tunggu habis")
+                shell("input keyevent KEYCODE_BACK")
+                wait_for(lambda: find_interactive("Kembali ke Cari", attribute="content-desc"), 5)
+            else:
+                record("DILEWATI", "Halaman album v2 dari halaman artis", "Tidak ada kartu album pada hasil artis")
+        else:
+            record("DILEWATI", "Halaman artis v2 dimuat dari hasil pencarian", "Waktu tunggu habis")
+        shell("input keyevent KEYCODE_BACK")
+        wait_for(lambda: find_interactive("Hapus pencarian", attribute="content-desc"), 5)
+    else:
+        screenshot("v2-92-search-artists-fallback")
+        record(
+            "DILEWATI",
+            "Halaman artis dan album v2 dari hasil pencarian YouTube Music",
+            "Kendala jaringan/katalog emulator",
+        )
+
+    if tap_desc("Hapus pencarian"):
+        history_shown = bool(wait_for(lambda: ui_bounds("Tulus") and ui_bounds("Hapus riwayat"), 5))
+        check(history_shown, "Riwayat pencarian menampilkan kueri 'Tulus' dalam kartu v2")
+        screenshot("v2-93-search-history")
+        if history_shown:
+            tap_text("Hapus riwayat", scrolls=0)
+            wait_for(lambda: not ui_bounds("Hapus riwayat"), 5)
+    tap_text("Lagu", scrolls=0)
+    scroll_to_top(2)
+
+
+def check_browse_light_theme() -> None:
+    """Tangkap layar tema terang untuk Cari dan Library, lalu kembalikan mode gelap."""
+    try:
+        shell("cmd uimode night no")
+        time.sleep(2.0)
+        if open_tab("Cari"):
+            scroll_to_top(2)
+            wait_for(lambda: ui_bounds("Cari judul atau artis"), 5)
+            screenshot("v2-99c-search-light")
+        if open_tab("Library"):
+            scroll_to_top(2)
+            wait_for(lambda: ui_bounds("Putar Favorit", attribute="content-desc"), 5)
+            screenshot("v2-99d-library-light")
+    finally:
+        shell("cmd uimode night yes")
+        time.sleep(1.0)
 
 
 def min_touch_px() -> int:
@@ -1400,6 +1651,7 @@ def check_search_keyboard() -> None:
 
     if not check(wait_for(keyboard_visible, 5), "Papan ketik tab Cari terbuka"):
         return
+    screenshot("v2-91-search-keyboard")
     typing = ui_tree(save_as="search-keyboard-open.xml")
     visible = visible_bars(typing) if typing is not None else None
     check(visible == [], "Navigasi dan mini player tersembunyi saat papan ketik terbuka", visible)
@@ -1934,9 +2186,11 @@ def scenario() -> None:
     check_home_shelves()
     check_appearance_v2()
     check_collection_header()
+    check_browse_v2()
     check_large_font_accessibility()
     check_now_playing_queue()
     check_home_hero_play()
+    check_browse_light_theme()
 
 
 def main() -> int:

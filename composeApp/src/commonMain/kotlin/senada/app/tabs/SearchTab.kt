@@ -253,19 +253,21 @@ internal fun LazyListScope.searchTab(
     }
 }
 
-/** Kolom cari berbentuk pil setinggi minimal 52 dp yang tetap meluas saat teks diperbesar. */
+/** Kolom cari berbentuk pil v2 setinggi minimal 52 dp yang tetap meluas saat teks diperbesar. */
 @Composable
 private fun SearchPillField(
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
-    val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val containerColor = if (focused) colors.surfaceContainerHigh else colors.surfaceContainer
+    val borderColor = if (focused) colors.primary else colors.outline
     Surface(
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = containerColor,
         border = BorderStroke(1.dp, borderColor),
         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
     ) {
@@ -275,8 +277,8 @@ private fun SearchPillField(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             interactionSource = interactionSource,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+            cursorBrush = SolidColor(colors.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() }),
             decorationBox = { innerTextField ->
@@ -284,14 +286,14 @@ private fun SearchPillField(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 52.dp)
-                        .padding(start = 16.dp, end = if (query.isNotEmpty()) 4.dp else 16.dp),
+                        .padding(start = 18.dp, end = if (query.isNotEmpty()) 4.dp else 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Icon(
-                        imageVector = SenadaIcons.Search,
+                        imageVector = SenadaIcons.ProfileSearch,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (focused) colors.primary else colors.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
                     Box(
@@ -302,7 +304,7 @@ private fun SearchPillField(
                             Text(
                                 "Cari judul atau artis",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = colors.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -319,7 +321,7 @@ private fun SearchPillField(
                             Icon(
                                 imageVector = SenadaIcons.Close,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = colors.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
                         }

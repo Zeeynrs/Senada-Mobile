@@ -216,4 +216,33 @@ class CollectionHeaderTest {
             }
         }
     }
+
+    @Test
+    fun browseV2MonochromePillsAndCardsMeetAccessibleContrastInDarkAndLightThemes() {
+        val coverSample = Color(0xFF4C8AE0)
+        for (dark in listOf(true, false)) {
+            for (choice in AccentChoice.entries) {
+                val scheme = senadaColorScheme(dark = dark, accent = choice.source(coverSample))
+                // Pil filter aktif: latar onSurface, teks background.
+                assertTrue(
+                    contrastRatio(scheme.onSurface, scheme.background) >= 4.5f,
+                    "Active pill contrast failed for dark=$dark choice=${choice.key}",
+                )
+                // Pil filter nonaktif & tombol kembali: latar surfaceContainerHigh, teks/ikon onSurface.
+                assertTrue(
+                    contrastRatio(scheme.surfaceContainerHigh, scheme.onSurface) >= 4.5f,
+                    "Inactive pill contrast failed for dark=$dark choice=${choice.key}",
+                )
+                // Kartu SenadaCard: latar surfaceContainer dengan teks utama dan sekunder.
+                assertTrue(
+                    contrastRatio(scheme.surfaceContainer, scheme.onSurface) >= 4.5f,
+                    "Card title contrast failed for dark=$dark choice=${choice.key}",
+                )
+                assertTrue(
+                    contrastRatio(scheme.surfaceContainer, scheme.onSurfaceVariant) >= 4.5f,
+                    "Card subtitle contrast failed for dark=$dark choice=${choice.key}",
+                )
+            }
+        }
+    }
 }
