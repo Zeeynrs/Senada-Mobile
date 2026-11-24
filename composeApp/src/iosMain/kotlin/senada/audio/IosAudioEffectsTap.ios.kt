@@ -297,13 +297,16 @@ internal class IosAudioTapContext(private val hub: IosAudioEffectsHub) {
         }
         val chunkFrames = maxFrames.coerceIn(1L, MAX_CHUNK_FRAMES.toLong()).toInt()
         val dsp = AudioEffectsProcessor(format.sampleRate, format.channels, chunkFrames)
-        dsp.update(hub.currentEffects())
         val state = PreparedTap(format, chunkFrames, dsp)
         prepared = state
         resetRequested.store(false)
         activeDsp.store(dsp)
-        // Re-apply latest settings after publishing activeDsp so concurrent updates are never missed.
-        dsp.update(hub.currentEffects())
+        // A UI update can publish newer settings while this snapshot is being applied.
+        var effects: AudioEffects
+        do {
+            effects = hub.currentEffects()
+            dsp.update(effects)
+        } while (effects !== hub.currentEffects())
     }
 
     fun onUnprepare() {
