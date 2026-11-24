@@ -1,7 +1,5 @@
 package senada.app.nowplaying
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,8 +74,9 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
     ) {
         items(state.queue.entries, key = { it.id }) { entry ->
             Box(
-                Modifier.fillMaxWidth().background(PlayerGlassTint, shape)
-                    .border(1.dp, PlayerGlassBorder, shape).padding(horizontal = 12.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth()
+                    .playerGlass(shape)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
             ) {
                 val playing = state.audio.isActive && state.audio.selection?.queueEntryId == entry.id
                 TrackRow(

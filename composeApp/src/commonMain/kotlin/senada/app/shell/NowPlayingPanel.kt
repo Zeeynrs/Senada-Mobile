@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalDragOrCancellation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -29,11 +30,22 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import senada.app.theme.LocalSenadaLook
+import senada.app.theme.scaledAnimationDurationMillis
+
+internal const val NOW_PLAYING_PANEL_SETTLE_MS = 275
+
+internal fun nowPlayingPanelSettleDurationMs(
+    animationScale: Float,
+    reduceMotion: Boolean = false,
+): Int = if (reduceMotion) 0 else scaledAnimationDurationMillis(NOW_PLAYING_PANEL_SETTLE_MS, animationScale)
 
 @Composable
 internal fun rememberNowPlayingPanel(navigator: AppNavigator): NowPlayingPanelState {
     val scope = rememberCoroutineScope()
+    val animationScale = LocalSenadaLook.current.animationScale
     val panel = remember(navigator, scope) { NowPlayingPanelState(navigator, scope) }
+    SideEffect { panel.updateAnimationScale(animationScale) }
     LaunchedEffect(panel, navigator.nowPlayingOpen) { panel.settle() }
     return panel
 }
@@ -43,6 +55,11 @@ internal class NowPlayingPanelState(private val navigator: AppNavigator, private
     private var animation: Job? = null
     private var openingSwipe: Boolean? = null
     private var height = 0f
+    private var animationScale = 1f
+
+    fun updateAnimationScale(scale: Float) {
+        animationScale = scale.coerceAtLeast(0f)
+    }
 
     var progress by mutableFloatStateOf(0f)
         private set
@@ -88,12 +105,13 @@ internal class NowPlayingPanelState(private val navigator: AppNavigator, private
         openingSwipe = null
         animation?.cancel()
         val target = if (navigator.nowPlayingOpen) 1f else 0f
-        if (progress == target || nowPlayingReduceMotionEnabled()) {
+        val duration = nowPlayingPanelSettleDurationMs(animationScale, nowPlayingReduceMotionEnabled())
+        if (progress == target || duration <= 0) {
             progress = target
             return
         }
         animation = scope.launch {
-            animate(progress, target, animationSpec = tween(275, easing = FastOutSlowInEasing)) { value, _ ->
+            animate(progress, target, animationSpec = tween(duration, easing = FastOutSlowInEasing)) { value, _ ->
                 progress = value
             }
         }
