@@ -3,4 +3,6 @@ package senada.platform
 import androidx.compose.ui.window.ComposeUIViewController
 import senada.app.SenadaApp
 
-fun MainViewController() = ComposeUIViewController { SenadaApp(IosPlayback.controller, IosLibrary.library) }
+fun MainViewController() = ComposeUIViewController {
+    SenadaApp(IosPlayback.controller, IosLibrary.library, IosPlayback.loudnessSettings, fullAudioEffectsAvailable = false)
+}

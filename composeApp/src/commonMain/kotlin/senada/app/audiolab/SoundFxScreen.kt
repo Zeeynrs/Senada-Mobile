@@ -54,6 +54,7 @@ internal fun soundFxSpeedItemIndex(effectsAvailable: Boolean): Int = if (effects
 internal fun LazyListScope.soundFxScreen(
     effects: AudioEffects,
     audioEffects: AudioEffectsController?,
+    loudnessSettings: AudioEffectsController?,
     previousLabel: String,
     onBack: () -> Unit,
 ) {
@@ -108,6 +109,48 @@ internal fun LazyListScope.soundFxScreen(
             onSpeedSelect = { speed -> audioEffects?.update { it.copy(speed = speed) } },
             onPitchLockToggle = { locked -> audioEffects?.update { it.copy(pitchLock = locked) } },
         )
+    }
+    item(key = "soundfx-loudness") {
+        LoudnessCard(
+            checked = effects.loudnessMatch,
+            enabled = loudnessSettings != null,
+            onToggle = { on -> loudnessSettings?.update { it.copy(loudnessMatch = on) } },
+        )
+    }
+}
+
+@Composable
+private fun LoudnessCard(checked: Boolean, enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    SenadaCard {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Samakan volume",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    ),
+                    color = colors.onSurface,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Text(
+                    text = "Meredam lagu yang lebih keras di YouTube Music",
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            SenadaSwitch(
+                checked = checked,
+                onCheckedChange = onToggle,
+                enabled = enabled,
+                modifier = Modifier.semantics { contentDescription = "Samakan volume" },
+            )
+        }
     }
 }
 

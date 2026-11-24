@@ -63,7 +63,8 @@ import platform.UIKit.UIApplicationWillTerminateNotification
 import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
-import senada.app.createPlaybackController
+import senada.app.PlaybackComponents
+import senada.app.createPlayback
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.QueueStore
@@ -72,7 +73,9 @@ import senada.playback.SampleAudioStatus
 
 /** Pemutar dan controller hidup selama proses aplikasi, terpisah dari layar Compose. */
 internal object IosPlayback {
-    val controller: PlaybackController by lazy(::create)
+    private val playback by lazy(::create)
+    val controller get() = playback.controller
+    val loudnessSettings get() = playback.audioEffects
     private val output by lazy { AvAudioOutput() }
 
     fun position(): Long = output.positionMs
@@ -88,7 +91,7 @@ internal object IosPlayback {
     private var artworkLoading: String? = null
     private var refreshNowPlaying: () -> Unit = {}
 
-    private fun create(): PlaybackController {
+    private fun create(): PlaybackComponents {
         // Kategori playback membuat audio tetap berjalan saat layar terkunci (bersama UIBackgroundModes audio).
         AVAudioSession.sharedInstance().setCategory(
             category = AVAudioSessionCategoryPlayback,
@@ -96,7 +99,8 @@ internal object IosPlayback {
             options = 0u,
             error = null,
         )
-        val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE)
+        val playback = createPlayback(output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE)
+        val controller = playback.controller
         for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
             observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
                 controller.saveQueueNow()
@@ -115,7 +119,7 @@ internal object IosPlayback {
             }
             updateNowPlaying(state.copy(audio = state.audio.copy(positionMs = position)))
         }
-        return controller
+        return playback
     }
 
     private fun observeInterruptions(controller: PlaybackController) {

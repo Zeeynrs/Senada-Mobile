@@ -150,6 +150,7 @@ internal fun AppShell(
     appearance: AppearancePreferences,
     screenVisible: Boolean,
     audioEffects: AudioEffectsController?,
+    fullAudioEffectsAvailable: Boolean,
 ) {
     val navigator = rememberAppNavigator()
     // Perubahan posisi berkala hanya dibaca oleh bilah posisi dan lirik tersinkron, bukan seluruh shell.
@@ -334,7 +335,13 @@ internal fun AppShell(
         profileRoute == ProfileRoute.Equalizer ||
         profileRoute == ProfileRoute.SoundFx
     var focusSoundFxSpeed by rememberSaveable { mutableStateOf(false) }
-    val effectsState = if (audioLabRoute) audioEffects?.effects?.collectAsState()?.value ?: AudioEffects() else AudioEffects()
+    val fullAudioEffects = audioEffects.takeIf { fullAudioEffectsAvailable }
+    val effectsState = if (audioLabRoute && audioEffects != null) {
+        val stored = audioEffects.effects.collectAsState().value
+        if (fullAudioEffectsAvailable) stored else AudioEffects(loudnessMatch = stored.loudnessMatch)
+    } else {
+        AudioEffects()
+    }
     val sleepTimerState = if (profileRoute == ProfileRoute.AudioLab) {
         playback.sleepTimerState.collectAsState().value
     } else {
@@ -359,7 +366,7 @@ internal fun AppShell(
     }
     LaunchedEffect(profileRoute, focusSoundFxSpeed) {
         if (profileRoute == ProfileRoute.SoundFx && focusSoundFxSpeed) {
-            listState.animateScrollToItem(soundFxSpeedItemIndex(audioEffects != null))
+            listState.animateScrollToItem(soundFxSpeedItemIndex(fullAudioEffectsAvailable))
             focusSoundFxSpeed = false
         }
     }
@@ -486,11 +493,11 @@ internal fun AppShell(
                         ProfileRoute.Playback -> item { DataSection(appearance) }
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
-                        ProfileRoute.Developer -> item { DeveloperSection(playback, audioEffects) }
+                        ProfileRoute.Developer -> item { DeveloperSection(playback, fullAudioEffects) }
                         ProfileRoute.About -> item { Text("Senada " + versionName()) }
                         ProfileRoute.AudioLab -> audioLabScreen(
                             effects = effectsState,
-                            effectsAvailable = audioEffects != null,
+                            effectsAvailable = fullAudioEffectsAvailable,
                             saveMobileData = appearance.settings?.saveMobileData == true,
                             sleepTimerState = sleepTimerState,
                             canStopAfterTrack = state.audio.canStopAfterTrack,
@@ -506,13 +513,14 @@ internal fun AppShell(
                         )
                         ProfileRoute.Equalizer -> equalizerScreen(
                             effects = effectsState,
-                            audioEffects = audioEffects,
+                            audioEffects = fullAudioEffects,
                             previousLabel = previousLabel,
                             onBack = { navigator.back() },
                         )
                         ProfileRoute.SoundFx -> soundFxScreen(
                             effects = effectsState,
-                            audioEffects = audioEffects,
+                            audioEffects = fullAudioEffects,
+                            loudnessSettings = audioEffects,
                             previousLabel = previousLabel,
                             onBack = { navigator.back() },
                         )

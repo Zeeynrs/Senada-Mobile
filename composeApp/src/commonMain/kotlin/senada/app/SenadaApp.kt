@@ -25,6 +25,7 @@ internal fun SenadaApp(
     playback: PlaybackController,
     library: LibraryRepository,
     audioEffects: AudioEffectsController? = null,
+    fullAudioEffectsAvailable: Boolean = audioEffects != null,
 ) {
     // Sampul diunduh dengan klien HTTP yang sama dengan katalog.
     setSingletonImageLoaderFactory { context ->
@@ -55,6 +56,6 @@ internal fun SenadaApp(
     }
 
     SenadaTheme(artworkUrl, visible = screenVisible) { appearance ->
-        AppShell(playback, library, appearance, screenVisible, audioEffects)
+        AppShell(playback, library, appearance, screenVisible, audioEffects, fullAudioEffectsAvailable)
     }
 }

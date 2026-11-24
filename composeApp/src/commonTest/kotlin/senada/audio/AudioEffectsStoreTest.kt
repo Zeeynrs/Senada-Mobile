@@ -50,6 +50,13 @@ class AudioEffectsStoreTest {
     }
 
     @Test
+    fun old_settings_without_loudness_matching_keep_it_off() {
+        val store = AudioEffectsStore({ """{"version":1,"speed":1.25,"bassBoost":{"enabled":true}}""" }, {})
+
+        assertEquals(AudioEffects(speed = 1.25f, bassBoost = BassBoostSettings(enabled = true)), store.load())
+    }
+
+    @Test
     fun clamps_out_of_range_numbers_on_load_and_save() {
         var saved = """
             {"version":1,"equalizer":{"enabled":true,"preamp":-100,"gains":[-20,20,0,0,0,0,0,0,0,0]},

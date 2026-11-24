@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import senada.audio.AudioEffectsController
+import senada.audio.audioEffectsStore
 import senada.catalog.DemoCatalog
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.local.LOCAL_FILE_SOURCE
@@ -12,6 +14,7 @@ import senada.local.LocalAudioException
 import senada.local.LocalAudioFiles
 import senada.local.localFileNameOf
 import senada.model.Track
+import senada.playback.LoudnessMatchingOutput
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
 import senada.playback.QueueStore
@@ -52,6 +55,7 @@ internal suspend fun queueAudioSelection(
             entry.id,
             expiresAtEpochMs = audio.expiresAtEpochMs,
             durationMs = audio.durationMs,
+            loudnessDb = audio.loudnessDb,
         )
     }
     LOCAL_FILE_SOURCE -> {
@@ -69,20 +73,26 @@ private fun localAudioSelection(track: Track, queueEntryId: Long? = null): Sampl
 }
 
 /** Satu controller untuk seluruh proses aplikasi; dibuat oleh titik masuk Android atau iOS. */
-internal fun createPlaybackController(
+internal fun createPlayback(
     output: SampleAudioOutput,
     queueStore: QueueStore,
     localFiles: LocalAudioFiles,
     context: PlatformContext,
-): PlaybackController {
+    audioEffects: AudioEffectsController = AudioEffectsController(audioEffectsStore(context)),
+): PlaybackComponents {
     val store = appearanceStore(context)
     val metered = meteredNetwork(context)
     val saveData: suspend () -> Boolean = {
         withContext(Dispatchers.Default) { dataSaverActive(store.load().saveMobileData, metered.value) }
     }
-    return PlaybackController(output, MainScope()) { entry -> queueAudioSelection(entry, saveData, localFiles) }
+    val scope = MainScope()
+    val normalizedOutput = LoudnessMatchingOutput(output, audioEffects.effects, scope)
+    val controller = PlaybackController(normalizedOutput, scope) { entry -> queueAudioSelection(entry, saveData, localFiles) }
         .apply { persistQueue(queueStore) }
+    return PlaybackComponents(controller, audioEffects)
 }
+
+internal class PlaybackComponents(val controller: PlaybackController, val audioEffects: AudioEffectsController)
 
 internal fun playbackTime(positionMs: Long): String {
     val seconds = positionMs / 1_000

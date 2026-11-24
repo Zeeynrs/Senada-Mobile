@@ -12,7 +12,7 @@ internal val EqFrequencyLabels = listOf("31", "62", "125", "250", "500", "1k", "
 
 internal val SpeedChoices = listOf(0.75f, 1.0f, 1.25f, 1.5f)
 
-internal const val AudioLabUnavailableMessage = "Efek suara di iPhone sedang disiapkan"
+internal const val AudioLabUnavailableMessage = "Sebagian efek suara di iPhone sedang disiapkan"
 
 internal data class CardStatus(val text: String, val active: Boolean)
 
@@ -26,6 +26,7 @@ internal fun soundFxStatus(effects: AudioEffects): CardStatus {
     val activeEffects = buildList {
         if (effects.reverb.enabled) add("Reverb")
         if (effects.bassBoost.enabled) add("Bass boost")
+        if (effects.loudnessMatch) add("Samakan volume")
     }
     return if (activeEffects.isNotEmpty()) {
         CardStatus(text = activeEffects.joinToString(" · "), active = true)
