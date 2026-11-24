@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -63,6 +65,7 @@ import senada.app.ArtistOpenController
 import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.SenadaMark
 import senada.app.SenadaSources
 import senada.app.UserProfileController
 import senada.app.browseDisplayTitleStyle
@@ -495,7 +498,15 @@ internal fun AppShell(
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
                         ProfileRoute.Developer -> item { DeveloperSection(playback, fullAudioEffects) }
-                        ProfileRoute.About -> item { Text("Senada " + versionName()) }
+                        ProfileRoute.About -> item {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                SenadaMark(Modifier.size(48.dp))
+                                Text("Senada " + versionName())
+                            }
+                        }
                         ProfileRoute.AudioLab -> audioLabScreen(
                             effects = effectsState,
                             effectsAvailable = fullAudioEffectsAvailable,

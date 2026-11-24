@@ -1,6 +1,5 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,17 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,6 +60,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import senada.app.ArtworkAccentCache
 import senada.app.LocalArtworkAccent
+import senada.app.SenadaMark
 import senada.app.loadArtworkAccent
 import senada.app.minTouchTarget
 import senada.app.shell.GlassSurface
@@ -259,7 +252,6 @@ internal fun HomeHeroCard(
     val glassEnabled = LocalSenadaLook.current.glass
 
     val topBarTextColor = if (darkTheme) SenadaPalette.DarkText else colors.onSurface
-    val topBarWaveColor = if (darkTheme) SenadaPalette.AccentDark else colors.primary
     val reasonColor = if (darkTheme) HeroReasonDarkColor else colors.onSurfaceVariant
     val titleColor = if (darkTheme) SenadaPalette.DarkText else colors.onSurface
 
@@ -304,7 +296,6 @@ internal fun HomeHeroCard(
                 profilePhoto = profilePhoto,
                 darkTheme = darkTheme,
                 textColor = topBarTextColor,
-                waveColor = topBarWaveColor,
                 onOpenProfile = onOpenProfile,
             )
 
@@ -381,7 +372,6 @@ private fun HomeTopBar(
     profilePhoto: String?,
     darkTheme: Boolean,
     textColor: Color,
-    waveColor: Color,
     onOpenProfile: () -> Unit,
 ) {
     // Posisi mockup top 52 dp dari tepi layar; melonggar mengikuti status bar jika inset lebih tinggi.
@@ -403,10 +393,7 @@ private fun HomeTopBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            SenadaLogoMark(
-                frameColor = textColor,
-                waveColor = waveColor,
-            )
+            SenadaMark(Modifier.size(34.dp), tint = textColor)
             Text(
                 text = "Senada",
                 style = MaterialTheme.typography.headlineSmall.copy(
@@ -435,36 +422,6 @@ private fun HomeTopBar(
                 photoModel = profilePhoto,
             )
         }
-    }
-}
-
-/** Logo Senada 28 dp persis SVG mockup: kotak bulat bergaris (rx=9) dan gelombang teal. */
-@Composable
-private fun SenadaLogoMark(
-    frameColor: Color,
-    waveColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Canvas(modifier = modifier.size(28.dp)) {
-        val s = size.width / 28f
-        drawRoundRect(
-            color = frameColor,
-            topLeft = Offset(1f * s, 1f * s),
-            size = Size(26f * s, 26f * s),
-            cornerRadius = CornerRadius(9f * s, 9f * s),
-            style = Stroke(width = 2f * s),
-        )
-        // SVG: M8 17c2-6 4 2 6-3s4 1 6-2
-        val wave = Path().apply {
-            moveTo(8f * s, 17f * s)
-            cubicTo(10f * s, 11f * s, 12f * s, 19f * s, 14f * s, 14f * s)
-            cubicTo(16f * s, 9f * s, 18f * s, 15f * s, 20f * s, 12f * s)
-        }
-        drawPath(
-            path = wave,
-            color = waveColor,
-            style = Stroke(width = 2.2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round),
-        )
     }
 }
 
