@@ -23,7 +23,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
-import senada.app.createPlaybackController
+import senada.app.createPlayback
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.audio.SenadaEffectsAudioProcessor
@@ -51,7 +51,9 @@ internal object AndroidPlayback {
     private fun create(context: Context): Components {
         val audioEffects = AudioEffectsController(audioEffectsStore(context))
         val output = ExoAudioOutput(context, audioEffects.effects.value)
-        val controller = createPlaybackController(output, AndroidQueueStore(context), AndroidLocalAudioFiles(context), context)
+        val controller = createPlayback(
+            output, AndroidQueueStore(context), AndroidLocalAudioFiles(context), context, audioEffects,
+        ).controller
         val position = { output.positionMs }
         val sessionPlayer = SessionPlayer(controller, position) { output.playbackParameters }
         controller.addListener { sessionPlayer.refresh() }
@@ -146,7 +148,8 @@ private class ExoAudioOutput(context: Context, initialEffects: AudioEffects) : S
         get() = player.volume
         set(value) { player.volume = value }
 
-    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
+    // ExoPlayer membaca durasi MP4 YouTube dengan tepat, jadi endAtMs tidak diperlukan di sini.
+    override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         if (restart) {
             player.setMediaItem(MediaItem.fromUri(uri), startAtMs)
             player.prepare()

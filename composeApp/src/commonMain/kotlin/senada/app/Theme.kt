@@ -15,8 +15,11 @@ import coil3.compose.LocalPlatformContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import senada.app.theme.AccentChoice
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaShapes
+import senada.app.theme.rememberSystemReduceMotion
 import senada.app.theme.senadaColorScheme
+import senada.app.theme.senadaLook
 import senada.app.theme.senadaTypography
 
 private val artworkColors = ArtworkAccentCache()
@@ -28,13 +31,47 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
     var settings by mutableStateOf<Appearance?>(null)
         private set
 
+    var lastFixedAccent by mutableStateOf(AccentChoice.Senada)
+        private set
+
     suspend fun restore() {
-        settings = withContext(Dispatchers.Default) { store.load() }
+        val loaded = withContext(Dispatchers.Default) { store.load() }
+        if (loaded.accent != AccentChoice.FollowCover) {
+            lastFixedAccent = loaded.accent
+        }
+        settings = loaded
     }
 
     fun selectMode(mode: ThemeMode) = update { it.copy(mode = mode) }
-    fun selectAccent(accent: AccentChoice) = update { it.copy(accent = accent) }
+
+    fun selectAccent(accent: AccentChoice) {
+        if (accent != AccentChoice.FollowCover) {
+            lastFixedAccent = accent
+        }
+        update { it.copy(accent = accent) }
+    }
+
+    fun setFollowCover(enabled: Boolean) {
+        val current = settings ?: return
+        if (enabled) {
+            if (current.accent != AccentChoice.FollowCover) {
+                lastFixedAccent = current.accent
+            }
+            update { it.copy(accent = AccentChoice.FollowCover) }
+        } else {
+            update { it.copy(accent = lastFixedAccent) }
+        }
+    }
+
     fun saveMobileData(enabled: Boolean) = update { it.copy(saveMobileData = enabled) }
+
+    fun setCoverRadius(radiusDp: Int) = update { it.copy(coverRadius = clampCoverRadius(radiusDp)) }
+
+    fun setPlayerBackdropFromCover(enabled: Boolean) = update { it.copy(playerBackdropFromCover = enabled) }
+
+    fun setGlass(enabled: Boolean) = update { it.copy(glass = enabled) }
+
+    fun selectAnimationSpeed(speed: AnimationSpeed) = update { it.copy(animation = speed) }
 
     private fun update(change: (Appearance) -> Appearance) {
         val previous = settings ?: return
@@ -51,6 +88,8 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     val preferences = remember(context) { AppearancePreferences(appearanceStore(context)) }
     LaunchedEffect(preferences) { preferences.restore() }
     val settings = preferences.settings ?: Appearance()
+    val systemReduceMotion = rememberSystemReduceMotion()
+    val look = remember(settings, systemReduceMotion) { senadaLook(settings, systemReduceMotion) }
     val dark = when (settings.mode) {
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
@@ -63,7 +102,10 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     }
     val source = settings.accent.source(cover)
     val colors = remember(dark, source) { senadaColorScheme(dark, source) }
-    CompositionLocalProvider(LocalArtworkAccent provides cover) {
+    CompositionLocalProvider(
+        LocalArtworkAccent provides cover,
+        LocalSenadaLook provides look,
+    ) {
         MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
     }
 }

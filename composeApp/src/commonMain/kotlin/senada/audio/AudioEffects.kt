@@ -16,6 +16,12 @@ internal data class AudioEffects(
         speed = speed.bounded(0.5f, 2f, 1f),
         customPresets = customPresets.map { it.copy(gains = it.gains.boundedGains()) },
     )
+
+    internal fun allPresets(): List<EqPreset> = EqPreset.BuiltIns + customPresets
+
+    internal fun activePreset(): EqPreset? = allPresets().firstOrNull { it.id == equalizer.presetId }
+
+    internal fun activePresetName(): String = activePreset()?.name ?: EqPreset.CustomName
 }
 
 /** The gains are authoritative, including when the user edits a selected preset. */
@@ -49,6 +55,8 @@ internal data class BassBoostSettings(
 /** User presets use the same band order and a stable, caller-supplied ID. */
 internal data class EqPreset(val id: String, val name: String, val gains: List<Float>) {
     companion object {
+        const val CustomId = "custom"
+        const val CustomName = "Kustom"
         val FrequenciesHz = listOf(31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000)
         val Flat = EqPreset("flat", "Datar", List(FrequenciesHz.size) { 0f })
         val BuiltIns = listOf(

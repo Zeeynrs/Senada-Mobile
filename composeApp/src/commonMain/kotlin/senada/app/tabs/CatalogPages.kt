@@ -2,15 +2,19 @@ package senada.app.tabs
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,18 +24,16 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,9 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -52,27 +57,41 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
-import senada.app.AdaptiveRow
+import senada.app.BrowseLoadMoreButton
+import senada.app.BrowseMonoHeading
+import senada.app.BrowseNoticeCard
+import senada.app.BrowseRowSkeletonCard
+import senada.app.BrowseSectionHeader
 import senada.app.CollectionCover
 import senada.app.CollectionHeader
 import senada.app.CollectionKind
 import senada.app.CollectionMenuAction
+import senada.app.CollectionTopBar
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.SenadaCard
+import senada.app.SenadaFilterPill
 import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.albumCollectionMeta
+import senada.app.browseRowSubtitleStyle
+import senada.app.browseRowTitleStyle
 import senada.app.collectionMenuItems
 import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
 import senada.app.shell.CatalogRoute
 import senada.app.shell.SenadaIcons
+import senada.app.textOnAccent
+import senada.app.theme.LocalSenadaLook
+import senada.app.theme.MonoLabel
 import senada.catalog.AlbumDetail
 import senada.catalog.AlbumSummary
 import senada.catalog.ArtistDetail
@@ -177,7 +196,7 @@ internal suspend fun loadPlaylistSearchPage(
     current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian playlist gagal. Coba lagi.")
 }
 
-/** Deret chip filter pil di tab Cari yang dapat digeser mendatar agar aman pada skala font besar. */
+/** Deret chip filter pil v2 di tab Cari yang dapat digeser mendatar agar aman pada skala font besar. */
 @Composable
 internal fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -> Unit) {
     Row(
@@ -189,28 +208,11 @@ internal fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         for (filter in SearchFilter.entries) {
-            val active = filter == selected
-            Surface(
-                shape = CircleShape,
-                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainer,
-                border = if (active) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .minTouchTarget()
-                        .selectable(selected = active, role = Role.Tab, onClick = { onSelect(filter) })
-                        .semantics { stateDescription = if (active) "Dipilih" else "Tidak dipilih" }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        filter.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-            }
+            SenadaFilterPill(
+                label = filter.label,
+                selected = filter == selected,
+                onClick = { onSelect(filter) },
+            )
         }
     }
 }
@@ -225,25 +227,24 @@ internal fun LazyListScope.artistSearchResults(
 ) {
     if (state.query.isEmpty()) {
         item(key = "artist-search-prompt") {
-            Text(
-                "Ketik nama artis untuk mencari di YouTube Music.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            BrowseNoticeCard(
+                eyebrow = "Cari artis",
+                message = "Ketik nama artis untuk mencari di YouTube Music.",
+                polite = false,
             )
         }
         return
     }
     item(key = "artist-search-heading") {
-        Text(
-            "Artis di YouTube Music",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.semantics { heading() },
-        )
+        BrowseMonoHeading("Artis di YouTube Music")
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "artist-search-loading") {
-            PoliteStatusText("Mencari artis…")
+            BrowseRowSkeletonCard(
+                statusLabel = "Mencari artis…",
+                rowCount = 3,
+                circularLeading = true,
+            )
         }
     }
     state.error?.let { message ->
@@ -253,7 +254,10 @@ internal fun LazyListScope.artistSearchResults(
     }
     if (!state.loading && state.error == null && state.items.isEmpty()) {
         item(key = "artist-search-empty") {
-            PoliteStatusText("Artis tidak ditemukan.")
+            BrowseNoticeCard(
+                eyebrow = "Hasil kosong",
+                message = "Artis tidak ditemukan.",
+            )
         }
     }
     items(state.items, key = { "artist-result-${it.id}" }) { artist ->
@@ -273,14 +277,7 @@ internal fun LazyListScope.artistSearchResults(
     }
     if (state.nextPageToken != null && state.error == null) {
         item(key = "artist-search-more") {
-            OutlinedButton(
-                onClick = onLoadMore,
-                enabled = !state.loading,
-                shape = CircleShape,
-                modifier = Modifier.fillMaxWidth().minTouchTarget(),
-            ) {
-                Text(if (state.loading) "Memuat…" else "Muat lebih banyak")
-            }
+            BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
     }
 }
@@ -295,25 +292,20 @@ internal fun LazyListScope.albumSearchResults(
 ) {
     if (state.query.isEmpty()) {
         item(key = "album-search-prompt") {
-            Text(
-                "Ketik judul album untuk mencari di YouTube Music.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            BrowseNoticeCard(
+                eyebrow = "Cari album",
+                message = "Ketik judul album untuk mencari di YouTube Music.",
+                polite = false,
             )
         }
         return
     }
     item(key = "album-search-heading") {
-        Text(
-            "Album di YouTube Music",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.semantics { heading() },
-        )
+        BrowseMonoHeading("Album di YouTube Music")
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "album-search-loading") {
-            PoliteStatusText("Mencari album…")
+            BrowseRowSkeletonCard(statusLabel = "Mencari album…", rowCount = 3)
         }
     }
     state.error?.let { message ->
@@ -323,7 +315,10 @@ internal fun LazyListScope.albumSearchResults(
     }
     if (!state.loading && state.error == null && state.items.isEmpty()) {
         item(key = "album-search-empty") {
-            PoliteStatusText("Album tidak ditemukan.")
+            BrowseNoticeCard(
+                eyebrow = "Hasil kosong",
+                message = "Album tidak ditemukan.",
+            )
         }
     }
     items(state.items, key = { "album-result-${it.id}" }) { album ->
@@ -332,7 +327,7 @@ internal fun LazyListScope.albumSearchResults(
             title = album.title,
             subtitle = album.subtitle,
             artworkUrl = album.artworkUrl,
-            artworkShape = MaterialTheme.shapes.extraSmall,
+            artworkShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius),
             fallbackIcon = SenadaIcons.Album,
             accessibilityLabel = label,
             onClick = {
@@ -343,14 +338,7 @@ internal fun LazyListScope.albumSearchResults(
     }
     if (state.nextPageToken != null && state.error == null) {
         item(key = "album-search-more") {
-            OutlinedButton(
-                onClick = onLoadMore,
-                enabled = !state.loading,
-                shape = CircleShape,
-                modifier = Modifier.fillMaxWidth().minTouchTarget(),
-            ) {
-                Text(if (state.loading) "Memuat…" else "Muat lebih banyak")
-            }
+            BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
     }
 }
@@ -706,72 +694,22 @@ private fun LazyListScope.artistDetailScreen(
         .orEmpty()
 
     item(key = "artist-back-${route.id}") {
-        BackLink(previousLabel, onBack)
+        CollectionTopBar(previousLabel = previousLabel, onBack = onBack)
     }
     item(key = "artist-header-${route.id}") {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                CatalogArtwork(
-                    artworkUrl = artworkUrl,
-                    shape = CircleShape,
-                    fallbackIcon = SenadaIcons.Person,
-                    imageSize = 544,
-                    modifier = Modifier.size(116.dp),
-                )
-                Text(
-                    "Artis",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    displayName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-                detail?.monthlyListeners?.let { listeners ->
-                    Text(
-                        listeners,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Button(
-                        onClick = { actions.playAll(popularSongs, PlaySource.Artist(displayName)) },
-                        enabled = popularSongs.isNotEmpty(),
-                        shape = CircleShape,
-                        modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Putar lagu terpopuler $displayName"
-                        },
-                    ) {
-                        Icon(
-                            imageVector = SenadaIcons.Play,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Putar", modifier = Modifier.clearAndSetSemantics {})
-                    }
-                }
-            }
-        }
+        ArtistHeroCard(
+            displayName = displayName,
+            artworkUrl = artworkUrl,
+            monthlyListeners = detail?.monthlyListeners,
+            canPlay = popularSongs.isNotEmpty(),
+            onPlay = { actions.playAll(popularSongs, PlaySource.Artist(displayName), resetShuffle = true) },
+            onShuffle = { actions.playShuffled(popularSongs, PlaySource.Artist(displayName)) },
+        )
     }
 
     if (state.loading && detail == null) {
         item(key = "artist-loading-${route.id}") {
-            PoliteStatusText("Memuat halaman artis…")
+            BrowseRowSkeletonCard(statusLabel = "Memuat halaman artis…", rowCount = 4)
         }
     }
     state.error?.let { message ->
@@ -784,47 +722,66 @@ private fun LazyListScope.artistDetailScreen(
         when (section) {
             is ArtistPageSection.PopularSongs -> {
                 item(key = "artist-songs-heading-${route.id}") {
-                    Text(
-                        section.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+                    BrowseSectionHeader(
+                        title = section.title,
+                        monoLabel = "Teratas",
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                itemsIndexed(section.songs, key = { _, track -> "artist-song-${route.id}-${track.id}" }) { index, track ->
-                    CatalogTrackRow(
-                        track = track,
-                        favorite = track.id in library.favoriteIds,
-                        library = library,
-                        actions = actions,
-                        onPlay = { actions.playAll(section.songs, PlaySource.Artist(displayName), startIndex = index) },
-                    )
-                }
-                section.fullListPlaylistId?.let { playlistId ->
-                    item(key = "artist-songs-all-${route.id}") {
-                        ArtistSeeAllRow(
-                            artistName = displayName,
-                            onClick = {
-                                onOpenPlaylist(
-                                    PlaylistSummary(
-                                        id = playlistId,
-                                        title = "Lagu terpopuler $displayName",
-                                        subtitle = displayName,
-                                        artworkUrl = artworkUrl,
-                                    ),
+                item(key = "artist-songs-card-${route.id}") {
+                    val colors = MaterialTheme.colorScheme
+                    SenadaCard {
+                        Column(Modifier.fillMaxWidth().padding(1.dp)) {
+                            section.songs.forEachIndexed { index, track ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        color = colors.outline,
+                                    )
+                                }
+                                Box(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                    TrackRow(
+                                        track = track,
+                                        favorite = track.id in library.favoriteIds,
+                                        trackNumber = index + 1,
+                                        showArtworkWithNumber = true,
+                                        onClick = {
+                                            actions.playAll(
+                                                section.songs,
+                                                PlaySource.Artist(displayName),
+                                                startIndex = index,
+                                            )
+                                        },
+                                    ) {
+                                        TrackMenu(track, library, actions)
+                                    }
+                                }
+                            }
+                            section.fullListPlaylistId?.let { playlistId ->
+                                HorizontalDivider(color = colors.outline)
+                                ArtistSeeAllFooterRow(
+                                    artistName = displayName,
+                                    onClick = {
+                                        onOpenPlaylist(
+                                            PlaylistSummary(
+                                                id = playlistId,
+                                                title = "Lagu terpopuler $displayName",
+                                                subtitle = displayName,
+                                                artworkUrl = artworkUrl,
+                                            ),
+                                        )
+                                    },
                                 )
-                            },
-                        )
+                            }
+                        }
                     }
                 }
             }
             is ArtistPageSection.PopularAlbums -> {
                 item(key = "artist-popular-albums-heading-${route.id}") {
-                    Text(
-                        section.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+                    BrowseSectionHeader(
+                        title = section.title,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
                 item(key = "artist-popular-albums-row-${route.id}") {
@@ -837,11 +794,9 @@ private fun LazyListScope.artistDetailScreen(
             }
             is ArtistPageSection.NewestAlbums -> {
                 item(key = "artist-newest-albums-heading-${route.id}") {
-                    Text(
-                        section.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+                    BrowseSectionHeader(
+                        title = section.title,
+                        modifier = Modifier.padding(top = 6.dp),
                     )
                 }
                 item(key = "artist-newest-albums-row-${route.id}") {
@@ -857,46 +812,191 @@ private fun LazyListScope.artistDetailScreen(
 
     if (!state.loading && state.error == null && detail != null && sections.isEmpty()) {
         item(key = "artist-empty-${route.id}") {
-            PoliteStatusText("Belum ada lagu atau album untuk artis ini.")
+            BrowseNoticeCard(
+                eyebrow = "Halaman artis",
+                message = "Belum ada lagu atau album untuk artis ini.",
+            )
         }
     }
 }
 
 @Composable
-private fun ArtistSeeAllRow(artistName: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().minTouchTarget().semantics {
-            contentDescription = "Lihat semua lagu terpopuler $artistName"
-            role = Role.Button
-        },
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+private fun ArtistHeroCard(
+    displayName: String,
+    artworkUrl: String?,
+    monthlyListeners: String?,
+    canPlay: Boolean,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val largeFont = LocalDensity.current.fontScale >= 1.5f
+    val playContainer = if (canPlay) colors.primary else colors.surfaceContainerHighest
+    val playContent = if (canPlay) textOnAccent(playContainer) else colors.onSurface.copy(alpha = 0.38f)
+
+    val identityText: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            MonoLabel("Artis")
             Text(
-                "Lihat semua",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).clearAndSetSemantics {},
+                text = displayName,
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontSize = 28.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.04).em,
+                ),
+                color = colors.onSurface,
+                modifier = Modifier.semantics { heading() },
             )
-            Icon(
-                imageVector = SenadaIcons.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            monthlyListeners?.takeIf { it.isNotBlank() }?.let { listeners ->
+                Text(
+                    text = listeners,
+                    style = browseRowSubtitleStyle(),
+                    color = colors.onSurfaceVariant,
+                )
+            }
         }
+    }
+
+    SenadaCard {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (largeFont) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CatalogArtwork(
+                        artworkUrl = artworkUrl,
+                        shape = CircleShape,
+                        fallbackIcon = SenadaIcons.Person,
+                        imageSize = 544,
+                        modifier = Modifier.size(84.dp),
+                    )
+                    identityText()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    CatalogArtwork(
+                        artworkUrl = artworkUrl,
+                        shape = CircleShape,
+                        fallbackIcon = SenadaIcons.Person,
+                        imageSize = 544,
+                        modifier = Modifier.size(84.dp),
+                    )
+                    Box(Modifier.weight(1f)) { identityText() }
+                }
+            }
+            HorizontalDivider(color = colors.outline)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = onPlay,
+                    enabled = canPlay,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = playContainer,
+                        contentColor = playContent,
+                        disabledContainerColor = colors.surfaceContainerHighest,
+                        disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
+                    ),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics {
+                        contentDescription = "Putar lagu terpopuler $displayName"
+                    },
+                ) {
+                    Icon(
+                        imageVector = SenadaIcons.Play,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Putar",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        ),
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+                Surface(
+                    onClick = onShuffle,
+                    enabled = canPlay,
+                    shape = RoundedCornerShape(24.dp),
+                    color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
+                    border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics {
+                        role = Role.Button
+                        contentDescription = "Putar acak lagu terpopuler $displayName"
+                    },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val contentTint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
+                        Icon(
+                            imageVector = SenadaIcons.Shuffle,
+                            contentDescription = null,
+                            tint = contentTint,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            "Acak",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            color = contentTint,
+                            modifier = Modifier.clearAndSetSemantics {},
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistSeeAllFooterRow(artistName: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = "Lihat semua lagu terpopuler $artistName"
+                role = Role.Button
+            }
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            "Lihat semua",
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).clearAndSetSemantics {},
+        )
+        Icon(
+            imageVector = SenadaIcons.ProfileChevron,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 
@@ -942,12 +1042,23 @@ private fun LazyListScope.albumDetailScreen(
             onShuffle = { actions.playShuffled(tracks, PlaySource.Album(displayTitle)) },
             backLabel = previousLabel,
             onBack = onBack,
+            eyebrow = detail?.typeLabel?.takeIf { it.isNotBlank() } ?: "Album",
+            chips = if (artistId != null && primaryArtist.isNotBlank()) {
+                {
+                    AlbumArtistChip(
+                        artistName = primaryArtist,
+                        onClick = { onOpenArtist(artistId, primaryArtist) },
+                    )
+                }
+            } else {
+                null
+            },
         )
     }
 
     if (state.loading && detail == null) {
         item(key = "album-loading-${route.id}") {
-            PoliteStatusText("Memuat halaman album…")
+            BrowseRowSkeletonCard(statusLabel = "Memuat halaman album…", rowCount = 5)
         }
     }
     state.error?.let { message ->
@@ -957,11 +1068,10 @@ private fun LazyListScope.albumDetailScreen(
     }
     if (tracks.isNotEmpty()) {
         item(key = "album-tracks-heading-${route.id}") {
-            Text(
-                "Daftar lagu",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+            BrowseSectionHeader(
+                title = "Daftar lagu",
+                monoLabel = "${tracks.size} lagu",
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
         itemsIndexed(tracks, key = { index, track -> "album-track-${route.id}-$index-${track.id}" }) { index, track ->
@@ -977,25 +1087,56 @@ private fun LazyListScope.albumDetailScreen(
     }
     if (!state.loading && state.error == null && detail != null && tracks.isEmpty()) {
         item(key = "album-empty-${route.id}") {
-            PoliteStatusText("Belum ada lagu di album ini.")
+            BrowseNoticeCard(
+                eyebrow = "Daftar lagu",
+                message = "Belum ada lagu di album ini.",
+            )
         }
     }
 }
 
 @Composable
-internal fun BackLink(previousLabel: String, onBack: () -> Unit) {
-    TextButton(
-        onClick = onBack,
+private fun AlbumArtistChip(artistName: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = colors.surfaceContainerHigh,
+        border = BorderStroke(1.dp, colors.outline),
         modifier = Modifier.minTouchTarget().semantics {
-            contentDescription = "Kembali ke $previousLabel"
+            role = Role.Button
+            contentDescription = "Buka artis $artistName"
         },
     ) {
-        Text(
-            "‹ $previousLabel",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = SenadaIcons.Person,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = artistName,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+            Icon(
+                imageVector = SenadaIcons.ProfileChevron,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 }
 
@@ -1028,18 +1169,19 @@ internal fun CatalogSummaryRow(
     accessibilityLabel: String,
     onClick: () -> Unit,
 ) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().minTouchTarget().semantics {
-            contentDescription = accessibilityLabel
-            role = Role.Button
-        },
-    ) {
+    val colors = MaterialTheme.colorScheme
+    SenadaCard {
         Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 14.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 68.dp)
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics {
+                    contentDescription = accessibilityLabel
+                    role = Role.Button
+                }
+                .padding(1.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -1056,26 +1198,26 @@ internal fun CatalogSummaryRow(
             ) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = browseRowTitleStyle(),
+                    color = colors.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 subtitle?.takeIf { it.isNotBlank() }?.let { detail ->
                     Text(
                         detail,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = browseRowSubtitleStyle(),
+                        color = colors.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
             Icon(
-                imageVector = SenadaIcons.ChevronRight,
+                imageVector = SenadaIcons.ProfileChevron,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -1085,43 +1227,43 @@ internal fun CatalogSummaryRow(
 private fun ReleaseCard(album: AlbumSummary, onClick: () -> Unit) {
     val detail = album.subtitle?.takeIf { it.isNotBlank() } ?: album.year
     val accessibilityLabel = listOfNotNull("Buka album ${album.title}", detail).joinToString(", ")
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.width(156.dp).minTouchTarget().semantics {
-            contentDescription = accessibilityLabel
-            role = Role.Button
-        },
+    val largeFont = LocalDensity.current.fontScale >= 1.5f
+    val cardWidth = if (largeFont) 148.dp else 132.dp
+    Column(
+        modifier = Modifier
+            .width(cardWidth)
+            .minTouchTarget()
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = accessibilityLabel
+                role = Role.Button
+            },
     ) {
-        Column {
-            CatalogArtwork(
-                artworkUrl = album.artworkUrl,
-                shape = MaterialTheme.shapes.medium,
-                fallbackIcon = SenadaIcons.Album,
-                imageSize = 320,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        CatalogArtwork(
+            artworkUrl = album.artworkUrl,
+            shape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius),
+            fallbackIcon = SenadaIcons.Album,
+            imageSize = 320,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        )
+        Spacer(Modifier.height(6.dp))
+        Column(modifier = Modifier.clearAndSetSemantics {}) {
+            Text(
+                text = album.title,
+                style = homeTileTitleStyle(),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = if (largeFont) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            Column(
-                modifier = Modifier.padding(12.dp).clearAndSetSemantics {},
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+            detail?.let { text ->
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    album.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    text = text,
+                    style = homeTileSubtitleStyle(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (largeFont) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                detail?.let { text ->
-                    Text(
-                        text,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
         }
     }
@@ -1134,15 +1276,22 @@ internal fun CatalogArtwork(
     fallbackIcon: ImageVector,
     imageSize: Int,
     modifier: Modifier = Modifier,
+    background: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
 ) {
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.background.luminance() < 0.5f
+    val borderColor = if (dark) Color.White.copy(alpha = 0.08f) else colors.outlineVariant
     Box(
-        modifier = modifier.clip(shape).background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = modifier
+            .clip(shape)
+            .background(background)
+            .border(1.dp, borderColor, shape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = fallbackIcon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+            tint = colors.onSurfaceVariant.copy(alpha = 0.65f),
             modifier = Modifier.size(28.dp),
         )
         artworkUrl?.takeIf { it.isNotBlank() }?.let { url ->
@@ -1158,27 +1307,12 @@ internal fun CatalogArtwork(
 
 @Composable
 internal fun CatalogErrorCard(message: String, onRetry: () -> Unit) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        AdaptiveRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            minPrimaryWidth = 160.dp,
-            primary = {
-                Text(
-                    message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            },
-            trailing = {
-                TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
-            },
-        )
-    }
+    BrowseNoticeCard(
+        eyebrow = "Terjadi kendala",
+        message = message,
+        actionLabel = "Coba lagi",
+        onAction = onRetry,
+    )
 }
 
 @Composable

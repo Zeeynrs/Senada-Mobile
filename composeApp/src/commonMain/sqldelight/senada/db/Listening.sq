@@ -21,3 +21,6 @@ listenEvents:
 SELECT id, track_id, title, artists, duration_ms, artwork_url, source, started_at, listened_ms
 FROM listen_event
 WHERE started_at >= :cutoff AND started_at <= :latest;
+
+oldestListeningStartedAt:
+SELECT started_at FROM listen_event ORDER BY started_at ASC LIMIT 1;

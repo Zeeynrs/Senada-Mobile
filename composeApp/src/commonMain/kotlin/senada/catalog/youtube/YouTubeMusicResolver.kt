@@ -1,6 +1,8 @@
 package senada.catalog.youtube
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.floatOrNull
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
 import senada.catalog.ResolvedAudio
@@ -38,10 +40,18 @@ internal fun parsePlayer(response: JsonObject, nowMs: Long, saveData: Boolean = 
         ?: throw CatalogException(Kind.Unavailable, "No AAC audio stream")
 
     val expiresInSeconds = response.string("streamingData", "expiresInSeconds")?.toLongOrNull()
+    // AVPlayer menebak durasi MP4 terfragmen YouTube terlalu panjang lalu memutar senyap sampai tebakan itu;
+    // panjang dari YouTube dipakai sebagai batas akhir yang sebenarnya.
+    val durationMs = format.string("approxDurationMs")?.toLongOrNull()?.takeIf { it > 0 }
+        ?: response.string("videoDetails", "lengthSeconds")?.toLongOrNull()?.takeIf { it > 0 }?.let { it * 1_000 }
     return ResolvedAudio(
         location = format.string("url")!!,
         mimeType = "audio/mp4",
         expiresAtEpochMs = expiresInSeconds?.let { nowMs + it * 1_000 },
+        durationMs = durationMs,
+        // VISIONOS mengirim offset dari level acuan pada format AAC yang dipilih.
+        loudnessDb = (format.at("loudnessDb") as? JsonPrimitive)
+            ?.takeUnless { it.isString }?.floatOrNull?.takeIf { it.isFinite() },
     )
 }
 

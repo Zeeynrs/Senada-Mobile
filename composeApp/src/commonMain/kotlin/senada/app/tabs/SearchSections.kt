@@ -1,29 +1,27 @@
 package senada.app.tabs
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
-import senada.app.AdaptiveRow
+import senada.app.BrowseLoadMoreButton
+import senada.app.BrowseMonoHeading
+import senada.app.BrowseNoticeCard
+import senada.app.BrowseRowSkeletonCard
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.SenadaCard
 import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
-import senada.app.minTouchTarget
+import senada.app.nowplaying.PlaySource
 import senada.catalog.CatalogException
 import senada.catalog.CatalogRepository
 import senada.catalog.DemoCatalog
@@ -40,88 +38,86 @@ internal fun LazyListScope.searchResults(
 ) {
     item(key = "search-results-heading") {
         val heading = if (search.query.isEmpty()) "Katalog contoh" else "YouTube Music"
-        Text(
-            heading,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.semantics { heading() },
-        )
+        BrowseMonoHeading(heading)
     }
     if (search.loading && search.tracks.isEmpty()) {
         item(key = "search-loading") {
-            Text(
-                "Mencari…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
+            BrowseRowSkeletonCard(statusLabel = "Mencari…", rowCount = 3)
         }
     }
     search.error?.let { message ->
         item(key = "search-error") {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth(),
+            CatalogErrorCard(message, onRetry)
+        }
+    }
+    if (!search.loading && search.error == null && search.tracks.isEmpty()) {
+        item(key = "search-empty") {
+            BrowseNoticeCard(
+                eyebrow = "Hasil kosong",
+                message = "Lagu tidak ditemukan.",
+            )
+        }
+    }
+    if (search.query.isEmpty() && search.tracks.isNotEmpty()) {
+        item(key = "search-demo-tracks") {
+            SenadaCard {
+                Column(Modifier.fillMaxWidth().padding(1.dp)) {
+                    search.tracks.forEachIndexed { index, track ->
+                        if (index > 0) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 74.dp, end = 16.dp),
+                                color = MaterialTheme.colorScheme.outline,
+                            )
+                        }
+                        Box(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                            TrackRow(
+                                track = track,
+                                favorite = track.id in library.favoriteIds,
+                                onClick = {
+                                    onResultUsed()
+                                    actions.playAll(listOf(track), PlaySource.Search)
+                                },
+                            ) {
+                                TrackMenu(
+                                    track = track,
+                                    library = library,
+                                    actions = actions,
+                                    onEnqueue = {
+                                        onResultUsed()
+                                        actions.enqueue(track)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        items(search.tracks, key = { "result-${it.id}" }) { track ->
+            TrackRow(
+                track = track,
+                favorite = track.id in library.favoriteIds,
+                onClick = {
+                    onResultUsed()
+                    actions.playAll(listOf(track), PlaySource.Search)
+                },
             ) {
-                AdaptiveRow(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                    minPrimaryWidth = 160.dp,
-                    primary = {
-                        Text(
-                            message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                        )
-                    },
-                    trailing = {
-                        TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
+                TrackMenu(
+                    track = track,
+                    library = library,
+                    actions = actions,
+                    onEnqueue = {
+                        onResultUsed()
+                        actions.enqueue(track)
                     },
                 )
             }
         }
     }
-    if (!search.loading && search.error == null && search.tracks.isEmpty()) {
-        item(key = "search-empty") {
-            Text(
-                "Lagu tidak ditemukan.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-        }
-    }
-    items(search.tracks, key = { "result-${it.id}" }) { track ->
-        TrackRow(
-            track = track,
-            favorite = track.id in library.favoriteIds,
-            onClick = {
-                onResultUsed()
-                actions.playAll(listOf(track))
-            },
-        ) {
-            TrackMenu(
-                track = track,
-                library = library,
-                actions = actions,
-                onEnqueue = {
-                    onResultUsed()
-                    actions.enqueue(track)
-                },
-            )
-        }
-    }
     if (search.nextPageToken != null && search.error == null) {
         item(key = "search-load-more") {
-            OutlinedButton(
-                onClick = onLoadMore,
-                enabled = !search.loading,
-                shape = CircleShape,
-                modifier = Modifier.fillMaxWidth().minTouchTarget(),
-            ) {
-                Text(if (search.loading) "Memuat…" else "Muat lebih banyak")
-            }
+            BrowseLoadMoreButton(loading = search.loading, onClick = onLoadMore)
         }
     }
 }

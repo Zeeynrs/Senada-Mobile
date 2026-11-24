@@ -62,6 +62,53 @@ class YouTubeMusicParsingTest {
     }
 
     @Test
+    fun playerReportsTheChosenStreamsOwnDuration() {
+        assertEquals(213_089L, parsePlayer(json(PLAYER_OK), 0, saveData = false).durationMs)
+        assertEquals(213_159L, parsePlayer(json(PLAYER_OK), 0, saveData = true).durationMs)
+    }
+
+    @Test
+    fun playerReadsRelativeLoudnessFromTheSelectedAacFormat() {
+        val reply = json(loudnessPlayerReply())
+
+        assertEquals(5.5200005f, parsePlayer(reply, 0).loudnessDb)
+        assertEquals(-3.7f, parsePlayer(reply, 0, saveData = true).loudnessDb)
+    }
+
+    @Test
+    fun playerDoesNotBorrowLoudnessFromAnotherFormatOrUseAbsoluteLoudness() {
+        for (value in listOf(null, "null", "\"6\"", "true", "{}", "1e999")) {
+            val audio = parsePlayer(json(loudnessPlayerReply(value)), 0)
+            assertEquals("https://example.invalid/standard", audio.location)
+            assertNull(audio.loudnessDb, value)
+        }
+    }
+
+    private fun loudnessPlayerReply(standardLoudness: String? = "5.5200005"): String {
+        val standardField = standardLoudness?.let { ""","loudnessDb":$it""" }.orEmpty()
+        return """
+            {
+              "playabilityStatus":{"status":"OK"},
+              "playerConfig":{"audioConfig":{"perceptualLoudnessDb":-8.48,"enablePerFormatLoudness":true}},
+              "streamingData":{"adaptiveFormats":[
+                {"itag":139,"mimeType":"audio/mp4","url":"https://example.invalid/low","loudnessDb":-3.7},
+                {"itag":140,"mimeType":"audio/mp4","url":"https://example.invalid/standard",
+                 "trackAbsoluteLoudnessLkfs":-8.48$standardField}
+              ]}
+            }
+        """.trimIndent()
+    }
+
+    @Test
+    fun playerFallsBackToVideoLengthWhenTheStreamHasNoDuration() {
+        val withoutApprox = PLAYER_OK.replace(Regex(""""approxDurationMs": "\d+","""), "")
+        val reply = json(
+            withoutApprox.replace(""""streamingData"""", """"videoDetails": {"lengthSeconds": "214"}, "streamingData""""),
+        )
+        assertEquals(214_000L, parsePlayer(reply, 0).durationMs)
+    }
+
+    @Test
     fun dataSaverSelectsLowBitrateAacWithStandardAacAsFallback() {
         assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = true).location.contains("itag=139"))
         assertTrue(parsePlayer(json(PLAYER_OK), 0, saveData = false).location.contains("itag=140"))

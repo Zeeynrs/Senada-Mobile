@@ -9,6 +9,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
@@ -103,8 +104,8 @@ internal object SenadaType {
 }
 
 @Composable
-internal fun MonoLabel(text: String) {
-    Text(text.uppercase(), style = SenadaType.monoLabel)
+internal fun MonoLabel(text: String, modifier: Modifier = Modifier) {
+    Text(text.uppercase(), style = SenadaType.monoLabel, modifier = modifier)
 }
 
 /** Satu keluarga huruf untuk seluruh aplikasi; judul display memakai 800 dengan jarak huruf rapat. */

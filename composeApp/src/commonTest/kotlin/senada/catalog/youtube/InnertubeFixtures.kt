@@ -654,6 +654,8 @@ internal const val PLAYER_OK = """
     "mimeType": "audio/mp4; codecs=\"mp4a.40.5\"",
     "bitrate": 50392,
     "contentLength": "1299819",
+    "approxDurationMs": "213159",
+    "loudnessDb": 5.5200005,
     "trackAbsoluteLoudnessLkfs": -8.48,
     "qualityOrdinal": "QUALITY_ORDINAL_UNKNOWN"
    },
@@ -663,6 +665,8 @@ internal const val PLAYER_OK = """
     "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
     "bitrate": 131378,
     "contentLength": "3447410",
+    "approxDurationMs": "213089",
+    "loudnessDb": 5.5200005,
     "trackAbsoluteLoudnessLkfs": -8.48,
     "qualityOrdinal": "QUALITY_ORDINAL_UNKNOWN"
    },

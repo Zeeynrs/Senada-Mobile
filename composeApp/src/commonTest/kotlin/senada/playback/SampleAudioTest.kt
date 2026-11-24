@@ -10,6 +10,64 @@ class SampleAudioTest {
     private val local = SampleAudioSelection("Sample", SampleAudioSource.Local, "file:///sample.m4a")
     private val https = SampleAudioSelection("Sample", SampleAudioSource.Https, "https://example.org/sample.m4a")
 
+    private val stream = SampleAudioSelection(
+        "Stream", SampleAudioSource.YouTubeMusic, "https://example.org/stream.m4a", durationMs = 213_089,
+    )
+
+    @Test
+    fun streamDurationIsPassedToThePlayerAsTheRealEnd() {
+        player.play(stream)
+        player.play(local)
+
+        assertEquals(listOf<Long?>(213_089, null), output.endPositions)
+    }
+
+    @Test
+    fun theSourcesDurationWinsOverALongerGuessFromThePlayer() {
+        player.play(stream)
+        output.durationMs = 260_000
+        output.positionMs = 10_000
+        player.refresh()
+
+        assertEquals(213_089L, player.state.durationMs)
+    }
+
+    @Test
+    fun aShorterDurationFromThePlayerIsKept() {
+        player.play(stream)
+        output.durationMs = 213_000
+        player.refresh()
+
+        assertEquals(213_000L, player.state.durationMs)
+    }
+
+    @Test
+    fun playingSilentlyPastTheRealEndFinishesTheTrack() {
+        player.play(stream)
+        output.durationMs = 260_000
+        output.positionMs = 213_089 + END_GRACE_MS - 1
+        player.refresh()
+        assertEquals(SampleAudioStatus.Playing, player.state.status)
+
+        output.positionMs = 213_089 + END_GRACE_MS
+        player.refresh()
+
+        assertEquals(SampleAudioStatus.Ended, player.state.status)
+        assertEquals(213_089L, player.state.positionMs)
+        assertEquals(1, output.pauseCount)
+    }
+
+    @Test
+    fun audioWithoutAKnownDurationIsNeverCutShort() {
+        player.play(https)
+        output.durationMs = 30_000
+        output.positionMs = 29_000
+        player.refresh()
+
+        assertEquals(SampleAudioStatus.Playing, player.state.status)
+        assertEquals(30_000L, player.state.durationMs)
+    }
+
     @Test
     fun playingTheSameSourceAfterPauseResumesTheExistingItem() {
         player.play(local)

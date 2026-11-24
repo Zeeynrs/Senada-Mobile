@@ -62,6 +62,7 @@ import senada.app.TrackMenu
 import senada.app.TrackRow
 import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.trackAccessibilityLabel
 import senada.catalog.AlbumSummary
 import senada.catalog.ArtistSummary
@@ -394,7 +395,7 @@ internal fun ShelfSquareCard(
 ) {
     val largeFont = LocalDensity.current.fontScale >= 1.5f
     val cardWidth = if (largeFont) 148.dp else 132.dp
-    val coverShape = RoundedCornerShape(12.dp)
+    val coverShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius)
     Column(
         modifier = modifier
             .width(cardWidth)
@@ -580,7 +581,7 @@ internal fun ShelfSkeletonRow(
     horizontalPadding: Dp = 0.dp,
 ) {
     val blockColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val coverShape = RoundedCornerShape(12.dp)
+    val coverShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius)
     Column(
         modifier = modifier.fillMaxWidth().clearAndSetSemantics {
             contentDescription = statusLabel

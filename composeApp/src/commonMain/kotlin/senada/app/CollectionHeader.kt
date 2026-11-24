@@ -1,20 +1,30 @@
 package senada.app
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
@@ -35,12 +46,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import senada.app.shell.SenadaIcons
 import senada.app.tabs.PlaylistSaveStatus
+import senada.app.theme.LocalSenadaLook
+import senada.app.theme.MonoLabel
+import senada.app.theme.SenadaType
 import senada.catalog.AlbumDetail
 import senada.catalog.PlaylistDetail
 import senada.catalog.youtube.resizeGoogleArtwork
@@ -247,37 +265,82 @@ internal data class CollectionCover(
     val iconColor: Color? = null,
 )
 
-/** Tombol kembali bulat >= 48 dp berikon panah kiri untuk halaman detail koleksi dan layar sekunder. */
+/** Tombol kembali bulat 44 dp (#1D1F23) gaya v2 di dalam target sentuh minimal 48 dp. */
 @Composable
 internal fun CollectionBackButton(
     previousLabel: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        onClick = onBack,
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = modifier.size(48.dp).semantics {
-            role = Role.Button
-            contentDescription = "Kembali ke $previousLabel"
-        },
+    val interactionSource = remember { MutableInteractionSource() }
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onBack,
+            )
+            .semantics {
+                role = Role.Button
+                contentDescription = "Kembali ke $previousLabel"
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(colors.surfaceContainerHigh)
+                .indication(interactionSource, LocalIndication.current),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 imageVector = SenadaIcons.ChevronLeft,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = colors.onSurface,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
 }
 
+/** Bar atas halaman detail v2: tombol kembali bulat 44 dp di kiri dan label mono tujuan di kanan. */
+@Composable
+internal fun CollectionTopBar(
+    previousLabel: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        CollectionBackButton(
+            previousLabel = previousLabel,
+            onBack = onBack,
+            modifier = Modifier.offset(x = (-2).dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = previousLabel.uppercase(),
+            style = SenadaType.monoLabel,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+    }
+}
+
 /**
- * Header bersama untuk halaman koleksi (playlist library, Favorit, album, dan playlist YouTube Music):
- * tombol kembali bulat opsional, sampul 20 dp, judul besar, baris meta, baris aksi (menu ⋯, acak,
- * tombol Putar aksen 56 dp), serta chip opsional bila ada aksi tambahan.
+ * Header bersama gaya v2 untuk halaman koleksi (playlist library, Favorit, album, dan playlist YouTube Music):
+ * bar atas tombol kembali opsional dengan label mono tujuan, diikuti kartu SenadaCard berisi label kategori,
+ * sampul mengikuti pengaturan sudut sampul, judul display, baris meta, baris aksi (menu ⋯, acak,
+ * tombol Putar aksen 56 dp), serta chip dan catatan kaki opsional.
  */
 @Composable
 internal fun CollectionHeader(
@@ -293,64 +356,88 @@ internal fun CollectionHeader(
     onBack: (() -> Unit)? = null,
     chips: (@Composable () -> Unit)? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
+    eyebrow: String? = null,
 ) {
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (onBack != null && backLabel != null) {
-            CollectionBackButton(
+            CollectionTopBar(
                 previousLabel = backLabel,
                 onBack = onBack,
-                modifier = Modifier.align(Alignment.Start),
             )
         }
-        CollectionCoverTile(
-            cover = cover,
-            modifier = Modifier.align(Alignment.CenterHorizontally).size(188.dp),
-        )
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().semantics { heading() },
-            )
-            if (meta != null && meta.display.isNotEmpty()) {
-                Text(
-                    text = meta.display,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
-                        contentDescription = meta.spoken
-                    },
-                )
-            }
-        }
-        CollectionActionRow(
-            title = title,
-            menuItems = menuItems,
-            onMenuAction = onMenuAction,
-            canPlay = canPlay,
-            onPlay = onPlay,
-            onShuffle = onShuffle,
-        )
-        if (chips != null) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        SenadaCard {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                chips()
+                eyebrow?.takeIf { it.isNotBlank() }?.let { label ->
+                    MonoLabel(
+                        text = label,
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    )
+                }
+                CollectionCoverTile(
+                    cover = cover,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).size(184.dp),
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 28.sp,
+                            lineHeight = 33.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.04).em,
+                        ),
+                        color = colors.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().semantics { heading() },
+                    )
+                    if (meta != null && meta.display.isNotEmpty()) {
+                        Text(
+                            text = meta.display,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                            ),
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().clearAndSetSemantics {
+                                contentDescription = meta.spoken
+                            },
+                        )
+                    }
+                }
+                HorizontalDivider(color = colors.outline)
+                CollectionActionRow(
+                    title = title,
+                    menuItems = menuItems,
+                    onMenuAction = onMenuAction,
+                    canPlay = canPlay,
+                    onPlay = onPlay,
+                    onShuffle = onShuffle,
+                )
+                if (chips != null) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        chips()
+                    }
+                }
+                footer?.invoke(this)
             }
         }
-        footer?.invoke(this)
     }
 }
 
@@ -359,10 +446,17 @@ private fun CollectionCoverTile(
     cover: CollectionCover,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = cover.containerColor ?: MaterialTheme.colorScheme.surfaceContainerHigh
-    val iconColor = cover.iconColor ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+    val colors = MaterialTheme.colorScheme
+    val dark = colors.background.luminance() < 0.5f
+    val containerColor = cover.containerColor ?: colors.surfaceContainerHigh
+    val iconColor = cover.iconColor ?: colors.onSurfaceVariant.copy(alpha = 0.65f)
+    val shape = RoundedCornerShape(LocalSenadaLook.current.coverRadius)
+    val borderColor = if (dark) Color.White.copy(alpha = 0.08f) else colors.outlineVariant
     Box(
-        modifier = modifier.clip(MaterialTheme.shapes.medium).background(containerColor),
+        modifier = modifier
+            .clip(shape)
+            .background(containerColor)
+            .border(1.dp, borderColor, shape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -383,46 +477,55 @@ private fun CollectionCoverTile(
 }
 
 /**
- * Header ringkas untuk bagian di tab Library (Playlist, Riwayat, File impor) yang sekeluarga dengan
- * [CollectionHeader]: judul, baris meta jumlah/durasi, dan aksi kanan yang turun ke bawah pada font besar.
+ * Header ringkas gaya v2 berbasis [SenadaCard] untuk bagian di tab Library (Playlist, Riwayat, File impor):
+ * label kategori mono opsional, judul tebal, baris meta mono, dan aksi kanan yang turun ke bawah pada font besar.
  */
 @Composable
 internal fun CompactCollectionHeader(
     title: String,
     meta: CollectionMeta?,
     minPrimaryWidth: Dp = 140.dp,
+    eyebrow: String? = null,
     trailing: @Composable () -> Unit,
 ) {
-    AdaptiveRow(
-        modifier = Modifier.fillMaxWidth(),
-        minPrimaryWidth = minPrimaryWidth,
-        horizontalSpacing = 12.dp,
-        verticalSpacing = 8.dp,
-        primary = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.semantics { heading() },
-                )
-                if (meta != null && meta.display.isNotEmpty()) {
+    val colors = MaterialTheme.colorScheme
+    SenadaCard {
+        AdaptiveRow(
+            modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
+            minPrimaryWidth = minPrimaryWidth,
+            horizontalSpacing = 12.dp,
+            verticalSpacing = 12.dp,
+            primary = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    eyebrow?.takeIf { it.isNotBlank() }?.let { MonoLabel(it) }
                     Text(
-                        text = meta.display,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = meta.spoken
-                        },
+                        text = title,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = 22.sp,
+                            lineHeight = 28.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.02).em,
+                        ),
+                        color = colors.onSurface,
+                        modifier = Modifier.semantics { heading() },
                     )
+                    if (meta != null && meta.display.isNotEmpty()) {
+                        Text(
+                            text = meta.display.uppercase(),
+                            style = SenadaType.monoLabel,
+                            modifier = Modifier.clearAndSetSemantics {
+                                contentDescription = meta.spoken
+                            },
+                        )
+                    }
                 }
-            }
-        },
-        trailing = trailing,
-    )
+            },
+            trailing = trailing,
+        )
+    }
 }
 
 @Composable
@@ -436,6 +539,7 @@ private fun CollectionActionRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
+    val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -443,17 +547,36 @@ private fun CollectionActionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            IconButton(
-                onClick = { menuOpen = true },
-                modifier = Modifier.minTouchTarget().semantics {
-                    contentDescription = "Buka menu $title"
-                },
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = { menuOpen = true },
+                    )
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "Buka menu $title"
+                    },
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = SenadaIcons.More,
-                    contentDescription = null,
-                    tint = colors.onSurfaceVariant,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(colors.surfaceContainerHigh)
+                        .indication(interactionSource, LocalIndication.current),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = SenadaIcons.More,
+                        contentDescription = null,
+                        tint = colors.onSurface,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 menuItems.forEach { item ->
@@ -497,7 +620,7 @@ internal fun CollectionPlayButtons(
             onClick = onShuffle,
             enabled = canPlay,
             shape = CircleShape,
-            color = Color.Transparent,
+            color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
             border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
             modifier = Modifier.size(48.dp).semantics {
                 role = Role.Button

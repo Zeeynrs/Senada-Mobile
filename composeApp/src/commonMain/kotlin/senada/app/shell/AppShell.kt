@@ -1,5 +1,6 @@
 package senada.app.shell
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +36,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -43,8 +46,10 @@ import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import senada.app.AppearanceSection
 import senada.app.BackupSection
@@ -59,8 +64,16 @@ import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
+import senada.app.UserProfileController
+import senada.app.browseDisplayTitleStyle
+import senada.app.audiolab.audioLabScreen
+import senada.app.audiolab.equalizerScreen
+import senada.app.audiolab.soundFxScreen
+import senada.app.audiolab.soundFxSpeedItemIndex
 import senada.app.dataSaverActive
 import senada.app.meteredNetwork
+import senada.app.profilePhotoModel
+import senada.app.userProfileStore
 import senada.app.nowplaying.NowPlayingScreen
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
@@ -83,8 +96,12 @@ import senada.app.tabs.ProfileTab
 import senada.app.tabs.profileHeader
 import senada.app.tabs.shouldRefreshDiscover
 import senada.app.tabs.shouldRefreshHomeShelves
+import senada.app.theme.LocalSenadaLook
+import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.catalog.youtube.DiscoverSeeds
+import senada.catalog.ArtistResolveResult
+import senada.catalog.canOpenArtist
 import senada.library.HomeHero
 import senada.library.LibraryRepository
 import senada.library.ListenPeriod
@@ -93,12 +110,17 @@ import senada.library.discoverSeeds
 import senada.library.homeHero
 import senada.library.listeningStats
 import senada.library.mostPlayed
+import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
+import senada.playback.PlaybackState
+import senada.playback.SleepTimerState
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
+
+private fun PlaybackState.withoutPosition(): PlaybackState = copy(audio = audio.copy(positionMs = 0L))
 
 internal data class BottomOverlayVisibility(
     val showNavBar: Boolean,
@@ -129,9 +151,13 @@ internal fun AppShell(
     appearance: AppearancePreferences,
     screenVisible: Boolean,
     audioEffects: AudioEffectsController?,
+    fullAudioEffectsAvailable: Boolean,
 ) {
     val navigator = rememberAppNavigator()
-    val state by playback.state.collectAsState()
+    // Perubahan posisi berkala hanya dibaca oleh bilah posisi dan lirik tersinkron, bukan seluruh shell.
+    val state by remember(playback) {
+        playback.state.map { it.withoutPosition() }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.withoutPosition())
     LaunchedEffect(state.queue.entries.isEmpty()) {
         if (playback.state.value.queue.entries.isEmpty()) PlaySourceState.current.value = null
     }
@@ -143,6 +169,11 @@ internal fun AppShell(
         LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open)
     }
     val platformContext = LocalPlatformContext.current
+    val profileController = remember(platformContext) { UserProfileController(userProfileStore(platformContext)) }
+    val profile by profileController.state.collectAsState()
+    val profilePhoto = remember(platformContext, profile.photoPath) {
+        profile.photoPath?.let { profilePhotoModel(platformContext, it) }
+    }
     val importedStorage = remember(platformContext) { importedAudioStorage(platformContext) }
     LaunchedEffect(actions, importedStorage) {
         actions.syncImportedFiles(importedStorage)
@@ -201,6 +232,25 @@ internal fun AppShell(
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
+    val profileRoot = navigator.destination == AppDestination.Profile && profileRoute == null && currentCatalogRoute == null
+    val profileSummary = if (profileRoot) {
+        remember(library, screenVisible) { library.listeningStats(ListenPeriod.Month) }.collectAsState(null).value
+    } else null
+    val oldestListening = if (profileRoot) {
+        remember(library) { library.oldestListeningStartedAt() }.collectAsState(null).value
+    } else null
+    val topArtist = profileSummary?.topArtists?.firstOrNull()
+    val profileArtist = if (topArtist != null && canOpenArtist(topArtist.track)) {
+        val resolver = SenadaSources.artistResolver
+        val known = resolver.knownArtist(topArtist.track, topArtist.name)
+        key(topArtist.name, topArtist.track.id) {
+            produceState(known, saveData, screenVisible) {
+                value = known ?: if (!saveData && screenVisible) {
+                    resolver.resolve(topArtist.track, topArtist.name) as? ArtistResolveResult.Found
+                } else null
+            }.value
+        }
+    } else null
     val discoverSeeds by remember(library) { library.discoverSeeds() }.collectAsState(null)
     val discoverController = remember(uiScope) { DiscoverController(SenadaSources.discover, uiScope) }
     val homeShelvesController = remember(uiScope) { HomeShelvesController(SenadaSources.homeCatalog, uiScope) }
@@ -265,6 +315,11 @@ internal fun AppShell(
     PlatformBackHandler(enabled = navigator.canGoBack) { navigator.back() }
 
     val nowPlayingPanel = rememberNowPlayingPanel(navigator)
+    val focusManager = LocalFocusManager.current
+    // Hentikan kedipan kursor kolom input di tab belakang saat layar Sedang diputar menutup layar.
+    LaunchedEffect(nowPlayingPanel.visible) {
+        if (nowPlayingPanel.visible) focusManager.clearFocus()
+    }
     val miniPlayerVisible = showsMiniPlayer(state)
     val imeInsets = WindowInsets.ime
     val density = LocalDensity.current
@@ -277,6 +332,22 @@ internal fun AppShell(
     val homePage = navigator.destination == AppDestination.Home && currentCatalogRoute == null && profileRoute == null
     val profilePage = navigator.destination == AppDestination.Profile && currentCatalogRoute == null
     val profileDetail = profilePage && profileRoute != null
+    val audioLabRoute = profileRoute == ProfileRoute.AudioLab ||
+        profileRoute == ProfileRoute.Equalizer ||
+        profileRoute == ProfileRoute.SoundFx
+    var focusSoundFxSpeed by rememberSaveable { mutableStateOf(false) }
+    val fullAudioEffects = audioEffects.takeIf { fullAudioEffectsAvailable }
+    val effectsState = if (audioLabRoute && audioEffects != null) {
+        val stored = audioEffects.effects.collectAsState().value
+        if (fullAudioEffectsAvailable) stored else AudioEffects(loudnessMatch = stored.loudnessMatch)
+    } else {
+        AudioEffects()
+    }
+    val sleepTimerState = if (profileRoute == ProfileRoute.AudioLab) {
+        playback.sleepTimerState.collectAsState().value
+    } else {
+        SleepTimerState.Off
+    }
     val safeTop = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
     val safeBottom = with(density) { WindowInsets.safeDrawing.getBottom(this).toDp() }
     val shellWidthDp = with(density) { shellWidthPx.toDp().value }
@@ -291,8 +362,38 @@ internal fun AppShell(
         !overlay.visible -> maxOf(40.dp, safeBottom)
         else -> overlayHeight + BelowContentGap
     }
+    val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
+        rememberLazyListState()
+    }
+    LaunchedEffect(profileRoute, focusSoundFxSpeed) {
+        if (profileRoute == ProfileRoute.SoundFx && focusSoundFxSpeed) {
+            listState.animateScrollToItem(soundFxSpeedItemIndex(fullAudioEffectsAvailable))
+            focusSoundFxSpeed = false
+        }
+    }
+    val horizontalPadding = when {
+        homePage -> 0.dp
+        profileRoute == ProfileRoute.AudioLab -> 12.dp
+        else -> 16.dp
+    }
+    val verticalSpacing = when {
+        homePage -> 0.dp
+        profileRoute == ProfileRoute.AudioLab -> 10.dp
+        profileRoute == ProfileRoute.Equalizer -> 16.dp
+        profilePage -> 14.dp
+        else -> 12.dp
+    }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
+    val look = LocalSenadaLook.current
+    val pageKey = ShellPageKey(
+        destination = navigator.destination,
+        profileDepth = navigator.profileStack.size,
+        profileRoute = profileRoute,
+        catalogDepth = navigator.catalogStack.size,
+        catalogId = currentCatalogRoute?.id,
+        openedPlaylistId = openedPlaylistId,
+    )
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
             Modifier
@@ -304,44 +405,29 @@ internal fun AppShell(
                 }
                 .clipToBounds(),
         ) {
-            val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
-                rememberLazyListState()
-            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .hazeSource(glassState)
+                    .shellPageMotion(pageKey, look)
+                    .then(if (look.glass) Modifier.hazeSource(glassState) else Modifier)
                     .then(
                         if (homePage) Modifier
                         else Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
                     )
                     .windowInsetsPadding(imeInsets),
                 contentPadding = PaddingValues(
-                    start = when {
-                        homePage -> 0.dp
-                        profilePage -> 16.dp
-                        else -> 20.dp
-                    },
-                    end = when {
-                        homePage -> 0.dp
-                        profilePage -> 16.dp
-                        else -> 20.dp
-                    },
+                    start = horizontalPadding,
+                    end = horizontalPadding,
                     top = when {
                         homePage -> 0.dp
                         profilePage -> ((if (profileDetail) 52.dp else 56.dp) - safeTop).coerceAtLeast(0.dp)
-                        else -> 16.dp
+                        imeVisible -> 8.dp
+                        else -> (52.dp - safeTop).coerceAtLeast(12.dp)
                     },
                     bottom = bottomPadding,
                 ),
-                verticalArrangement = Arrangement.spacedBy(
-                    when {
-                        homePage -> 0.dp
-                        profilePage -> 14.dp
-                        else -> 12.dp
-                    },
-                ),
+                verticalArrangement = Arrangement.spacedBy(verticalSpacing),
             ) {
                 if (currentCatalogRoute != null) {
                     catalogDetailScreen(
@@ -395,8 +481,11 @@ internal fun AppShell(
                     return@LazyColumn
                 }
                 if (profileRoute != null) {
-                    profileHeader(profileRoute, navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label) {
-                        navigator.back()
+                    val previousLabel = navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label
+                    if (!audioLabRoute) {
+                        profileHeader(profileRoute, previousLabel) {
+                            navigator.back()
+                        }
                     }
                     when (profileRoute) {
                         ProfileRoute.Stats -> listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions) { listenPeriod = it }
@@ -405,9 +494,37 @@ internal fun AppShell(
                         ProfileRoute.Playback -> item { DataSection(appearance) }
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
-                        ProfileRoute.Developer -> item { DeveloperSection(playback, audioEffects) }
+                        ProfileRoute.Developer -> item { DeveloperSection(playback, fullAudioEffects) }
                         ProfileRoute.About -> item { Text("Senada " + versionName()) }
-                        ProfileRoute.AudioLab, ProfileRoute.Equalizer, ProfileRoute.SoundFx -> item { Text("Segera hadir") }
+                        ProfileRoute.AudioLab -> audioLabScreen(
+                            effects = effectsState,
+                            effectsAvailable = fullAudioEffectsAvailable,
+                            saveMobileData = appearance.settings?.saveMobileData == true,
+                            sleepTimerState = sleepTimerState,
+                            canStopAfterTrack = state.audio.canStopAfterTrack,
+                            playback = playback,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                            onOpenEqualizer = { navigator.openProfileRoute(ProfileRoute.Equalizer) },
+                            onOpenSoundFx = { focusSpeed ->
+                                focusSoundFxSpeed = focusSpeed
+                                navigator.openProfileRoute(ProfileRoute.SoundFx)
+                            },
+                            onOpenPlayback = { navigator.openProfileRoute(ProfileRoute.Playback) },
+                        )
+                        ProfileRoute.Equalizer -> equalizerScreen(
+                            effects = effectsState,
+                            audioEffects = fullAudioEffects,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                        )
+                        ProfileRoute.SoundFx -> soundFxScreen(
+                            effects = effectsState,
+                            audioEffects = fullAudioEffects,
+                            loudnessSettings = audioEffects,
+                            previousLabel = previousLabel,
+                            onBack = { navigator.back() },
+                        )
                     }
                     return@LazyColumn
                 }
@@ -415,8 +532,9 @@ internal fun AppShell(
                     item(key = "title-${navigator.destination}") {
                         Text(
                             navigator.destination.label,
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier.semantics { heading() },
+                            style = browseDisplayTitleStyle(),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() },
                         )
                     }
                 }
@@ -431,6 +549,8 @@ internal fun AppShell(
                         screenVisible = screenVisible,
                         screenWidthDp = shellWidthDp,
                         screenHeightDp = shellHeightDp,
+                        profileName = profile.name,
+                        profilePhoto = profilePhoto,
                         onOpenProfile = { navigator.select(AppDestination.Profile) },
                         onOpenFavorites = {
                             librarySection = LibraryFilter.Favorites
@@ -504,9 +624,17 @@ internal fun AppShell(
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
                     AppDestination.Profile -> item(key = "profile") {
-                        ProfileTab(navigator::openProfileRoute, developerUnlocked = versionTaps == 7) {
-                            if (versionTaps < 7) versionTaps++
-                        }
+                        ProfileTab(
+                            controller = profileController,
+                            photo = profilePhoto,
+                            summary = profileSummary,
+                            oldestListening = oldestListening,
+                            artist = profileArtist,
+                            onOpen = navigator::openProfileRoute,
+                            onOpenArtist = { navigator.openArtist(it.id, it.name, it.artworkUrl) },
+                            developerUnlocked = versionTaps == 7,
+                            onVersionTap = { if (versionTaps < 7) versionTaps++ },
+                        )
                     }
                 }
             }
@@ -524,28 +652,43 @@ internal fun AppShell(
             }
 
             CompositionLocalProvider(LocalGlassState provides glassState) {
-                if (overlay.visible) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
-                            .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                            .padding(start = 16.dp, end = 16.dp, bottom = maxOf(24.dp, safeBottom)),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { overlayHeight = with(density) { it.height.toDp() } }
+                        .graphicsLayer { alpha = 1f - nowPlayingPanel.progress }
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            bottom = if (overlay.visible) maxOf(24.dp, safeBottom) else 0.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    AnimatedVisibility(
+                        visible = overlay.showMiniPlayer,
+                        enter = shellOverlayEnter(look),
+                        exit = shellOverlayExit(look),
                     ) {
-                        if (overlay.showMiniPlayer) {
-                            MiniPlayer(
-                                state = state,
-                                onOpen = navigator::openNowPlaying,
-                                onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
-                                onNext = if (profilePage) null else playback::next,
-                                modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
-                            )
-                        }
-                        if (overlay.showNavBar) {
-                            FloatingNavBar(current = navigator.destination, onSelect = navigator::select)
-                        }
+                        MiniPlayer(
+                            state = state,
+                            onOpen = navigator::openNowPlaying,
+                            onPlayPause = { if (state.audio.isActive) playback.pause() else playback.resume() },
+                            onNext = if (profilePage) null else playback::next,
+                            modifier = Modifier.nowPlayingSwipe(nowPlayingPanel, opening = true),
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = overlay.showNavBar,
+                        enter = shellOverlayEnter(look),
+                        exit = shellOverlayExit(look),
+                    ) {
+                        FloatingNavBar(
+                            current = navigator.destination,
+                            onSelect = navigator::select,
+                            profileName = profile.name,
+                            profilePhoto = profilePhoto,
+                        )
                     }
                 }
             }
@@ -558,8 +701,13 @@ internal fun AppShell(
                     actions = actions,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
+                    onOpenAudioLab = {
+                        navigator.closeNowPlaying()
+                        navigator.openProfileRoute(ProfileRoute.AudioLab)
+                    },
                     panel = nowPlayingPanel,
                     immersive = navigator.nowPlayingOpen,
+                    backdropFromCover = LocalSenadaLook.current.playerBackdropFromCover,
                     modifier = Modifier.graphicsLayer { translationY = (1f - nowPlayingPanel.progress) * size.height },
                 )
             }

@@ -2,7 +2,6 @@ package senada.app.tabs
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,6 +74,7 @@ import senada.app.shell.GlassSurface
 import senada.app.shell.LocalGlassState
 import senada.app.shell.ProfileAvatar
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
@@ -212,6 +212,7 @@ internal fun HomeHeroCard(
     screenWidthDp: Float,
     screenHeightDp: Float,
     profileName: String = "",
+    profilePhoto: String? = null,
     onOpenProfile: () -> Unit,
     onPrimary: () -> Unit,
     onSecondary: () -> Unit,
@@ -255,6 +256,7 @@ internal fun HomeHeroCard(
     }
     val largeFont = density.fontScale >= 1.5f
     val heroGlassState = remember { HazeState() }
+    val glassEnabled = LocalSenadaLook.current.glass
 
     val topBarTextColor = if (darkTheme) SenadaPalette.DarkText else colors.onSurface
     val topBarWaveColor = if (darkTheme) SenadaPalette.AccentDark else colors.primary
@@ -271,7 +273,7 @@ internal fun HomeHeroCard(
             modifier = Modifier
                 .matchParentSize()
                 .background(baseColor)
-                .hazeSource(heroGlassState),
+                .then(if (glassEnabled) Modifier.hazeSource(heroGlassState) else Modifier),
         ) {
             if (!artworkUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -299,6 +301,7 @@ internal fun HomeHeroCard(
             HomeTopBar(
                 safeTop = safeTop,
                 profileName = profileName,
+                profilePhoto = profilePhoto,
                 darkTheme = darkTheme,
                 textColor = topBarTextColor,
                 waveColor = topBarWaveColor,
@@ -375,6 +378,7 @@ internal fun HomeHeroCard(
 private fun HomeTopBar(
     safeTop: Dp,
     profileName: String,
+    profilePhoto: String?,
     darkTheme: Boolean,
     textColor: Color,
     waveColor: Color,
@@ -424,24 +428,12 @@ private fun HomeTopBar(
                 .semantics { contentDescription = "Buka profil" },
             contentAlignment = Alignment.Center,
         ) {
-            // Memakai komponen ProfileAvatar (28 dp) milik navbar, diskalakan mengisi 32 dp interior dalam cincin 36 dp bergaris putih 25%.
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .border(2.dp, avatarBorder, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(Modifier.graphicsLayer { scaleX = 32f / 24f; scaleY = 32f / 24f }) {
-                        ProfileAvatar(name = profileName, selected = false)
-                    }
-                }
-            }
+            ProfileAvatar(
+                name = profileName,
+                size = 36.dp,
+                borderColor = avatarBorder,
+                photoModel = profilePhoto,
+            )
         }
     }
 }

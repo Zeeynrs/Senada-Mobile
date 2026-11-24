@@ -17,6 +17,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
+import senada.app.theme.LocalSenadaLook
 
 /** Sumber blur untuk bilah kaca; diisi oleh [AppShell] dari daftar isi tab di belakang bilah. */
 internal val LocalGlassState = staticCompositionLocalOf<HazeState?> { null }
@@ -29,15 +30,16 @@ private const val GlassBorderAlpha = 0.08f
 
 /**
  * Permukaan kaca buram untuk mini player dan navigasi: isi di belakangnya diburamkan lalu diberi lapisan
- * warna permukaan yang tembus pandang. Android sebelum 12 tidak mendukung blur, jadi memakai lapisan
- * yang hampir pekat sebagai gantinya.
+ * warna permukaan yang tembus pandang. Bila efek kaca dimatikan, memakai permukaan padat `#1D1F23`
+ * (atau padanan tema terang) tanpa blur Haze.
  */
 @Composable
 internal fun GlassSurface(shape: Shape, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val glass = LocalGlassState.current
+    val glassEnabled = LocalSenadaLook.current.glass
     val tint = colors.surfaceContainerHigh
-    val fill = if (glass != null) {
+    val fill = if (glassEnabled && glass != null) {
         Modifier.hazeEffect(
             state = glass,
             style = HazeStyle(
@@ -51,11 +53,12 @@ internal fun GlassSurface(shape: Shape, modifier: Modifier = Modifier, content: 
     } else {
         Modifier.background(tint)
     }
+    val borderColor = if (glassEnabled) Color.White.copy(alpha = GlassBorderAlpha) else colors.outline
     Box(
         modifier
             .clip(shape)
             .then(fill)
-            .border(1.dp, Color.White.copy(alpha = GlassBorderAlpha), shape),
+            .border(1.dp, borderColor, shape),
     ) {
         CompositionLocalProvider(LocalContentColor provides colors.onSurface) { content() }
     }

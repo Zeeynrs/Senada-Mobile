@@ -52,6 +52,7 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.app.trackAccessibilityLabel
 import senada.catalog.AlbumSummary
@@ -105,6 +106,7 @@ internal fun LazyListScope.homeTab(
     onOpenCatalogPlaylist: (HomeItem.Playlist) -> Unit,
     onOpenMood: (MoodChip) -> Unit,
     profileName: String = "",
+    profilePhoto: String? = null,
 ) {
     val sections = buildHomeSections(
         recentItems = recentItems,
@@ -122,6 +124,7 @@ internal fun LazyListScope.homeTab(
                         screenWidthDp = screenWidthDp,
                         screenHeightDp = screenHeightDp,
                         profileName = profileName,
+                        profilePhoto = profilePhoto,
                         onOpenProfile = onOpenProfile,
                         onPrimary = {
                             when (hero) {
@@ -368,7 +371,7 @@ private fun HomeFavoritesTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(LocalSenadaLook.current.listCoverRadius))
                 .background(HomeFavoritesBackground),
             contentAlignment = Alignment.Center,
         ) {

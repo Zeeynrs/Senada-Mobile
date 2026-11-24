@@ -77,6 +77,7 @@ class InnertubeClientTest {
         val audio = resolver.resolve(track)
 
         assertTrue(audio.location.contains("itag=140"))
+        assertEquals(5.5200005f, audio.loudnessDb)
         val (visitor, player) = requests
         assertTrue(visitor.url.encodedPath.endsWith("/visitor_id"))
         assertEquals("VISIONOS", player.jsonBody().string("context", "client", "clientName"))

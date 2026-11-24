@@ -1,33 +1,26 @@
 package senada.lyrics
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -38,10 +31,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import senada.app.minTouchTarget
 import senada.model.Track
 
 internal sealed interface LyricsPanelResult {
@@ -62,120 +55,81 @@ internal suspend fun loadLyrics(track: Track, fetch: suspend (Track) -> LyricsDo
 }
 
 @Composable
-internal fun LyricsPanel(track: Track, positionMs: Long, repository: LyricsRepository) {
-    var attempt by remember(track.id) { mutableStateOf(0) }
+internal fun rememberLyrics(track: Track?, repository: LyricsRepository, enabled: Boolean, attempt: Int): LyricsPanelResult {
+    if (track == null) return LyricsPanelResult.Ready(LyricsDocument.Unavailable)
     var result by remember(track.id, attempt) { mutableStateOf<LyricsPanelResult>(LyricsPanelResult.Loading) }
-    LaunchedEffect(track.id, attempt) { result = loadLyrics(track, repository::get) }
-
-    val fontScale = LocalDensity.current.fontScale.coerceIn(1f, 2f)
-    // Tinggi panel ikut melebar pada skala font besar agar baris lirik panjang tidak terpotong.
-    val panelHeight = (200f * fontScale.coerceAtMost(1.5f)).dp
-    val syncedVerticalPadding = if (fontScale > 1.3f) 56.dp else 84.dp
-
-    var expanded by remember(track.id) { mutableStateOf(false) }
-    val document = (result as? LyricsPanelResult.Ready)?.document
-    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            LyricsContent(track, result, positionMs, panelHeight, syncedVerticalPadding) { attempt++ }
-            if (document is LyricsDocument.Plain || document is LyricsDocument.Synced) {
-                TextButton(onClick = { expanded = true }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                    Text("Buka lirik penuh")
-                }
-            }
-        }
+    LaunchedEffect(track.id, repository, enabled, attempt) {
+        if (enabled && result == LyricsPanelResult.Loading) result = loadLyrics(track, repository::get)
     }
-    if (expanded) {
-        Dialog(onDismissRequest = { expanded = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
-                Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp)) {
-                    TextButton(onClick = { expanded = false }, modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)) {
-                        Text("Tutup lirik")
-                    }
-                    BoxWithConstraints {
-                        LyricsContent(track, result, positionMs, maxHeight, syncedVerticalPadding) { attempt++ }
-                    }
-                }
-            }
-        }
-    }
+    return result
 }
 
 @Composable
-private fun LyricsContent(
-    track: Track,
-    shown: LyricsPanelResult,
-    positionMs: Long,
-    panelHeight: Dp,
-    syncedVerticalPadding: Dp,
-    onRetry: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            track.title,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.semantics { heading() },
-        )
-        when (shown) {
-            LyricsPanelResult.Loading -> Text(
-                "Memuat lirik…",
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+internal fun LyricsPanel(track: Track?, shown: LyricsPanelResult, positionMs: Long, onRetry: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (track != null) {
+            Text(
+                track.title, color = Color.White, fontSize = 19.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.semantics { heading() },
             )
+        }
+        when (shown) {
+            LyricsPanelResult.Loading -> LyricsMessage("Memuat lirik…")
             is LyricsPanelResult.Error -> {
-                Text(shown.message, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                TextButton(
-                    onClick = onRetry,
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                ) { Text("Coba lagi") }
+                LyricsMessage(shown.message)
+                TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
             }
-            is LyricsPanelResult.Ready -> when (val document = shown.document) {
-                is LyricsDocument.Synced -> SyncedLyrics(
-                    lines = document.lines,
-                    active = activeLineIndex(document.lines, positionMs),
-                    panelHeight = panelHeight,
-                    verticalPadding = syncedVerticalPadding,
-                )
-                is LyricsDocument.Plain -> LazyColumn(
-                    Modifier.fillMaxWidth().height(panelHeight),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) { items(document.lines) { Text(it, modifier = Modifier.fillMaxWidth()) } }
-                LyricsDocument.Instrumental -> Text(
-                    "Instrumental",
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-                LyricsDocument.Unavailable -> Text(
-                    "Lirik tidak tersedia",
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
+            is LyricsPanelResult.Ready -> key(track?.id) {
+                when (val document = shown.document) {
+                    is LyricsDocument.Synced -> BoxWithConstraints(Modifier.fillMaxSize()) {
+                        SyncedLyrics(document.lines, activeLineIndex(document.lines, positionMs), maxHeight * .38f)
+                    }
+                    is LyricsDocument.Plain -> LazyColumn(
+                        Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(vertical = 16.dp),
+                    ) { items(document.lines) { LyricText(it, Color.White) } }
+                    LyricsDocument.Instrumental -> LyricsMessage("Instrumental")
+                    LyricsDocument.Unavailable -> LyricsMessage("Lirik tidak tersedia")
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, active: Int, panelHeight: Dp, verticalPadding: Dp) {
-    val list = rememberLazyListState()
-    // Bantalan menjaga baris tujuan dekat tengah, termasuk baris pertama dan terakhir.
+private fun LyricsMessage(message: String) {
+    Text(message, color = Color.White, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+}
+
+@Composable
+private fun LyricText(text: String, color: Color, modifier: Modifier = Modifier) {
+    Text(
+        text, modifier.fillMaxWidth(), color = color,
+        fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold,
+    )
+}
+
+@Composable
+private fun SyncedLyrics(lines: List<LyricLine>, active: Int, verticalPadding: Dp) {
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = active.coerceAtLeast(0))
     LazyColumn(
-        Modifier.fillMaxWidth().height(panelHeight),
-        state = list,
+        Modifier.fillMaxSize(), state = list,
         contentPadding = PaddingValues(vertical = verticalPadding),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         itemsIndexed(lines) { index, line ->
             val current = index == active
-            Text(
+            LyricText(
                 line.text,
-                modifier = Modifier.fillMaxWidth().semantics {
+                color = Color.White.copy(alpha = if (current) 1f else .35f),
+                modifier = Modifier.semantics {
                     selected = current
                     if (current) stateDescription = "Baris aktif"
                 },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (current) FontWeight.ExtraBold else FontWeight.Medium,
-                color = if (current) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
-    LaunchedEffect(active) { list.scrollToItem(active.coerceAtLeast(0)) }
+    LaunchedEffect(active) { list.animateScrollToItem(active.coerceAtLeast(0)) }
 }

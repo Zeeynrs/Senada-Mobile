@@ -36,6 +36,7 @@ import platform.AVFoundation.seekToTime
 import platform.AVFoundation.setAudioMix
 import platform.AVFoundation.setAudioTimePitchAlgorithm
 import platform.AVFoundation.setDefaultRate
+import platform.AVFoundation.setForwardPlaybackEndTime
 import platform.AVFoundation.setRate
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.timeControlStatus
@@ -73,7 +74,7 @@ import platform.UIKit.UIApplicationWillTerminateNotification
 import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
-import senada.app.createPlaybackController
+import senada.app.createPlayback
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.audio.IosAudioEffectsHub
@@ -113,7 +114,9 @@ internal object IosPlayback {
             options = 0u,
             error = null,
         )
-        val controller = createPlaybackController(output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE)
+        val controller = createPlayback(
+            output, IosQueueStore(), IosLocalAudioFiles(), PlatformContext.INSTANCE, audioEffects,
+        ).controller
         for (name in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
             observers += NSNotificationCenter.defaultCenter.addObserverForName(name, null, NSOperationQueue.mainQueue) {
                 controller.saveQueueNow()
@@ -267,6 +270,8 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
     private var currentEffects = initialEffects.bounded()
     private var pendingSeek: PendingSeek? = null
     private var reachedEnd = false
+    /** Akhir audio yang sebenarnya dari sumber; AVPlayer bisa menebak durasi MP4 terfragmen terlalu panjang. */
+    private var knownEndMs: Long? = null
     private val observers = mutableListOf<Any>()
 
     override var onEvent: (() -> Unit)? = null
@@ -332,23 +337,30 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
         }
 
     override val durationMs: Long?
-        get() = player.currentItem()?.let { CMTimeGetSeconds(it.duration()) }
-            ?.takeIf { it.isFinite() && it > 0 }
-            ?.let { (it * 1_000).roundToLong() }
+        get() {
+            val reported = player.currentItem()?.let { CMTimeGetSeconds(it.duration()) }
+                ?.takeIf { it.isFinite() && it > 0 }
+                ?.let { (it * 1_000).roundToLong() }
+            val known = knownEndMs
+            return if (known != null && reported != null) minOf(known, reported) else known ?: reported
+        }
 
     override var volume: Float
         get() = player.volume()
         set(value) { player.setVolume(value) }
 
-    override fun play(uri: String, restart: Boolean, startAtMs: Long) {
+    override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         if (restart) {
             pendingSeek = null
             reachedEnd = false
             player.pause()
             player.currentItem()?.setAudioMix(null)
             effectsHub.clearActiveTap()
+            knownEndMs = endAtMs?.takeIf { it > 0 }
             val item = NSURL.URLWithString(uri)?.let { AVPlayerItem.playerItemWithURL(it) }
             if (item != null) {
+                // AVPlayer mengirim DidPlayToEndTime saat mencapai akhir audio dari sumber.
+                knownEndMs?.let { item.setForwardPlaybackEndTime(CMTimeMake(it, 1_000)) }
                 applyPitchAlgorithm(item, currentEffects.pitchLock)
             }
             player.replaceCurrentItemWithPlayerItem(item)

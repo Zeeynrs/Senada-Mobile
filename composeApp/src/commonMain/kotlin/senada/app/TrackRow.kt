@@ -1,6 +1,7 @@
 package senada.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,9 +29,12 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import senada.app.shell.SenadaIcons
+import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
+import senada.app.theme.SenadaType
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
 
@@ -45,6 +50,7 @@ internal fun TrackRow(
     showArtworkWithNumber: Boolean = false,
     onClick: (() -> Unit)? = null,
     playing: Boolean = false,
+    onClickLabel: String = "Putar",
     action: @Composable () -> Unit,
 ) {
     val metadata = listOfNotNull(
@@ -66,7 +72,7 @@ internal fun TrackRow(
                     .fillMaxWidth()
                     .minTouchTarget()
                     .clip(MaterialTheme.shapes.small)
-                    .clickable(onClickLabel = "Putar", role = Role.Button, onClick = onClick)
+                    .clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
                     .padding(vertical = 4.dp)
             } else {
                 Modifier.fillMaxWidth()
@@ -85,18 +91,22 @@ internal fun TrackRow(
                     ) {
                         Text(
                             "$trackNumber",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = SenadaType.monoLabel.copy(
+                                fontSize = 12.sp,
+                                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
                             maxLines = 1,
                         )
                     }
                 }
                 if (showArtwork) {
-                    // Kotak sampul 48 dp radius 8 dp tetap ada tanpa gambar agar daftar sejajar; murni dekoratif.
+                    // Kotak sampul 48 dp memakai sudut sampul daftar dari LocalSenadaLook; murni dekoratif.
+                    val coverShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius)
                     Box(
                         modifier = Modifier.size(48.dp)
-                            .clip(MaterialTheme.shapes.extraSmall)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            .clip(coverShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), coverShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -123,7 +133,7 @@ internal fun TrackRow(
                 ) {
                     Text(
                         track.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = browseRowTitleStyle(),
                         color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -144,7 +154,7 @@ internal fun TrackRow(
                             if (metadata.isNotEmpty()) {
                                 Text(
                                     metadata,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = browseRowSubtitleStyle(),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
