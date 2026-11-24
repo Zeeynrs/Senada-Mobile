@@ -354,6 +354,44 @@ def check_app_navigation() -> None:
     )
 
 
+def check_queue_ended_now_playing() -> None:
+    shell("input keyevent KEYCODE_WAKEUP")
+    shell("wm dismiss-keyguard")
+    shell(f"am start -W -n {ACTIVITY}")
+    if wait_for(lambda: desc_point("Buka Sedang diputar"), 5) is None:
+        dismiss_system_dialogs()
+        wait_for(lambda: desc_point("Buka Sedang diputar"), 3)
+    opened = open_now_playing()
+    if opened:
+        time.sleep(0.3)
+        tree = ui_tree(save_as="05b-queue-ended-ui.xml")
+        screenshot("05b-queue-ended-nowplaying")
+        tap_desc("Tutup")
+        wait_for(now_playing_closed, 5)
+    else:
+        tree = None
+        screenshot("05b-queue-ended-nowplaying")
+
+    header_ok = tree is not None and bool(ui_bounds("Diputar dari Antrean", root=tree)) and not ui_bounds(
+        "Sedang diputar", root=tree
+    )
+    title_bounds = (
+        ui_bounds(f"{SECOND}, Pemutaran selesai", attribute="content-desc", root=tree) if tree is not None else []
+    )
+    slider_bounds = ui_bounds("Posisi pemutaran", attribute="content-desc", root=tree) if tree is not None else []
+    artist_bounds = ui_bounds("Senada", root=tree) if tree is not None else []
+    artist_ok = (
+        bool(title_bounds)
+        and bool(slider_bounds)
+        and any(title_bounds[0][1] < ay1 and ay2 <= slider_bounds[0][3] for _, ay1, _, ay2 in artist_bounds)
+    )
+    check(
+        opened and header_ok and artist_ok,
+        "Sedang diputar mempertahankan label antrean, judul, status selesai, dan artis setelah antrean habis",
+        f"opened={opened}, header_ok={header_ok}, title={title_bounds}, artist={artist_bounds}, slider={slider_bounds}",
+    )
+
+
 def check_sleep_timer() -> None:
     shell("input keyevent KEYCODE_WAKEUP")
     shell("wm dismiss-keyguard")
@@ -1928,6 +1966,7 @@ def scenario() -> None:
     ended = wait_for(finished, 25)
     check(ended, "Berhenti setelah entri terakhir selesai", ended or session())
     if ended:
+        check_queue_ended_now_playing()
         check_sleep_timer()
     check_https()
     check_listening_stats()
