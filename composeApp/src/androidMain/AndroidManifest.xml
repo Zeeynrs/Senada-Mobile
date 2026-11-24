@@ -4,7 +4,10 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <application android:label="Senada" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="Senada"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:exported="true"
