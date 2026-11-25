@@ -156,7 +156,7 @@ internal fun NowPlayingScreen(
     modifier: Modifier = Modifier,
 ) {
     val source by PlaySourceState.current.collectAsState()
-    val track = if (state.audio.selection == null) state.queue.entries.firstOrNull()?.track else state.currentEntry?.track
+    val track = if (state.audio.selection == null) state.queue.playOrder.firstOrNull()?.track else state.currentEntry?.track
     val accent = LocalArtworkAccent.current
     var sheet by rememberSaveable { mutableStateOf<PlayerSheet?>(null) }
     var themePickerOpen by rememberSaveable { mutableStateOf(false) }

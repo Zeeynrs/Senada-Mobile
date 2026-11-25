@@ -741,6 +741,142 @@ class PlaybackControllerTest {
         assertEquals(listOf(0L, 0L), output.startPositions)
     }
 
+    @Test
+    fun moveReordersDuplicateEntriesIndependentlyAndUpdatesNavigationAndPrefetch() = runTest {
+        val third = Track("demo:track:malam", "Tengah Malam", listOf("Senada"), source = "demo")
+        val resolved = mutableListOf<Long>()
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            resolved += entry.id
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        playback.add(first)
+        playback.add(third)
+        val (copy1, mid, copy2, tail) = playback.state.value.queue.entries
+
+        playback.playEntry(copy1.id)
+        runCurrent()
+        assertEquals(listOf(copy1.id, mid.id), resolved)
+
+        // Pindahkan salinan kedua tepat setelah copy1 yang sedang diputar.
+        playback.move(copy2.id, 1)
+        runCurrent()
+        assertEquals(listOf(copy1, copy2, mid, tail), playback.state.value.queue.playOrder)
+        assertEquals(listOf(copy1.id, mid.id, copy2.id), resolved)
+
+        // Lagu aktif selesai -> auto-advance ke salinan kedua, bukan mid.
+        output.status = SampleAudioStatus.Ended
+        output.emitEvent()
+        runCurrent()
+        assertEquals(copy2.id, playback.selectedEntryId)
+
+        // Previous dekat awal masuk ke copy1; next menuju mid.
+        output.positionMs = 500
+        playback.previous()
+        assertEquals(copy1.id, playback.selectedEntryId)
+        playback.next()
+        assertEquals(copy2.id, playback.selectedEntryId)
+        playback.next()
+        assertEquals(mid.id, playback.selectedEntryId)
+    }
+
+    @Test
+    fun moveKeepsPlayingEntryAudioPositionStatusAndUpdatesSubsequentOrder() = runTest {
+        val third = Track("demo:track:malam", "Tengah Malam", listOf("Senada"), source = "demo")
+        val playback = controller()
+        playback.addAll(listOf(first, second), playlistKey = "library:senja")
+        playback.add(third)
+        playback.setRepeatMode(RepeatMode.All)
+        val (a, b, c) = playback.state.value.queue.entries
+
+        playback.playEntry(a.id)
+        runCurrent()
+        output.positionMs = 42_000L
+        val restartsBefore = output.restarts.size
+        val pausesBefore = output.pauseCount
+
+        // Pindahkan lagu yang sedang diputar ke akhir antrean.
+        playback.move(a.id, 2)
+        assertEquals(listOf(b, c, a), playback.state.value.queue.playOrder)
+        assertEquals(a.id, playback.selectedEntryId)
+        assertEquals(SampleAudioStatus.Playing, playback.state.value.audio.status)
+        assertEquals(42_000L, output.positionMs)
+        assertEquals(restartsBefore, output.restarts.size)
+        assertEquals(pausesBefore, output.pauseCount)
+        assertEquals("library:senja", playback.state.value.currentEntry?.playlistKey)
+        assertEquals(RepeatMode.All, playback.state.value.queue.repeatMode)
+
+        // Pindahkan lagi ke tengah; previous < 3 detik atau next mengikuti urutan baru [b, a, c].
+        playback.move(a.id, 1)
+        assertEquals(listOf(b, a, c), playback.state.value.queue.playOrder)
+        playback.next()
+        assertEquals(c.id, playback.selectedEntryId)
+        output.positionMs = 500L
+        playback.previous()
+        assertEquals(a.id, playback.selectedEntryId)
+        output.positionMs = 500L
+        playback.previous()
+        assertEquals(b.id, playback.selectedEntryId)
+    }
+
+    @Test
+    fun moveNoOpDoesNotPublishStateOrChangePrefetch() = runTest {
+        val playback = controller()
+        playback.add(first)
+        playback.add(second)
+        val (a, b) = playback.state.value.queue.entries
+        playback.playEntry(a.id)
+        runCurrent()
+
+        var notifications = 0
+        playback.addListener { notifications++ }
+        val baseline = notifications
+
+        playback.move(a.id, 0)
+        playback.move(b.id, 99)
+        playback.move(999L, 0)
+        assertEquals(baseline, notifications)
+        assertEquals(listOf(a, b), playback.state.value.queue.playOrder)
+    }
+
+    @Test
+    fun moveInShuffleModeUpdatesPlayOrderPrefetchAndNextThenRestoresBaseOrderWhenShuffleOff() = runTest {
+        val third = Track("demo:track:malam", "Tengah Malam", listOf("Senada"), source = "demo")
+        val resolved = mutableListOf<Long>()
+        val playback = PlaybackController(output, backgroundScope) { entry ->
+            resolved += entry.id
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        playback.add(third)
+        val baseEntries = playback.state.value.queue.entries
+        playback.playEntry(baseEntries.first().id)
+        playback.setShuffleEnabled(true)
+        runCurrent()
+
+        val initialOrder = playback.state.value.queue.playOrder
+        val active = initialOrder.first()
+        val lastInShuffle = initialOrder.last()
+        // Pindahkan item terakhir shuffle tepat setelah item aktif.
+        playback.move(lastInShuffle.id, 1)
+        runCurrent()
+
+        val afterMove = playback.state.value.queue.playOrder
+        assertEquals(listOf(active, lastInShuffle, initialOrder[1]), afterMove)
+        assertEquals(baseEntries, playback.state.value.queue.entries)
+        assertEquals(lastInShuffle.id, resolved.last())
+
+        playback.next()
+        assertEquals(lastInShuffle.id, playback.selectedEntryId)
+
+        // Matikan shuffle: urutan kembali ke entries dasar, lagu aktif tetap bertahan.
+        playback.setShuffleEnabled(false)
+        assertEquals(baseEntries, playback.state.value.queue.playOrder)
+        assertEquals(lastInShuffle.id, playback.selectedEntryId)
+    }
+
     private companion object {
         const val HOUR_MS = 3_600_000L
     }
