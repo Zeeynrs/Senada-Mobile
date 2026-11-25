@@ -239,7 +239,8 @@ class LibraryBackupTest {
         val error = assertFailsWith<BackupException> {
             library().importBackup(desktopBackup.replace("\"format\":1", "\"format\":2"))
         }
-        assertTrue("lebih baru" in error.userMessage)
+        assertTrue("newer version" in error.userMessage, error.userMessage)
+        assertTrue("lebih baru" in error.userMessage(senada.app.AppLanguage.Indonesian))
     }
 
     @Test

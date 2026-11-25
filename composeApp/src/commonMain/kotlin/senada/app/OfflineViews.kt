@@ -24,6 +24,24 @@ import senada.offline.OfflineState
 import senada.offline.OfflineTask
 import senada.offline.OfflineTransfer
 import senada.offline.canDownloadOffline
+import senada.resources.Res
+import senada.resources.action_cancel
+import senada.resources.action_close
+import senada.resources.action_download_offline
+import senada.resources.action_remove_offline
+import senada.resources.action_retry
+import senada.resources.offline_cancel_download
+import senada.resources.offline_cancel_download_pct
+import senada.resources.offline_cancel_queued
+import senada.resources.offline_downloading
+import senada.resources.offline_downloading_pct
+import senada.resources.offline_empty_message
+import senada.resources.offline_find_songs
+import senada.resources.offline_loading
+import senada.resources.offline_queued
+import senada.resources.offline_retry_download
+import senada.resources.offline_saving_meta
+import senada.resources.offline_songs_title
 
 @Composable
 internal fun OfflineTrackMenuItem(track: Track, downloads: OfflineDownloads?, select: (() -> Unit) -> Unit) {
@@ -32,11 +50,13 @@ internal fun OfflineTrackMenuItem(track: Track, downloads: OfflineDownloads?, se
     val transfer = state.tasks[track.id]?.transfer
     val song = state.song(track.id)
     val label = when {
-        song != null -> "Hapus unduhan offline"
-        transfer is OfflineTransfer.Downloading -> transfer.percent?.let { "Batalkan unduhan ($it%)" } ?: "Batalkan unduhan"
-        transfer is OfflineTransfer.Queued -> "Batalkan antrean unduhan"
-        transfer is OfflineTransfer.Failed -> "Coba unduh lagi"
-        else -> "Unduh untuk offline"
+        song != null -> appString(Res.string.action_remove_offline)
+        transfer is OfflineTransfer.Downloading -> transfer.percent?.let {
+            appString(Res.string.offline_cancel_download_pct, it)
+        } ?: appString(Res.string.offline_cancel_download)
+        transfer is OfflineTransfer.Queued -> appString(Res.string.offline_cancel_queued)
+        transfer is OfflineTransfer.Failed -> appString(Res.string.offline_retry_download)
+        else -> appString(Res.string.action_download_offline)
     }
     OverflowActionItem(
         label = label,
@@ -62,13 +82,15 @@ internal fun LazyListScope.offlineSongsTab(
     val tracks = state.songs.map { it.track }
     fun play(index: Int = 0) = actions.playAll(tracks, PlaySource.Offline, index, resetShuffle = true)
     item(key = "offline-header") {
+        val language = LocalAppLanguage.current
+        val title = appString(Res.string.offline_songs_title)
         CompactCollectionHeader(
-            title = "Lagu offline",
-            meta = collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks)),
-            eyebrow = formatSize(state.songs.sumOf { it.sizeBytes }),
+            title = title,
+            meta = collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks), language = language),
+            eyebrow = formatSize(state.songs.sumOf { it.sizeBytes }, language),
         ) {
             CollectionPlayButtons(
-                title = "Lagu offline",
+                title = title,
                 canPlay = tracks.isNotEmpty(),
                 onPlay = { play() },
                 onShuffle = { actions.playShuffled(tracks, PlaySource.Offline) },
@@ -76,14 +98,20 @@ internal fun LazyListScope.offlineSongsTab(
         }
     }
     if (!state.ready) {
-        item(key = "offline-loading") { Text("Memuat unduhan…") }
+        item(key = "offline-loading") { Text(appString(Res.string.offline_loading)) }
     } else if (tracks.isEmpty() && state.tasks.isEmpty()) {
         item(key = "offline-empty") {
-            LibraryEmptyState("Pilih Unduh untuk offline dari menu lagu.", "Cari lagu", onAction = onOpenSearch)
+            LibraryEmptyState(
+                appString(Res.string.offline_empty_message),
+                appString(Res.string.offline_find_songs),
+                onAction = onOpenSearch,
+            )
         }
     }
-    state.problem?.let { message ->
-        item(key = "offline-problem") { Text(message, color = MaterialTheme.colorScheme.error) }
+    state.problemText?.let { problemText ->
+        item(key = "offline-problem") {
+            Text(problemText.resolve(LocalAppLanguage.current), color = MaterialTheme.colorScheme.error)
+        }
     }
     items(state.tasks.values.toList(), key = { "offline-task-${it.track.id}" }) { task ->
         actions.downloads?.let { OfflineTaskRow(task, it) }
@@ -101,28 +129,29 @@ internal fun LazyListScope.offlineSongsTab(
 @Composable
 private fun OfflineTaskRow(task: OfflineTask, downloads: OfflineDownloads) {
     val transfer = task.transfer
+    val language = LocalAppLanguage.current
     SenadaCard {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(task.track.title, style = MaterialTheme.typography.titleSmall)
             when (transfer) {
-                OfflineTransfer.Queued -> Text("Dalam antrean")
-                is OfflineTransfer.Failed -> Text(transfer.message, color = MaterialTheme.colorScheme.error)
+                OfflineTransfer.Queued -> Text(appString(Res.string.offline_queued))
+                is OfflineTransfer.Failed -> Text(transfer.message(language), color = MaterialTheme.colorScheme.error)
                 is OfflineTransfer.Downloading -> {
                     val percent = transfer.percent
                     Text(when (percent) {
-                        null -> "Mengunduh…"
-                        100 -> "Menyimpan sampul dan lirik…"
-                        else -> "Mengunduh $percent%"
+                        null -> appString(Res.string.offline_downloading)
+                        100 -> appString(Res.string.offline_saving_meta)
+                        else -> appString(Res.string.offline_downloading_pct, percent)
                     })
                     if (percent == null) LinearProgressIndicator(Modifier.fillMaxWidth())
                     else LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth())
                 }
             }
             if (transfer is OfflineTransfer.Failed) {
-                TextButton(onClick = { downloads.download(task.track) }) { Text("Coba lagi") }
+                TextButton(onClick = { downloads.download(task.track) }) { Text(appString(Res.string.action_retry)) }
             }
             TextButton(onClick = { downloads.cancel(task.track) }) {
-                Text(if (transfer is OfflineTransfer.Failed) "Tutup" else "Batalkan")
+                Text(appString(if (transfer is OfflineTransfer.Failed) Res.string.action_close else Res.string.action_cancel))
             }
         }
     }

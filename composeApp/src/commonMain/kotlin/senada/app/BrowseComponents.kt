@@ -43,6 +43,11 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import senada.resources.Res
+import senada.resources.action_load_more
+import senada.resources.action_loading
+import senada.resources.state_not_selected
+import senada.resources.state_selected
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -120,7 +125,9 @@ internal fun SenadaFilterPill(
         animationSpec = look.tweenOrSnap(FilterChipTransitionMs),
     )
     val shape = RoundedCornerShape(20.dp)
-    val resolvedState = stateLabel ?: if (selected) "Dipilih" else "Tidak dipilih"
+    val resolvedState = stateLabel ?: appString(
+        if (selected) Res.string.state_selected else Res.string.state_not_selected,
+    )
 
     Box(
         modifier = modifier
@@ -310,7 +317,7 @@ internal fun BrowseLoadMoreButton(
         modifier = modifier.fillMaxWidth().heightIn(min = 48.dp),
     ) {
         Text(
-            text = if (loading) "Memuat…" else "Muat lebih banyak",
+            text = appString(if (loading) Res.string.action_loading else Res.string.action_load_more),
             style = MaterialTheme.typography.labelLarge.copy(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,

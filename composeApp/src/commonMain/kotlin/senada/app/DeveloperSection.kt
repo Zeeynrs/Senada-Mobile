@@ -24,13 +24,21 @@ import senada.audio.ReverbSettings
 import senada.catalog.DemoCatalog
 import senada.playback.PlaybackController
 import senada.playback.SampleAudioSource
+import senada.resources.Res
+import senada.resources.developer_audio_sample_label
+import senada.resources.developer_play_https
+import senada.resources.developer_play_local
+import senada.resources.developer_test_effects
+import senada.resources.developer_title
+import senada.resources.state_active
+import senada.resources.state_off
 
 /** Uji audio untuk pengembang: memutar sampel yang ikut di aplikasi atau dari HTTPS, di luar antrean. */
 @Composable
 internal fun DeveloperSection(playback: PlaybackController, audioEffects: AudioEffectsController?) {
-    SettingsCard("Pengembang") {
+    SettingsCard(appString(Res.string.developer_title)) {
         Text(
-            "Uji audio: ${DemoCatalog.tracks.first().title}",
+            appString(Res.string.developer_audio_sample_label, DemoCatalog.tracks.first().title),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -48,16 +56,17 @@ internal fun DeveloperSection(playback: PlaybackController, audioEffects: AudioE
                 shape = CircleShape,
                 colors = buttonColors,
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Putar lokal") }
+            ) { Text(appString(Res.string.developer_play_local)) }
             FilledTonalButton(
                 onClick = { playback.play(sampleAudioSelection(SampleAudioSource.Https)) },
                 shape = CircleShape,
                 colors = buttonColors,
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Putar HTTPS") }
+            ) { Text(appString(Res.string.developer_play_https)) }
             if (audioEffects != null) {
                 val current by audioEffects.effects.collectAsState()
                 val active = current.copy(customPresets = emptyList()) == DeveloperTestEffects
+                val stateLabel = appString(if (active) Res.string.state_active else Res.string.state_off)
                 FilledTonalButton(
                     onClick = {
                         audioEffects.update {
@@ -68,9 +77,9 @@ internal fun DeveloperSection(playback: PlaybackController, audioEffects: AudioE
                     shape = CircleShape,
                     colors = buttonColors,
                     modifier = Modifier.minTouchTarget().semantics {
-                        stateDescription = if (active) "Aktif" else "Mati"
+                        stateDescription = stateLabel
                     },
-                ) { Text("Uji efek") }
+                ) { Text(appString(Res.string.developer_test_effects)) }
             }
         }
     }

@@ -21,8 +21,15 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.local.LOCAL_FILE_SOURCE
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_lyrics_http
+import senada.resources.error_lyrics_network
+import senada.resources.error_lyrics_unreadable
 
 internal sealed interface LyricsDocument {
     data class Synced(val lines: List<LyricLine>) : LyricsDocument
@@ -31,7 +38,17 @@ internal sealed interface LyricsDocument {
     data object Unavailable : LyricsDocument
 }
 
-internal class LyricsException(val userMessage: String, cause: Throwable? = null) : Exception(userMessage, cause)
+internal class LyricsException(
+    internal val uiText: UiText,
+    cause: Throwable? = null,
+) : Exception(uiText.resolve(), cause) {
+    constructor(userMessage: String, cause: Throwable? = null) : this(UiText.Raw(userMessage), cause)
+
+    fun userMessage(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+    val userMessage: String
+        get() = userMessage()
+}
 
 internal class LyricsRepository(private val http: HttpClient) {
     private val cache = mutableMapOf<String, LyricsDocument>()
@@ -62,13 +79,13 @@ internal class LyricsRepository(private val http: HttpClient) {
             when (val exact = request("get", track)) {
                 is JsonObject -> exact.document()?.let { return it }
                 JsonNull -> Unit
-                else -> throw LyricsException(UNREADABLE)
+                else -> throw LyricsException(UiText.Resource(Res.string.error_lyrics_unreadable))
             }
         }
         val matches = when (val result = request("search", track)) {
             is JsonArray -> result
             JsonNull -> return LyricsDocument.Unavailable
-            else -> throw LyricsException(UNREADABLE)
+            else -> throw LyricsException(UiText.Resource(Res.string.error_lyrics_unreadable))
         }
         var fallback: LyricsDocument = LyricsDocument.Unavailable
         for (match in matches) {
@@ -95,7 +112,7 @@ internal class LyricsRepository(private val http: HttpClient) {
             }
             if (response.status == HttpStatusCode.NotFound) return JsonNull
             if (!response.status.isSuccess()) {
-                throw LyricsException("LRCLIB gagal memuat lirik (HTTP ${response.status.value}).")
+                throw LyricsException(UiText.Resource(Res.string.error_lyrics_http, response.status.value))
             }
             response.bodyAsText()
         } catch (e: CancellationException) {
@@ -103,18 +120,17 @@ internal class LyricsRepository(private val http: HttpClient) {
         } catch (e: LyricsException) {
             throw e
         } catch (e: Exception) {
-            throw LyricsException("Tidak dapat terhubung ke LRCLIB. Periksa koneksi internet.", e)
+            throw LyricsException(UiText.Resource(Res.string.error_lyrics_network), e)
         }
         if (body.isBlank()) return JsonNull
         return try {
             Json.parseToJsonElement(body)
         } catch (e: IllegalArgumentException) {
-            throw LyricsException(UNREADABLE, e)
+            throw LyricsException(UiText.Resource(Res.string.error_lyrics_unreadable), e)
         }
     }
 }
 
-private const val UNREADABLE = "Balasan LRCLIB tidak dapat dibaca."
 private const val TITLE_CREDIT = """(?:feat|ft)\.\s+[^\s()\[\]][^()\[\]]*"""
 private const val TITLE_VERSION = """official (?:audio|(?:music )?video)|lyric video|remaster(?:ed)?(?:\s+[0-9]{4})?|live"""
 

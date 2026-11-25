@@ -17,11 +17,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import senada.app.appString
 import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.SenadaIcons
 import senada.app.shell.nowPlayingSwipe
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
+import senada.resources.Res
+import senada.resources.action_close
+import senada.resources.appearance_full_view_theme_title
+import senada.resources.player_lyrics_settings
+import senada.resources.player_queue_button
 
 @Composable
 internal fun VinylNowPlaying(
@@ -52,12 +58,12 @@ internal fun VinylNowPlaying(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    PlayerGlassButton(SenadaIcons.Close, "Tutup", scale = .85f, onClick = onClose)
+                    PlayerGlassButton(SenadaIcons.Close, appString(Res.string.action_close), scale = .85f, onClick = onClose)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        PlayerGlassButton(SenadaIcons.Appearance, "Tema Full View", scale = .85f, onClick = onTheme)
-                        PlayerGlassButton(SenadaIcons.Settings, "Pengaturan lirik", scale = .85f, onClick = onLyricsSettings)
+                        PlayerGlassButton(SenadaIcons.Appearance, appString(Res.string.appearance_full_view_theme_title), scale = .85f, onClick = onTheme)
+                        PlayerGlassButton(SenadaIcons.Settings, appString(Res.string.player_lyrics_settings), scale = .85f, onClick = onLyricsSettings)
                         SleepTimerButton(timer, state.audio.canStopAfterTrack, playback, scale = .85f)
-                        PlayerGlassButton(NowPlayingIcons.Queue, "Antrean", scale = .85f, onClick = onQueue)
+                        PlayerGlassButton(NowPlayingIcons.Queue, appString(Res.string.player_queue_button), scale = .85f, onClick = onQueue)
                     }
                 }
             }

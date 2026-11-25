@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import senada.app.AndroidResourceHolder
 
 /**
  * Menjaga audio tetap berjalan saat layar terkunci atau aplikasi berpindah, serta
@@ -14,6 +15,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        AndroidResourceHolder.register(this)
         val builder = MediaSession.Builder(this, AndroidPlayback.get(this).sessionPlayer)
         packageManager.getLaunchIntentForPackage(packageName)?.let { launch ->
             builder.setSessionActivity(

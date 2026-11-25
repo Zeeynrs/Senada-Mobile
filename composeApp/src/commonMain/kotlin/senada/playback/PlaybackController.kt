@@ -12,16 +12,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import senada.app.UiText
 import senada.catalog.CatalogException
 import senada.local.LocalAudioException
 import senada.epochMillis
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_playback_prepare_failed
 
 internal data class PlaybackState(
     val queue: Queue = Queue(),
     val audio: SampleAudioState = SampleAudioState(),
     /** Penjelasan untuk pengguna saat audio entri terpilih tidak dapat disiapkan. */
     val problem: String? = null,
+    val problemText: UiText? = null,
 ) {
     val currentEntry: QueueItem?
         get() = audio.selection?.queueEntryId?.let { id -> queue.entries.firstOrNull { it.id == id } }
@@ -68,7 +72,7 @@ internal class PlaybackController(
 
     private var preparing: Job? = null
     private var prefetched: Prefetch? = null
-    private var problem: String? = null
+    private var problemText: UiText? = null
 
     /** Entri stream yang boleh dicoba ulang sekali bila pemutar gagal, misalnya karena jaringan berganti. */
     private var retryEntryId: Long? = null
@@ -140,7 +144,7 @@ internal class PlaybackController(
     fun remove(entryId: Long) {
         if (player.state.selection?.queueEntryId == entryId) {
             preparing?.cancel()
-            problem = null
+            problemText = null
             retryEntryId = null
             resumeAfterTrackEnd = false
         }
@@ -157,7 +161,7 @@ internal class PlaybackController(
         val restart = resumeAfterTrackEnd
         resumeAfterTrackEnd = false
         preparing?.cancel()
-        problem = null
+        problemText = null
         retryEntryId = null
         player.play(selection, forceRestart = restart)
         prefetchNext()
@@ -285,7 +289,7 @@ internal class PlaybackController(
         sleepTimer.expireIfDue()
         resumeAfterTrackEnd = false
         preparing?.cancel()
-        problem = null
+        problemText = null
         retryEntryId = null
         val early = prefetched?.takeIf { it.entryId == entry.id }?.selection
         if (early != null) prefetched = null else dropPrefetch()
@@ -310,9 +314,10 @@ internal class PlaybackController(
                 throw e
             } catch (e: Exception) {
                 player.failPreparing()
-                problem = (e as? CatalogException)?.userMessage
-                    ?: (e as? LocalAudioException)?.userMessage
-                    ?: "Audio gagal disiapkan. Coba lagi."
+                val text = (e as? CatalogException)?.uiText
+                    ?: (e as? LocalAudioException)?.uiText
+                    ?: UiText.Resource(Res.string.error_playback_prepare_failed)
+                problemText = text
                 publish()
                 return@launch
             }
@@ -390,7 +395,13 @@ internal class PlaybackController(
     }
 
     private fun publish() {
-        val current = PlaybackState(queue, player.state, problem?.takeIf { player.state.status == SampleAudioStatus.Failed })
+        val activeProblem = problemText?.takeIf { player.state.status == SampleAudioStatus.Failed }
+        val current = PlaybackState(
+            queue = queue,
+            audio = player.state,
+            problem = activeProblem?.resolve(),
+            problemText = activeProblem,
+        )
         mutableState.value = current
 
         val announced = current.copy(audio = current.audio.copy(positionMs = 0))

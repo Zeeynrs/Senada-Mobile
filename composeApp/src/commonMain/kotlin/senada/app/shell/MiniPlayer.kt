@@ -28,11 +28,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import senada.app.appString
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.playback.PlaybackState
+import senada.resources.Res
+import senada.resources.a11y_open_now_playing
+import senada.resources.action_pause
+import senada.resources.action_play
+import senada.resources.player_next
 
 private val MiniArtworkSize = 44.dp
-private const val OpenNowPlayingLabel = "Buka Sedang diputar"
 
 /** Mini player tampil bila ada yang bisa diputar: antrean berisi lagu, atau sampel uji sedang dipilih. */
 internal fun showsMiniPlayer(state: PlaybackState): Boolean =
@@ -53,13 +58,16 @@ internal fun MiniPlayer(
     val title = track?.title ?: state.audio.selection?.title.orEmpty()
     val subtitle = track?.artists?.joinToString().orEmpty()
     val playing = state.audio.isActive
+    val openLabel = appString(Res.string.a11y_open_now_playing)
+    val playPauseLabel = appString(if (playing) Res.string.action_pause else Res.string.action_play)
+    val nextLabel = appString(Res.string.player_next)
     GlassSurface(shape = CircleShape, modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = modifier
                 .clickable(onClick = onOpen)
                 .semantics {
-                    contentDescription = OpenNowPlayingLabel
-                    customActions = listOf(CustomAccessibilityAction(OpenNowPlayingLabel) {
+                    contentDescription = openLabel
+                    customActions = listOf(CustomAccessibilityAction(openLabel) {
                         onOpen()
                         true
                     })
@@ -103,7 +111,7 @@ internal fun MiniPlayer(
             }
             IconButton(
                 onClick = onPlayPause,
-                modifier = Modifier.semantics { contentDescription = if (playing) "Jeda" else "Putar" },
+                modifier = Modifier.semantics { contentDescription = playPauseLabel },
             ) {
                 Icon(if (playing) SenadaIcons.Pause else SenadaIcons.Play, null, Modifier.size(20.dp))
             }
@@ -111,7 +119,7 @@ internal fun MiniPlayer(
                 IconButton(
                     onClick = onNext,
                     enabled = state.canGoNext,
-                    modifier = Modifier.semantics { contentDescription = "Berikutnya" },
+                    modifier = Modifier.semantics { contentDescription = nextLabel },
                 ) {
                     Icon(SenadaIcons.MiniNext, null, Modifier.size(22.dp))
                 }

@@ -57,10 +57,13 @@ import kotlinx.coroutines.isActive
 import senada.app.playbackTime
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
+import senada.app.appString
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.playback.PlaybackController
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
+import senada.resources.Res
+import senada.resources.vinyl_tonearm_a11y
 
 @Composable
 internal fun VinylTurntable(
@@ -129,10 +132,11 @@ internal fun VinylTurntable(
             Box(Modifier.size(4.dp).background(Color(0xFF25272C), CircleShape))
         }
 
+        val tonearmLabel = appString(Res.string.vinyl_tonearm_a11y)
         Canvas(
             Modifier.fillMaxSize()
                 .semantics {
-                    contentDescription = "Jarum Vinyl"
+                    contentDescription = tonearmLabel
                     if (seekable) {
                         progressBarRangeInfo = ProgressBarRangeInfo(progress(), 0f..1f)
                         setProgress(action = ::seek)

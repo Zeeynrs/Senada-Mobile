@@ -58,9 +58,13 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.ArtworkAccentCache
+import senada.app.LocalAppLanguage
 import senada.app.LocalArtworkAccent
 import senada.app.SenadaMark
+import senada.app.appString
 import senada.app.loadArtworkAccent
 import senada.app.minTouchTarget
 import senada.app.shell.GlassSurface
@@ -71,6 +75,19 @@ import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaPalette
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
+import senada.resources.Res
+import senada.resources.a11y_open_profile
+import senada.resources.a11y_play_track
+import senada.resources.a11y_view_most_played
+import senada.resources.a11y_view_playlist
+import senada.resources.action_play
+import senada.resources.action_view
+import senada.resources.app_name
+import senada.resources.home_hero_reason_playlist
+import senada.resources.home_hero_reason_track
+import senada.resources.home_hero_welcome_reason
+import senada.resources.home_hero_welcome_title
+import senada.resources.offline_find_songs
 
 internal const val HERO_REF_WIDTH_DP = 390f
 internal const val HERO_REF_HEIGHT_DP = 440f
@@ -97,24 +114,27 @@ internal data class HeroCopy(
     val artistName: String? = null,
 )
 
-internal fun heroCopy(hero: HomeHero): HeroCopy = when (hero) {
+internal fun heroCopy(
+    hero: HomeHero,
+    language: AppLanguage = AppStrings.currentLanguage,
+): HeroCopy = when (hero) {
     is HomeHero.FromPlaylist -> HeroCopy(
-        reason = "Playlist yang sering kamu putar",
+        reason = AppStrings.get(Res.string.home_hero_reason_playlist, language),
         title = hero.summary.name,
-        primaryAction = "Putar",
-        secondaryAction = "Lihat",
+        primaryAction = AppStrings.get(Res.string.action_play, language),
+        secondaryAction = AppStrings.get(Res.string.action_view, language),
     )
     is HomeHero.FromTrack -> HeroCopy(
-        reason = "Karena kamu sering memutar",
+        reason = AppStrings.get(Res.string.home_hero_reason_track, language),
         title = hero.track.title,
-        primaryAction = "Putar",
-        secondaryAction = "Lihat",
+        primaryAction = AppStrings.get(Res.string.action_play, language),
+        secondaryAction = AppStrings.get(Res.string.action_view, language),
         artistName = hero.track.artists.filter { it.isNotBlank() }.joinToString().ifEmpty { null },
     )
     HomeHero.Welcome -> HeroCopy(
-        reason = "Selamat datang di Senada",
-        title = "Mulai dengarkan",
-        primaryAction = "Cari lagu",
+        reason = AppStrings.get(Res.string.home_hero_welcome_reason, language),
+        title = AppStrings.get(Res.string.home_hero_welcome_title, language),
+        primaryAction = AppStrings.get(Res.string.offline_find_songs, language),
         secondaryAction = null,
     )
 }
@@ -210,7 +230,8 @@ internal fun HomeHeroCard(
     onPrimary: () -> Unit,
     onSecondary: () -> Unit,
 ) {
-    val copy = heroCopy(hero)
+    val language = LocalAppLanguage.current
+    val copy = heroCopy(hero, language)
     val artworkUrl = when (hero) {
         is HomeHero.FromPlaylist -> hero.artworkUrl
         is HomeHero.FromTrack -> hero.track.artworkUrl
@@ -340,7 +361,7 @@ internal fun HomeHeroCard(
                     ) {
                         HeroGlassButton(
                             label = copy.primaryAction,
-                            accessibilityLabel = if (hero == HomeHero.Welcome) copy.primaryAction else "Putar ${copy.title}",
+                            accessibilityLabel = if (hero == HomeHero.Welcome) copy.primaryAction else appString(Res.string.a11y_play_track, copy.title),
                             horizontalPadding = 16.dp,
                             leadingIcon = if (hero == HomeHero.Welcome) SenadaIcons.Search else HeroPlayTriangle,
                             onClick = onPrimary,
@@ -349,8 +370,8 @@ internal fun HomeHeroCard(
                             HeroGlassButton(
                                 label = label,
                                 accessibilityLabel = when (hero) {
-                                    is HomeHero.FromPlaylist -> "Lihat playlist ${hero.summary.name}"
-                                    is HomeHero.FromTrack -> "Lihat lagu yang paling sering diputar"
+                                    is HomeHero.FromPlaylist -> appString(Res.string.a11y_view_playlist, hero.summary.name)
+                                    is HomeHero.FromTrack -> appString(Res.string.a11y_view_most_played)
                                     HomeHero.Welcome -> label
                                 },
                                 horizontalPadding = 14.dp,
@@ -395,7 +416,7 @@ private fun HomeTopBar(
         ) {
             SenadaMark(Modifier.size(34.dp), tint = textColor)
             Text(
-                text = "Senada",
+                text = appString(Res.string.app_name),
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp,
@@ -407,12 +428,13 @@ private fun HomeTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        val openProfileDesc = appString(Res.string.a11y_open_profile)
         Box(
             modifier = Modifier
                 .minTouchTarget()
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClick = onOpenProfile)
-                .semantics { contentDescription = "Buka profil" },
+                .semantics { contentDescription = openProfileDesc },
             contentAlignment = Alignment.Center,
         ) {
             ProfileAvatar(

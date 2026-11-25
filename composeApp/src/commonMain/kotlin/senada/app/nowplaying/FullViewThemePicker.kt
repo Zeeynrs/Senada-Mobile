@@ -34,14 +34,18 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import senada.app.FullViewTheme
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
+import senada.app.appString
+import senada.resources.Res
+import senada.resources.appearance_full_view_theme_title
 
 @Composable
 internal fun FullViewThemeCard(selected: FullViewTheme, enabled: Boolean, onSelect: (FullViewTheme) -> Unit) {
     SenadaCard {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Tema Full View", style = MaterialTheme.typography.titleMedium,
+                appString(Res.string.appearance_full_view_theme_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() },
             )
             FullViewThemeOptions(selected, enabled, onSelect)
@@ -61,7 +65,7 @@ internal fun FullViewThemeSheet(selected: FullViewTheme, onSelect: (FullViewThem
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                "Tema Full View", style = MaterialTheme.typography.headlineSmall,
+                appString(Res.string.appearance_full_view_theme_title), style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.semantics { heading() },
             )
             FullViewThemeOptions(selected, enabled = true) { theme ->
@@ -76,6 +80,7 @@ internal fun FullViewThemeSheet(selected: FullViewTheme, onSelect: (FullViewThem
 private fun FullViewThemeOptions(selected: FullViewTheme, enabled: Boolean, onSelect: (FullViewTheme) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(14.dp)
+    val language = LocalAppLanguage.current
     Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         for (theme in FullViewTheme.entries) {
             val active = theme == selected
@@ -88,7 +93,11 @@ private fun FullViewThemeOptions(selected: FullViewTheme, enabled: Boolean, onSe
             ) {
                 Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     FullViewThemePreview(theme)
-                    Text(theme.label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 3.dp))
+                    Text(
+                        theme.label(language),
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                    )
                 }
             }
         }

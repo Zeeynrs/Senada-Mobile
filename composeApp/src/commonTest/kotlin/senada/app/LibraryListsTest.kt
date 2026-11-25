@@ -7,18 +7,20 @@ import senada.library.collectPlaylistCovers
 class LibraryListsTest {
     @Test
     fun formatsPlaylistRowSubtitleWithNonNegativeCounts() {
-        assertEquals("Playlist · 0 lagu", playlistRowSubtitle(0))
-        assertEquals("Playlist · 1 lagu", playlistRowSubtitle(1))
-        assertEquals("Playlist · 12 lagu", playlistRowSubtitle(12))
-        assertEquals("Playlist · 0 lagu", playlistRowSubtitle(-3))
+        assertEquals("Playlist · 0 songs", playlistRowSubtitle(0))
+        assertEquals("Playlist · 1 song", playlistRowSubtitle(1))
+        assertEquals("Playlist · 12 songs", playlistRowSubtitle(12))
+        assertEquals("Playlist · 0 songs", playlistRowSubtitle(-3))
+        assertEquals("Playlist · 1 lagu", playlistRowSubtitle(1, AppLanguage.Indonesian))
     }
 
     @Test
     fun formatsPlaylistListMetaCount() {
-        assertEquals(CollectionMeta("0 playlist", "0 playlist"), playlistListMeta(0))
+        assertEquals(CollectionMeta("0 playlists", "0 playlists"), playlistListMeta(0))
         assertEquals(CollectionMeta("1 playlist", "1 playlist"), playlistListMeta(1))
-        assertEquals(CollectionMeta("5 playlist", "5 playlist"), playlistListMeta(5))
-        assertEquals(CollectionMeta("0 playlist", "0 playlist"), playlistListMeta(-2))
+        assertEquals(CollectionMeta("5 playlists", "5 playlists"), playlistListMeta(5))
+        assertEquals(CollectionMeta("0 playlists", "0 playlists"), playlistListMeta(-2))
+        assertEquals(CollectionMeta("5 playlist", "5 playlist"), playlistListMeta(5, AppLanguage.Indonesian))
     }
 
     @Test

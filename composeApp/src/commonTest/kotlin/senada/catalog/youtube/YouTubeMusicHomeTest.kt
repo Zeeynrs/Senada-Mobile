@@ -315,18 +315,20 @@ class YouTubeMusicHomeTest {
         assertTrue(exploreOnlyFeed.shelves.all { it.source == HomeShelfSource.Explore })
         assertTrue(exploreOnlyFeed.moods.isNotEmpty())
 
-        // Semua sumber gagal (HTTP 429) -> CatalogException Kind.RateLimited berbahasa Indonesia.
+        // Semua sumber gagal (HTTP 429) -> CatalogException Kind.RateLimited terlokalisasi.
         val allFailCatalog = home { _, _ -> json("{}", HttpStatusCode.TooManyRequests) }
         val error = assertFailsWith<CatalogException> { allFailCatalog.homeFeed(saveData = false) }
         assertEquals(CatalogException.Kind.RateLimited, error.kind)
-        assertTrue(error.message!!.contains("YouTube Music", ignoreCase = true))
-        assertFalse(error.message!!.startsWith("Innertube HTTP"))
+        assertTrue(error.userMessage.contains("YouTube Music", ignoreCase = true))
+        assertTrue(error.userMessage(senada.app.AppLanguage.Indonesian).contains("YouTube Music", ignoreCase = true))
+        assertFalse(error.userMessage.startsWith("Innertube HTTP"))
 
-        // Mode hemat data saat Home gagal -> CatalogException Kind.Network berbahasa Indonesia.
+        // Mode hemat data saat Home gagal -> CatalogException Kind.Network terlokalisasi.
         val saveDataFail = home { _, _ -> json("{}", HttpStatusCode.ServiceUnavailable) }
         val netError = assertFailsWith<CatalogException> { saveDataFail.homeFeed(saveData = true) }
         assertEquals(CatalogException.Kind.Network, netError.kind)
-        assertTrue(netError.message!!.contains("Tidak dapat terhubung", ignoreCase = true))
+        assertTrue(netError.userMessage.contains("Cannot connect", ignoreCase = true), netError.userMessage)
+        assertTrue(netError.userMessage(senada.app.AppLanguage.Indonesian).contains("Tidak dapat terhubung", ignoreCase = true))
     }
 
     @Test

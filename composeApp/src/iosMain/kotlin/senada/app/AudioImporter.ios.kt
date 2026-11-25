@@ -29,6 +29,10 @@ import senada.local.LocalAudioException
 import senada.local.newLocalFileName
 import senada.local.notEnoughSpace
 import senada.platform.importedAudioDirectory
+import senada.resources.Res
+import senada.resources.import_audio_default_name
+import senada.resources.import_audio_failed_copy
+import senada.resources.import_audio_folder_unavailable
 
 @Composable
 internal actual fun rememberAudioImporter(): AudioImporter = remember { IosAudioImporter() }
@@ -44,9 +48,10 @@ private class IosAudioImporter : AudioImporter {
             val files = NSFileManager.defaultManager
             val source = checkNotNull(picked.path)
             try {
-                val displayName = picked.lastPathComponent ?: "File audio"
+                val displayName = picked.lastPathComponent ?: AppStrings.get(Res.string.import_audio_default_name)
                 val size = (files.attributesOfItemAtPath(source, null)?.get(NSFileSize) as? NSNumber)?.longLongValue ?: -1L
-                val dir = importedAudioDirectory() ?: throw LocalAudioException("Folder aplikasi tidak dapat dibuka.")
+                val dir = importedAudioDirectory()
+                    ?: throw LocalAudioException(UiText.Resource(Res.string.import_audio_folder_unavailable))
                 files.createDirectoryAtPath(dir, withIntermediateDirectories = true, attributes = null, error = null)
                 val free = (files.attributesOfFileSystemForPath(dir, null)?.get(NSFileSystemFreeSize) as? NSNumber)?.longLongValue
                 if (free != null && size >= 0 && free < size + FREE_SPACE_MARGIN_BYTES) throw notEnoughSpace()
@@ -54,7 +59,7 @@ private class IosAudioImporter : AudioImporter {
                 val fileName = newLocalFileName(displayName)
                 val target = "$dir/$fileName"
                 if (!files.moveItemAtPath(source, toPath = target, error = null)) {
-                    throw LocalAudioException("File audio gagal disalin.")
+                    throw LocalAudioException(UiText.Resource(Res.string.import_audio_failed_copy))
                 }
                 ImportedAudio(fileName, displayName, size.coerceAtLeast(0)).withMetadataFrom(target)
             } finally {

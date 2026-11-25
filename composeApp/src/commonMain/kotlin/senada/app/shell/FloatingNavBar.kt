@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import senada.app.LocalAppLanguage
 import senada.app.theme.LocalSenadaLook
 
 /** Pil navigasi kaca yang mengambang di bawah layar; tujuan aktif ditandai pil monokrom. */
@@ -40,6 +41,7 @@ internal fun FloatingNavBar(
     profilePhoto: Any? = null,
 ) {
     val look = LocalSenadaLook.current
+    val language = LocalAppLanguage.current
     GlassSurface(shape = CircleShape, modifier = Modifier.fillMaxWidth().height(64.dp)) {
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp).selectableGroup(),
@@ -47,6 +49,7 @@ internal fun FloatingNavBar(
         ) {
             for (destination in AppDestination.entries) {
                 val selected = destination == current
+                val label = destination.label(language)
                 val interactionSource = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
@@ -59,7 +62,7 @@ internal fun FloatingNavBar(
                             role = Role.Tab,
                             onClick = { onSelect(destination) },
                         )
-                        .semantics { contentDescription = destination.label },
+                        .semantics { contentDescription = label },
                     contentAlignment = Alignment.Center,
                 ) {
                     val colors = MaterialTheme.colorScheme

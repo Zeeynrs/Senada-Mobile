@@ -10,11 +10,29 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_backup_corrupted
+import senada.resources.error_backup_newer_version
+import senada.resources.error_backup_not_a_backup
+import senada.resources.error_backup_too_large
 
 /** Backup tidak bisa dibaca atau ditolak; [userMessage] siap ditampilkan. */
-internal class BackupException(val userMessage: String, cause: Throwable? = null) : Exception(userMessage, cause)
+internal class BackupException(
+    internal val uiText: UiText,
+    cause: Throwable? = null,
+) : Exception(uiText.resolve(), cause) {
+    constructor(userMessage: String, cause: Throwable? = null) : this(UiText.Raw(userMessage), cause)
+
+    fun userMessage(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+    val userMessage: String
+        get() = userMessage()
+}
 
 /** Lagu di backup beserta waktunya (ditambahkan ke favorit atau terakhir diputar), dalam milidetik. */
 internal data class BackupTrack(val track: Track, val atMs: Long?)
@@ -57,31 +75,31 @@ internal object BackupCodec {
 
     fun decode(text: String): BackupDocument {
         if (text.length > MAX_BYTES || text.encodeToByteArray().size > MAX_BYTES) {
-            throw BackupException("File backup terlalu besar (maksimal 10 MB).")
+            throw BackupException(UiText.Resource(Res.string.error_backup_too_large))
         }
         val parsed = try {
             Json.parseToJsonElement(text)
         } catch (e: IllegalArgumentException) {
-            throw BackupException(NOT_A_BACKUP, e)
+            throw BackupException(UiText.Resource(Res.string.error_backup_not_a_backup), e)
         }
-        val root = parsed as? JsonObject ?: throw BackupException(NOT_A_BACKUP)
+        val root = parsed as? JsonObject ?: throw BackupException(UiText.Resource(Res.string.error_backup_not_a_backup))
 
         val library = when {
             root.text("app") == "Senada" && root.text("kind") == "backup" -> {
                 val format = (root["format"] as? JsonPrimitive)?.longOrNull ?: 0
-                if (format > FORMAT) throw BackupException("Backup ini dibuat oleh Senada versi lebih baru. Perbarui Senada dulu.")
-                root["library"] as? JsonObject ?: throw BackupException(NOT_A_BACKUP)
+                if (format > FORMAT) throw BackupException(UiText.Resource(Res.string.error_backup_newer_version))
+                root["library"] as? JsonObject ?: throw BackupException(UiText.Resource(Res.string.error_backup_not_a_backup))
             }
             // library.json desktop yang disalin langsung juga diterima, seperti di desktop.
             LIBRARY_KEYS.any { it in root } -> root
-            else -> throw BackupException(NOT_A_BACKUP)
+            else -> throw BackupException(UiText.Resource(Res.string.error_backup_not_a_backup))
         }
 
         val sections = LIBRARY_KEYS.associateWith { key ->
             when (val items = library[key]) {
                 null, JsonNull -> emptyList()
                 is JsonArray -> items.filterIsInstance<JsonObject>()
-                else -> throw BackupException("Backup ini rusak.")
+                else -> throw BackupException(UiText.Resource(Res.string.error_backup_corrupted))
             }
         }
 
@@ -200,6 +218,5 @@ internal object BackupCodec {
         return seconds.takeIf { it in 1..MAX_SECONDS }?.times(1_000)
     }
 
-    private const val NOT_A_BACKUP = "File ini bukan backup Senada."
     private const val MAX_SECONDS = Long.MAX_VALUE / 1_000
 }

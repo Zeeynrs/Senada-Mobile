@@ -53,8 +53,11 @@ import androidx.compose.ui.unit.sp
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
 import senada.app.UserProfile
+import senada.app.appPlural
+import senada.app.appString
 import senada.app.shell.ProfileAvatar
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
@@ -62,6 +65,22 @@ import senada.app.theme.MonoLabel
 import senada.app.theme.SenadaPalette
 import senada.app.theme.SenadaType
 import senada.library.ListeningSummary
+import senada.resources.Res
+import senada.resources.play_count
+import senada.resources.profile_chart_a11y_empty
+import senada.resources.profile_chart_a11y_prefix
+import senada.resources.profile_chart_a11y_total
+import senada.resources.profile_edit_name_photo_a11y
+import senada.resources.profile_listening_since
+import senada.resources.profile_none_yet
+import senada.resources.profile_pass_stamp
+import senada.resources.profile_pass_title
+import senada.resources.profile_see_full_stats
+import senada.resources.profile_top_artist_label
+import senada.resources.profile_top_track_label
+import senada.resources.profile_total_time_caption
+import senada.resources.profile_unit_hour_short
+import senada.resources.profile_unit_minute_short
 
 @Composable
 internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Long, onEdit: () -> Unit) {
@@ -70,10 +89,12 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
     val type = MaterialTheme.typography
     val measurer = rememberTextMeasurer()
     val labelStyle = SenadaType.monoLabel.copy(color = SenadaPalette.LightTextMuted)
+    val stampText = appString(Res.string.profile_pass_stamp)
+    val language = LocalAppLanguage.current
     SenadaCard(color = colors.surfaceContainerHigh) {
         Box(
             Modifier.fillMaxWidth().drawWithCache {
-                val label = measurer.measure(AnnotatedString("KARTU · SENADA · KARTU"), labelStyle, softWrap = false)
+                val label = measurer.measure(AnnotatedString(stampText), labelStyle, softWrap = false)
                 val center = Offset(size.width + 2.dp.toPx(), size.height / 2)
                 onDrawBehind {
                     rotate(90f, center) {
@@ -89,7 +110,7 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
             ) {
                 ProfileAvatar(profile.name, size = 84.dp, borderWidth = 0.dp, photoModel = photo)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    MonoLabel("Kartu pendengar")
+                    MonoLabel(appString(Res.string.profile_pass_title))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (profile.name.isNotEmpty()) {
                             Text(
@@ -105,13 +126,13 @@ internal fun ListenerCard(profile: UserProfile, photo: Any?, listeningSince: Lon
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                SenadaIcons.Edit, "Ubah nama dan foto", Modifier.size(16.dp),
+                                SenadaIcons.Edit, appString(Res.string.profile_edit_name_photo_a11y), Modifier.size(16.dp),
                                 tint = colors.onSurfaceVariant,
                             )
                         }
                     }
                     Text(
-                        "Mendengar sejak ${chartDate(date, daily = true)} ${date.year}",
+                        appString(Res.string.profile_listening_since, chartDate(date, daily = true, language), date.year),
                         style = type.bodySmall.copy(
                             fontWeight = FontWeight.SemiBold, lineHeight = TextUnit.Unspecified, letterSpacing = 0.em,
                         ),
@@ -130,19 +151,21 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
     SenadaCard {
         Column(Modifier.padding(1.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val hourShort = appString(Res.string.profile_unit_hour_short)
+                val minShort = appString(Res.string.profile_unit_minute_short)
                 val numbers: @Composable () -> Unit = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        ProfileTimeValue(minutes / 60, "j")
+                        ProfileTimeValue(minutes / 60, hourShort)
                         VerticalDivider(Modifier.height(38.dp).width(1.dp), color = colors.outline)
-                        ProfileTimeValue(minutes % 60, "m")
+                        ProfileTimeValue(minutes % 60, minShort)
                     }
                 }
                 val caption: @Composable () -> Unit = {
                     Text(
-                        "TOTAL WAKTU\nDENGAR · 30 HARI",
+                        appString(Res.string.profile_total_time_caption),
                         style = SenadaType.monoLabel.copy(lineHeight = 1.5.em),
                         textAlign = TextAlign.End,
                     )
@@ -170,7 +193,7 @@ internal fun ProfileListeningCard(summary: ListeningSummary?, onOpen: () -> Unit
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    "Lihat statistik lengkap", Modifier.weight(1f),
+                    appString(Res.string.profile_see_full_stats), Modifier.weight(1f),
                     style = MaterialTheme.typography.labelLarge.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.em),
                 )
                 Icon(SenadaIcons.ProfileChevron, null, Modifier.size(16.dp), tint = colors.onSurfaceVariant)
@@ -202,8 +225,13 @@ private fun ProfileListeningChart(summary: ListeningSummary?) {
     val bars = summary?.bars.orEmpty().takeLast(dayCount)
     val max = bars.maxOfOrNull { it.listenedMs } ?: 0L
     val colors = MaterialTheme.colorScheme
-    val description = "Grafik waktu dengar harian, 7 hari terakhir. " +
-        if (max > 0L) "Total ${listeningMinutes(bars.sumOf { it.listenedMs })}." else "Belum ada waktu dengar."
+    val language = LocalAppLanguage.current
+    val description = appString(Res.string.profile_chart_a11y_prefix) + " " +
+        if (max > 0L) {
+            appString(Res.string.profile_chart_a11y_total, listeningMinutes(bars.sumOf { it.listenedMs }, language))
+        } else {
+            appString(Res.string.profile_chart_a11y_empty)
+        }
     Canvas(Modifier.fillMaxWidth().height(56.dp).semantics {
         contentDescription = description
         role = Role.Image
@@ -233,13 +261,13 @@ internal fun ProfileRankings(
     val artist = summary?.topArtists?.firstOrNull()
     val track = summary?.topTracks?.firstOrNull()
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ProfileRankingCard(Modifier.weight(1f), "Artis teratas", artist?.name, artist?.plays, onOpenArtist) {
+        ProfileRankingCard(Modifier.weight(1f), appString(Res.string.profile_top_artist_label), artist?.name, artist?.plays, onOpenArtist) {
             ProfileAvatar(
                 artist?.name.orEmpty(), size = 52.dp, borderWidth = 0.dp, photoModel = artistPhoto,
                 fallbackBackground = Color(0xFF8E7356),
             )
         }
-        ProfileRankingCard(Modifier.weight(1f), "Lagu teratas", track?.track?.title, track?.plays, onOpenTrack) {
+        ProfileRankingCard(Modifier.weight(1f), appString(Res.string.profile_top_track_label), track?.track?.title, track?.plays, onOpenTrack) {
             CatalogArtwork(
                 track?.track?.artworkUrl, RoundedCornerShape(LocalSenadaLook.current.listCoverRadius), SenadaIcons.MusicNote, imageSize = 104,
                 modifier = Modifier.size(52.dp), background = Color(0xFF5A2A22),
@@ -267,14 +295,14 @@ private fun ProfileRankingCard(
             artwork()
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    name ?: "Belum ada",
+                    name ?: appString(Res.string.profile_none_yet),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontSize = 15.sp, lineHeight = TextUnit.Unspecified, letterSpacing = 0.em,
                     ),
                 )
                 if (plays != null) {
                     Text(
-                        "$plays putaran",
+                        appPlural(Res.plurals.play_count, plays, plays),
                         style = MaterialTheme.typography.bodySmall.copy(lineHeight = TextUnit.Unspecified, letterSpacing = 0.em),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -65,10 +65,15 @@ import senada.app.ArtistOpenController
 import senada.app.LIBRARY_PAGE_SIZE
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LanguageSection
+import senada.app.LocalAppLanguage
 import senada.app.SenadaMark
 import senada.app.SenadaSources
+import senada.app.UiText
 import senada.app.UserProfileController
 import senada.app.browseDisplayTitleStyle
+import senada.resources.Res
+import senada.resources.error_playlist_save_failed
 import senada.app.audiolab.audioLabScreen
 import senada.app.audiolab.equalizerScreen
 import senada.app.audiolab.soundFxScreen
@@ -421,6 +426,7 @@ internal fun AppShell(
                 }
                 .clipToBounds(),
         ) {
+            val appLanguage = LocalAppLanguage.current
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -476,12 +482,12 @@ internal fun AppShell(
                                     val nextStatus = try {
                                         when (val result = actions.savePlaylistToLibrary(routeId, title, tracks)) {
                                             is CatalogPlaylistSaveOutcome.Saved -> PlaylistSaveStatus.Saved(result.playlist)
-                                            is CatalogPlaylistSaveOutcome.Rejected -> PlaylistSaveStatus.Failed(result.message)
+                                            is CatalogPlaylistSaveOutcome.Rejected -> PlaylistSaveStatus.Failed(result.uiText)
                                         }
                                     } catch (e: CancellationException) {
                                         throw e
                                     } catch (_: Exception) {
-                                        PlaylistSaveStatus.Failed("Playlist gagal disimpan ke Library. Coba lagi.")
+                                        PlaylistSaveStatus.Failed(UiText.Resource(Res.string.error_playlist_save_failed))
                                     }
                                     catalogPage.playlistSaves =
                                         catalogPage.playlistSaves + (routeId to nextStatus)
@@ -497,7 +503,8 @@ internal fun AppShell(
                     return@LazyColumn
                 }
                 if (profileRoute != null) {
-                    val previousLabel = navigator.profileStack.dropLast(1).lastOrNull()?.label ?: AppDestination.Profile.label
+                    val previousLabel = navigator.profileStack.dropLast(1).lastOrNull()?.label(appLanguage)
+                        ?: AppDestination.Profile.label(appLanguage)
                     if (!audioLabRoute) {
                         profileHeader(profileRoute, previousLabel) {
                             navigator.back()
@@ -508,6 +515,7 @@ internal fun AppShell(
                         ProfileRoute.MostPlayed -> mostPlayedScreen(mostPlayed, favoriteIds, actions)
                         ProfileRoute.Appearance -> item { AppearanceSection(appearance) }
                         ProfileRoute.Lyrics -> item { LyricsSettingsSection(appearance) }
+                        ProfileRoute.Language -> item { LanguageSection(appearance) }
                         ProfileRoute.Playback -> item { DataSection(appearance) }
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
@@ -556,7 +564,7 @@ internal fun AppShell(
                 if (navigator.destination == AppDestination.Search) {
                     item(key = "title-${navigator.destination}") {
                         Text(
-                            navigator.destination.label,
+                            navigator.destination.label(appLanguage),
                             style = browseDisplayTitleStyle(),
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() },

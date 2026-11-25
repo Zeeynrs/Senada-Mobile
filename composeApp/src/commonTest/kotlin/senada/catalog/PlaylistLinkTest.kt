@@ -57,7 +57,8 @@ class PlaylistLinkTest {
         )
         for (link in accountLists) {
             val invalid = assertIs<PlaylistLinkParseResult.Invalid>(parsePlaylistLink(link), link)
-            assertTrue(invalid.message.contains("login", ignoreCase = true), invalid.message)
+            assertTrue(invalid.message.contains("sign-in", ignoreCase = true), invalid.message)
+            assertTrue(invalid.message(senada.app.AppLanguage.Indonesian).contains("login", ignoreCase = true))
         }
 
         val mix = assertIs<PlaylistLinkParseResult.Invalid>(

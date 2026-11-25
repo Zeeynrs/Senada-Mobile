@@ -114,7 +114,7 @@ class AppNavigatorTest {
         val navigator = AppNavigator()
         navigator.select(AppDestination.Search)
         navigator.openArtist("UC_tulus", "Tulus", "https://example.invalid/a")
-        assertEquals("Cari", navigator.previousCatalogLabel())
+        assertEquals("Search", navigator.previousCatalogLabel())
 
         navigator.openAlbum("MPREb_manusia", "Manusia", "Album · 2022", "https://example.invalid/m")
         assertEquals("Tulus", navigator.previousCatalogLabel())
@@ -122,7 +122,7 @@ class AppNavigatorTest {
 
         assertTrue(navigator.back())
         assertEquals(CatalogRoute.Artist("UC_tulus", "Tulus", "https://example.invalid/a"), navigator.currentCatalogRoute)
-        assertEquals("Cari", navigator.previousCatalogLabel())
+        assertEquals("Search", navigator.previousCatalogLabel())
 
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
@@ -200,7 +200,7 @@ class AppNavigatorTest {
             CatalogRoute.Playlist("PL_sore", "Chill Sore", "Pemilik · 10 lagu", "https://example.invalid/pl"),
             navigator.currentCatalogRoute,
         )
-        assertEquals("Cari", navigator.previousCatalogLabel())
+        assertEquals("Search", navigator.previousCatalogLabel())
 
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
@@ -271,7 +271,8 @@ class AppNavigatorTest {
         navigator.openArtist("UC_tulus", "Tulus")
 
         assertFalse(navigator.nowPlayingOpen)
-        assertEquals("Paling sering diputar", navigator.previousCatalogLabel())
+        assertEquals("Most played", navigator.previousCatalogLabel())
+        assertEquals("Paling sering diputar", navigator.previousCatalogLabel(senada.app.AppLanguage.Indonesian))
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
         assertEquals(ProfileRoute.MostPlayed, navigator.currentProfileRoute)
@@ -288,7 +289,8 @@ class AppNavigatorTest {
         navigator.openArtist("UC_tulus", "Tulus")
 
         assertFalse(navigator.nowPlayingOpen)
-        assertEquals("Statistik dengar", navigator.previousCatalogLabel())
+        assertEquals("Listening stats", navigator.previousCatalogLabel())
+        assertEquals("Statistik dengar", navigator.previousCatalogLabel(senada.app.AppLanguage.Indonesian))
         assertTrue(navigator.back())
         assertNull(navigator.currentCatalogRoute)
         assertEquals(ProfileRoute.Stats, navigator.currentProfileRoute)
@@ -308,7 +310,8 @@ class AppNavigatorTest {
         navigator.openMood(chill)
         assertFalse(navigator.nowPlayingOpen)
         assertEquals(CatalogRoute.Mood(chill.browseId, "Santai", "params_chill"), navigator.currentCatalogRoute)
-        assertEquals("Beranda", navigator.previousCatalogLabel())
+        assertEquals("Home", navigator.previousCatalogLabel())
+        assertEquals("Beranda", navigator.previousCatalogLabel(senada.app.AppLanguage.Indonesian))
 
         // Mood yang persis sama di puncak tumpukan diabaikan, tetapi params berbeda tetap dibuka.
         navigator.openMood(chill)

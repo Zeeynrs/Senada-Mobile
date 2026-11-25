@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.BrowseLoadMoreButton
 import senada.app.BrowseMonoHeading
 import senada.app.BrowseNoticeCard
@@ -76,12 +78,16 @@ import senada.app.CollectionMenuAction
 import senada.app.CollectionTopBar
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
 import senada.app.SenadaFilterPill
 import senada.app.SenadaSources
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.UiText
 import senada.app.albumCollectionMeta
+import senada.app.appPlural
+import senada.app.appString
 import senada.app.browseRowSubtitleStyle
 import senada.app.browseRowTitleStyle
 import senada.app.collectionMenuItems
@@ -106,13 +112,69 @@ import senada.catalog.PlaylistImportException
 import senada.catalog.PlaylistSummary
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_open_album_named
+import senada.resources.a11y_open_artist_named
+import senada.resources.action_play
+import senada.resources.action_retry
+import senada.resources.action_see_all
+import senada.resources.action_shuffle
+import senada.resources.catalog_album_empty
+import senada.resources.catalog_album_load_failed
+import senada.resources.catalog_album_loading
+import senada.resources.catalog_artist_empty
+import senada.resources.catalog_artist_empty_eyebrow
+import senada.resources.catalog_artist_load_failed
+import senada.resources.catalog_artist_loading
+import senada.resources.catalog_artist_newest_albums
+import senada.resources.catalog_artist_play_top_a11y
+import senada.resources.catalog_artist_popular_albums
+import senada.resources.catalog_artist_popular_songs
+import senada.resources.catalog_artist_popular_songs_named
+import senada.resources.catalog_artist_see_all_a11y
+import senada.resources.catalog_artist_shuffle_top_a11y
+import senada.resources.catalog_error_eyebrow
+import senada.resources.catalog_mood_load_failed
+import senada.resources.catalog_playlist_load_failed
+import senada.resources.catalog_top_badge
+import senada.resources.catalog_tracklist_heading
+import senada.resources.catalog_type_album
+import senada.resources.catalog_type_artist
+import senada.resources.search_albums_empty
+import senada.resources.search_albums_failed
+import senada.resources.search_albums_heading
+import senada.resources.search_albums_loading
+import senada.resources.search_albums_prompt_desc
+import senada.resources.search_albums_prompt_title
+import senada.resources.search_artists_empty
+import senada.resources.search_artists_failed
+import senada.resources.search_artists_heading
+import senada.resources.search_artists_loading
+import senada.resources.search_artists_prompt_desc
+import senada.resources.search_artists_prompt_title
+import senada.resources.search_empty_eyebrow
+import senada.resources.search_filter_albums
+import senada.resources.search_filter_artists
+import senada.resources.search_filter_playlists
+import senada.resources.search_filter_songs
+import senada.resources.search_playlists_failed
+import senada.resources.song_count
 
 /** Pilihan filter jenis hasil di tab Cari. */
-internal enum class SearchFilter(val label: String) {
-    Songs("Lagu"),
-    Artists("Artis"),
-    Albums("Album"),
-    Playlists("Playlist"),
+internal enum class SearchFilter {
+    Songs,
+    Artists,
+    Albums,
+    Playlists;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Songs -> AppStrings.get(Res.string.search_filter_songs, language)
+        Artists -> AppStrings.get(Res.string.search_filter_artists, language)
+        Albums -> AppStrings.get(Res.string.search_filter_albums, language)
+        Playlists -> AppStrings.get(Res.string.search_filter_playlists, language)
+    }
+
+    val label: String get() = label()
 }
 
 /** Hasil pencarian artis di YouTube Music. */
@@ -121,8 +183,20 @@ internal data class ArtistSearchState(
     val items: List<ArtistSummary> = emptyList(),
     val nextPageToken: String? = null,
     val loading: Boolean = false,
-    val error: String? = null,
-)
+    val errorText: UiText? = null,
+) {
+    constructor(
+        query: String,
+        items: List<ArtistSummary>,
+        nextPageToken: String?,
+        loading: Boolean,
+        error: String?,
+    ) : this(query, items, nextPageToken, loading, error?.let(UiText::Raw))
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /** Hasil pencarian album di YouTube Music. */
 internal data class AlbumSearchState(
@@ -130,8 +204,20 @@ internal data class AlbumSearchState(
     val items: List<AlbumSummary> = emptyList(),
     val nextPageToken: String? = null,
     val loading: Boolean = false,
-    val error: String? = null,
-)
+    val errorText: UiText? = null,
+) {
+    constructor(
+        query: String,
+        items: List<AlbumSummary>,
+        nextPageToken: String?,
+        loading: Boolean,
+        error: String?,
+    ) : this(query, items, nextPageToken, loading, error?.let(UiText::Raw))
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /** Hasil pencarian playlist di YouTube Music. */
 internal data class PlaylistSearchState(
@@ -139,8 +225,20 @@ internal data class PlaylistSearchState(
     val items: List<PlaylistSummary> = emptyList(),
     val nextPageToken: String? = null,
     val loading: Boolean = false,
-    val error: String? = null,
-)
+    val errorText: UiText? = null,
+) {
+    constructor(
+        query: String,
+        items: List<PlaylistSummary>,
+        nextPageToken: String?,
+        loading: Boolean,
+        error: String?,
+    ) : this(query, items, nextPageToken, loading, error?.let(UiText::Raw))
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /** Memuat halaman pencarian artis; saat gagal, hasil dan token tetap disimpan untuk coba lagi. */
 internal suspend fun loadArtistSearchPage(
@@ -152,12 +250,15 @@ internal suspend fun loadArtistSearchPage(
         items = (current.items + page.items).distinctBy { it.id },
         nextPageToken = page.nextPageToken,
         loading = false,
-        error = null,
+        errorText = null,
     )
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {
-    current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian artis gagal. Coba lagi.")
+    current.copy(
+        loading = false,
+        errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.search_artists_failed),
+    )
 }
 
 /** Memuat halaman pencarian album; saat gagal, hasil dan token tetap disimpan untuk coba lagi. */
@@ -170,12 +271,15 @@ internal suspend fun loadAlbumSearchPage(
         items = (current.items + page.items).distinctBy { it.id },
         nextPageToken = page.nextPageToken,
         loading = false,
-        error = null,
+        errorText = null,
     )
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {
-    current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian album gagal. Coba lagi.")
+    current.copy(
+        loading = false,
+        errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.search_albums_failed),
+    )
 }
 
 /** Memuat halaman pencarian playlist; saat gagal, hasil dan token tetap disimpan untuk coba lagi. */
@@ -188,17 +292,21 @@ internal suspend fun loadPlaylistSearchPage(
         items = (current.items + page.items).distinctBy { it.id },
         nextPageToken = page.nextPageToken,
         loading = false,
-        error = null,
+        errorText = null,
     )
 } catch (e: CancellationException) {
     throw e
 } catch (e: Exception) {
-    current.copy(loading = false, error = (e as? CatalogException)?.userMessage ?: "Pencarian playlist gagal. Coba lagi.")
+    current.copy(
+        loading = false,
+        errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.search_playlists_failed),
+    )
 }
 
 /** Deret chip filter pil v2 di tab Cari yang dapat digeser mendatar agar aman pada skala font besar. */
 @Composable
 internal fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) -> Unit) {
+    val language = LocalAppLanguage.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,7 +317,7 @@ internal fun SearchFilterChips(selected: SearchFilter, onSelect: (SearchFilter) 
     ) {
         for (filter in SearchFilter.entries) {
             SenadaFilterPill(
-                label = filter.label,
+                label = filter.label(language),
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
             )
@@ -228,40 +336,41 @@ internal fun LazyListScope.artistSearchResults(
     if (state.query.isEmpty()) {
         item(key = "artist-search-prompt") {
             BrowseNoticeCard(
-                eyebrow = "Cari artis",
-                message = "Ketik nama artis untuk mencari di YouTube Music.",
+                eyebrow = appString(Res.string.search_artists_prompt_title),
+                message = appString(Res.string.search_artists_prompt_desc),
                 polite = false,
             )
         }
         return
     }
     item(key = "artist-search-heading") {
-        BrowseMonoHeading("Artis di YouTube Music")
+        BrowseMonoHeading(appString(Res.string.search_artists_heading))
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "artist-search-loading") {
             BrowseRowSkeletonCard(
-                statusLabel = "Mencari artis…",
+                statusLabel = appString(Res.string.search_artists_loading),
                 rowCount = 3,
                 circularLeading = true,
             )
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "artist-search-error") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
-    if (!state.loading && state.error == null && state.items.isEmpty()) {
+    if (!state.loading && state.errorText == null && state.items.isEmpty()) {
         item(key = "artist-search-empty") {
             BrowseNoticeCard(
-                eyebrow = "Hasil kosong",
-                message = "Artis tidak ditemukan.",
+                eyebrow = appString(Res.string.search_empty_eyebrow),
+                message = appString(Res.string.search_artists_empty),
             )
         }
     }
     items(state.items, key = { "artist-result-${it.id}" }) { artist ->
-        val label = listOfNotNull("Buka artis ${artist.name}", artist.subtitle).joinToString(", ")
+        val label = listOfNotNull(appString(Res.string.a11y_open_artist_named, artist.name), artist.subtitle).joinToString(", ")
         CatalogSummaryRow(
             title = artist.name,
             subtitle = artist.subtitle,
@@ -275,7 +384,7 @@ internal fun LazyListScope.artistSearchResults(
             },
         )
     }
-    if (state.nextPageToken != null && state.error == null) {
+    if (state.nextPageToken != null && state.errorText == null) {
         item(key = "artist-search-more") {
             BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
@@ -293,36 +402,37 @@ internal fun LazyListScope.albumSearchResults(
     if (state.query.isEmpty()) {
         item(key = "album-search-prompt") {
             BrowseNoticeCard(
-                eyebrow = "Cari album",
-                message = "Ketik judul album untuk mencari di YouTube Music.",
+                eyebrow = appString(Res.string.search_albums_prompt_title),
+                message = appString(Res.string.search_albums_prompt_desc),
                 polite = false,
             )
         }
         return
     }
     item(key = "album-search-heading") {
-        BrowseMonoHeading("Album di YouTube Music")
+        BrowseMonoHeading(appString(Res.string.search_albums_heading))
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "album-search-loading") {
-            BrowseRowSkeletonCard(statusLabel = "Mencari album…", rowCount = 3)
+            BrowseRowSkeletonCard(statusLabel = appString(Res.string.search_albums_loading), rowCount = 3)
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "album-search-error") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
-    if (!state.loading && state.error == null && state.items.isEmpty()) {
+    if (!state.loading && state.errorText == null && state.items.isEmpty()) {
         item(key = "album-search-empty") {
             BrowseNoticeCard(
-                eyebrow = "Hasil kosong",
-                message = "Album tidak ditemukan.",
+                eyebrow = appString(Res.string.search_empty_eyebrow),
+                message = appString(Res.string.search_albums_empty),
             )
         }
     }
     items(state.items, key = { "album-result-${it.id}" }) { album ->
-        val label = listOfNotNull("Buka album ${album.title}", album.subtitle).joinToString(", ")
+        val label = listOfNotNull(appString(Res.string.a11y_open_album_named, album.title), album.subtitle).joinToString(", ")
         CatalogSummaryRow(
             title = album.title,
             subtitle = album.subtitle,
@@ -336,7 +446,7 @@ internal fun LazyListScope.albumSearchResults(
             },
         )
     }
-    if (state.nextPageToken != null && state.error == null) {
+    if (state.nextPageToken != null && state.errorText == null) {
         item(key = "album-search-more") {
             BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
@@ -348,8 +458,19 @@ internal data class CatalogLoadState<T>(
     val routeId: String? = null,
     val data: T? = null,
     val loading: Boolean = false,
-    val error: String? = null,
-)
+    val errorText: UiText? = null,
+) {
+    constructor(
+        routeId: String?,
+        data: T?,
+        loading: Boolean,
+        error: String?,
+    ) : this(routeId, data, loading, error?.let(UiText::Raw))
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /** Menyimpan halaman artis, album, playlist, dan mood yang baru dibuka agar navigasi kembali tampil instan. */
 internal class CatalogDetailStore(
@@ -378,7 +499,7 @@ internal class CatalogDetailStore(
         } catch (e: Exception) {
             CatalogLoadState(
                 routeId = id,
-                error = (e as? CatalogException)?.userMessage ?: "Halaman artis gagal dimuat. Coba lagi.",
+                errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.catalog_artist_load_failed),
             )
         }
     }
@@ -394,7 +515,7 @@ internal class CatalogDetailStore(
         } catch (e: Exception) {
             CatalogLoadState(
                 routeId = id,
-                error = (e as? CatalogException)?.userMessage ?: "Halaman album gagal dimuat. Coba lagi.",
+                errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.catalog_album_load_failed),
             )
         }
     }
@@ -410,9 +531,9 @@ internal class CatalogDetailStore(
         } catch (e: Exception) {
             CatalogLoadState(
                 routeId = id,
-                error = (e as? CatalogException)?.userMessage
-                    ?: (e as? PlaylistImportException)?.userMessage
-                    ?: "Halaman playlist gagal dimuat. Coba lagi.",
+                errorText = (e as? CatalogException)?.uiText
+                    ?: (e as? PlaylistImportException)?.uiText
+                    ?: UiText.Resource(Res.string.catalog_playlist_load_failed),
             )
         }
     }
@@ -428,7 +549,7 @@ internal class CatalogDetailStore(
         } catch (e: Exception) {
             CatalogLoadState(
                 routeId = key,
-                error = (e as? CatalogException)?.userMessage ?: "Halaman mood gagal dimuat. Coba lagi.",
+                errorText = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.catalog_mood_load_failed),
             )
         }
     }
@@ -634,20 +755,29 @@ internal sealed interface ArtistPageSection {
     val title: String
 
     data class PopularSongs(
-        override val title: String = "Lagu terpopuler",
         val songs: List<Track>,
         val fullListPlaylistId: String? = null,
-    ) : ArtistPageSection
+    ) : ArtistPageSection {
+        override val title: String get() = title()
+        fun title(language: AppLanguage = AppStrings.currentLanguage): String =
+            AppStrings.get(Res.string.catalog_artist_popular_songs, language)
+    }
 
     data class PopularAlbums(
-        override val title: String = "Album terpopuler",
         val albums: List<AlbumSummary>,
-    ) : ArtistPageSection
+    ) : ArtistPageSection {
+        override val title: String get() = title()
+        fun title(language: AppLanguage = AppStrings.currentLanguage): String =
+            AppStrings.get(Res.string.catalog_artist_popular_albums, language)
+    }
 
     data class NewestAlbums(
-        override val title: String = "Album terbaru",
         val albums: List<AlbumSummary>,
-    ) : ArtistPageSection
+    ) : ArtistPageSection {
+        override val title: String get() = title()
+        fun title(language: AppLanguage = AppStrings.currentLanguage): String =
+            AppStrings.get(Res.string.catalog_artist_newest_albums, language)
+    }
 }
 
 /** Menyusun tepat tiga bagian halaman artis: Lagu terpopuler, Album terpopuler, dan Album terbaru. */
@@ -709,12 +839,13 @@ private fun LazyListScope.artistDetailScreen(
 
     if (state.loading && detail == null) {
         item(key = "artist-loading-${route.id}") {
-            BrowseRowSkeletonCard(statusLabel = "Memuat halaman artis…", rowCount = 4)
+            BrowseRowSkeletonCard(statusLabel = appString(Res.string.catalog_artist_loading), rowCount = 4)
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "artist-error-${route.id}") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
 
@@ -723,8 +854,8 @@ private fun LazyListScope.artistDetailScreen(
             is ArtistPageSection.PopularSongs -> {
                 item(key = "artist-songs-heading-${route.id}") {
                     BrowseSectionHeader(
-                        title = section.title,
-                        monoLabel = "Teratas",
+                        title = section.title(LocalAppLanguage.current),
+                        monoLabel = appString(Res.string.catalog_top_badge),
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -758,6 +889,7 @@ private fun LazyListScope.artistDetailScreen(
                                 }
                             }
                             section.fullListPlaylistId?.let { playlistId ->
+                                val seeAllTitle = appString(Res.string.catalog_artist_popular_songs_named, displayName)
                                 HorizontalDivider(color = colors.outline)
                                 ArtistSeeAllFooterRow(
                                     artistName = displayName,
@@ -765,7 +897,7 @@ private fun LazyListScope.artistDetailScreen(
                                         onOpenPlaylist(
                                             PlaylistSummary(
                                                 id = playlistId,
-                                                title = "Lagu terpopuler $displayName",
+                                                title = seeAllTitle,
                                                 subtitle = displayName,
                                                 artworkUrl = artworkUrl,
                                             ),
@@ -780,7 +912,7 @@ private fun LazyListScope.artistDetailScreen(
             is ArtistPageSection.PopularAlbums -> {
                 item(key = "artist-popular-albums-heading-${route.id}") {
                     BrowseSectionHeader(
-                        title = section.title,
+                        title = section.title(LocalAppLanguage.current),
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -795,7 +927,7 @@ private fun LazyListScope.artistDetailScreen(
             is ArtistPageSection.NewestAlbums -> {
                 item(key = "artist-newest-albums-heading-${route.id}") {
                     BrowseSectionHeader(
-                        title = section.title,
+                        title = section.title(LocalAppLanguage.current),
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -810,11 +942,11 @@ private fun LazyListScope.artistDetailScreen(
         }
     }
 
-    if (!state.loading && state.error == null && detail != null && sections.isEmpty()) {
+    if (!state.loading && state.errorText == null && detail != null && sections.isEmpty()) {
         item(key = "artist-empty-${route.id}") {
             BrowseNoticeCard(
-                eyebrow = "Halaman artis",
-                message = "Belum ada lagu atau album untuk artis ini.",
+                eyebrow = appString(Res.string.catalog_artist_empty_eyebrow),
+                message = appString(Res.string.catalog_artist_empty),
             )
         }
     }
@@ -836,7 +968,7 @@ private fun ArtistHeroCard(
 
     val identityText: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            MonoLabel("Artis")
+            MonoLabel(appString(Res.string.catalog_type_artist))
             Text(
                 text = displayName,
                 style = MaterialTheme.typography.displaySmall.copy(
@@ -896,70 +1028,72 @@ private fun ArtistHeroCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Button(
-                    onClick = onPlay,
-                    enabled = canPlay,
-                    shape = RoundedCornerShape(24.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = playContainer,
-                        contentColor = playContent,
-                        disabledContainerColor = colors.surfaceContainerHighest,
-                        disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
-                    ),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                    modifier = Modifier.heightIn(min = 48.dp).semantics {
-                        contentDescription = "Putar lagu terpopuler $displayName"
-                    },
-                ) {
-                    Icon(
-                        imageVector = SenadaIcons.Play,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Putar",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                    val playTopDesc = appString(Res.string.catalog_artist_play_top_a11y, displayName)
+                    val shuffleTopDesc = appString(Res.string.catalog_artist_shuffle_top_a11y, displayName)
+                    Button(
+                        onClick = onPlay,
+                        enabled = canPlay,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = playContainer,
+                            contentColor = playContent,
+                            disabledContainerColor = colors.surfaceContainerHighest,
+                            disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
                         ),
-                        modifier = Modifier.clearAndSetSemantics {},
-                    )
-                }
-                Surface(
-                    onClick = onShuffle,
-                    enabled = canPlay,
-                    shape = RoundedCornerShape(24.dp),
-                    color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
-                    border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
-                    modifier = Modifier.heightIn(min = 48.dp).semantics {
-                        role = Role.Button
-                        contentDescription = "Putar acak lagu terpopuler $displayName"
-                    },
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
+                            contentDescription = playTopDesc
+                        },
                     ) {
-                        val contentTint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
                         Icon(
-                            imageVector = SenadaIcons.Shuffle,
+                            imageVector = SenadaIcons.Play,
                             contentDescription = null,
-                            tint = contentTint,
                             modifier = Modifier.size(18.dp),
                         )
+                        Spacer(Modifier.width(6.dp))
                         Text(
-                            "Acak",
+                            appString(Res.string.action_play),
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                             ),
-                            color = contentTint,
                             modifier = Modifier.clearAndSetSemantics {},
                         )
                     }
-                }
+                    Surface(
+                        onClick = onShuffle,
+                        enabled = canPlay,
+                        shape = RoundedCornerShape(24.dp),
+                        color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
+                        border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
+                        modifier = Modifier.heightIn(min = 48.dp).semantics {
+                            role = Role.Button
+                            contentDescription = shuffleTopDesc
+                        },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            val contentTint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
+                            Icon(
+                                imageVector = SenadaIcons.Shuffle,
+                                contentDescription = null,
+                                tint = contentTint,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text(
+                                appString(Res.string.action_shuffle),
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                                color = contentTint,
+                                modifier = Modifier.clearAndSetSemantics {},
+                            )
+                        }
+                    }
             }
         }
     }
@@ -967,13 +1101,14 @@ private fun ArtistHeroCard(
 
 @Composable
 private fun ArtistSeeAllFooterRow(artistName: String, onClick: () -> Unit) {
+    val seeAllDesc = appString(Res.string.catalog_artist_see_all_a11y, artistName)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
-                contentDescription = "Lihat semua lagu terpopuler $artistName"
+                contentDescription = seeAllDesc
                 role = Role.Button
             }
             .padding(horizontal = 18.dp, vertical = 14.dp),
@@ -981,7 +1116,7 @@ private fun ArtistSeeAllFooterRow(artistName: String, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Lihat semua",
+            appString(Res.string.action_see_all),
             style = MaterialTheme.typography.labelLarge.copy(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -1018,11 +1153,15 @@ private fun LazyListScope.albumDetailScreen(
     val primaryArtist = detail?.artists?.firstOrNull { it.isNotBlank() }.orEmpty()
 
     item(key = "album-header-${route.id}") {
-        val meta = remember(detail, route.subtitle) { albumCollectionMeta(detail, route.subtitle) }
-        val menuItems = remember(artistId != null, tracks.isNotEmpty()) {
+        val language = LocalAppLanguage.current
+        val meta = remember(detail, route.subtitle, language) {
+            albumCollectionMeta(detail, route.subtitle, language)
+        }
+        val menuItems = remember(artistId != null, tracks.isNotEmpty(), language) {
             collectionMenuItems(
                 kind = CollectionKind.Album(hasArtistId = artistId != null),
                 hasTracks = tracks.isNotEmpty(),
+                language = language,
             )
         }
         CollectionHeader(
@@ -1042,7 +1181,7 @@ private fun LazyListScope.albumDetailScreen(
             onShuffle = { actions.playShuffled(tracks, PlaySource.Album(displayTitle)) },
             backLabel = previousLabel,
             onBack = onBack,
-            eyebrow = detail?.typeLabel?.takeIf { it.isNotBlank() } ?: "Album",
+            eyebrow = detail?.typeLabel?.takeIf { it.isNotBlank() } ?: appString(Res.string.catalog_type_album),
             chips = if (artistId != null && primaryArtist.isNotBlank()) {
                 {
                     AlbumArtistChip(
@@ -1058,19 +1197,20 @@ private fun LazyListScope.albumDetailScreen(
 
     if (state.loading && detail == null) {
         item(key = "album-loading-${route.id}") {
-            BrowseRowSkeletonCard(statusLabel = "Memuat halaman album…", rowCount = 5)
+            BrowseRowSkeletonCard(statusLabel = appString(Res.string.catalog_album_loading), rowCount = 5)
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "album-error-${route.id}") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
     if (tracks.isNotEmpty()) {
         item(key = "album-tracks-heading-${route.id}") {
             BrowseSectionHeader(
-                title = "Daftar lagu",
-                monoLabel = "${tracks.size} lagu",
+                title = appString(Res.string.catalog_tracklist_heading),
+                monoLabel = appPlural(Res.plurals.song_count, tracks.size, tracks.size),
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -1085,11 +1225,11 @@ private fun LazyListScope.albumDetailScreen(
             )
         }
     }
-    if (!state.loading && state.error == null && detail != null && tracks.isEmpty()) {
+    if (!state.loading && state.errorText == null && detail != null && tracks.isEmpty()) {
         item(key = "album-empty-${route.id}") {
             BrowseNoticeCard(
-                eyebrow = "Daftar lagu",
-                message = "Belum ada lagu di album ini.",
+                eyebrow = appString(Res.string.catalog_tracklist_heading),
+                message = appString(Res.string.catalog_album_empty),
             )
         }
     }
@@ -1098,6 +1238,7 @@ private fun LazyListScope.albumDetailScreen(
 @Composable
 private fun AlbumArtistChip(artistName: String, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
+    val openArtistDesc = appString(Res.string.a11y_open_artist_named, artistName)
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
@@ -1105,7 +1246,7 @@ private fun AlbumArtistChip(artistName: String, onClick: () -> Unit) {
         border = BorderStroke(1.dp, colors.outline),
         modifier = Modifier.minTouchTarget().semantics {
             role = Role.Button
-            contentDescription = "Buka artis $artistName"
+            contentDescription = openArtistDesc
         },
     ) {
         Row(
@@ -1226,7 +1367,7 @@ internal fun CatalogSummaryRow(
 @Composable
 private fun ReleaseCard(album: AlbumSummary, onClick: () -> Unit) {
     val detail = album.subtitle?.takeIf { it.isNotBlank() } ?: album.year
-    val accessibilityLabel = listOfNotNull("Buka album ${album.title}", detail).joinToString(", ")
+    val accessibilityLabel = listOfNotNull(appString(Res.string.a11y_open_album_named, album.title), detail).joinToString(", ")
     val largeFont = LocalDensity.current.fontScale >= 1.5f
     val cardWidth = if (largeFont) 148.dp else 132.dp
     Column(
@@ -1308,9 +1449,9 @@ internal fun CatalogArtwork(
 @Composable
 internal fun CatalogErrorCard(message: String, onRetry: () -> Unit) {
     BrowseNoticeCard(
-        eyebrow = "Terjadi kendala",
+        eyebrow = appString(Res.string.catalog_error_eyebrow),
         message = message,
-        actionLabel = "Coba lagi",
+        actionLabel = appString(Res.string.action_retry),
         onAction = onRetry,
     )
 }

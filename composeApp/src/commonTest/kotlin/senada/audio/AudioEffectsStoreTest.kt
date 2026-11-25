@@ -18,15 +18,19 @@ class AudioEffectsStoreTest {
         assertEquals(false, defaults.loudnessMatch)
         assertEquals(emptyList(), defaults.customPresets)
         val expected = mapOf(
-            "Datar" to listOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            "Flat" to listOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             "Bass+" to listOf(7, 6, 4, 2, 0, 0, 0, 0, 0, 0),
-            "Vokal" to listOf(-2, -1, 0, 2, 4, 4, 3, 1, 0, -1),
-            "Akustik" to listOf(3, 3, 2, 1, 1, 1, 2, 3, 2, 1),
-            "Elektronik" to listOf(5, 4, 1, 0, -2, 1, 1, 3, 4, 5),
-            "Malam" to listOf(2, 2, 1, 0, -1, -2, -3, -4, -5, -6),
+            "Vocal" to listOf(-2, -1, 0, 2, 4, 4, 3, 1, 0, -1),
+            "Acoustic" to listOf(3, 3, 2, 1, 1, 1, 2, 3, 2, 1),
+            "Electronic" to listOf(5, 4, 1, 0, -2, 1, 1, 3, 4, 5),
+            "Night" to listOf(2, 2, 1, 0, -1, -2, -3, -4, -5, -6),
         )
         assertEquals(expected.keys.toList(), EqPreset.BuiltIns.map { it.name })
         assertEquals(expected, EqPreset.BuiltIns.associate { it.name to it.gains.map(Float::toInt) })
+        assertEquals(
+            listOf("Datar", "Bass+", "Vokal", "Akustik", "Elektronik", "Malam"),
+            EqPreset.BuiltIns.map { it.localizedName(senada.app.AppLanguage.Indonesian) },
+        )
     }
 
     @Test

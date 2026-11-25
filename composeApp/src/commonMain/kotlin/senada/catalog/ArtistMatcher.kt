@@ -1,8 +1,13 @@
 package senada.catalog
 
 import kotlinx.coroutines.CancellationException
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.local.LOCAL_FILE_SOURCE
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_artist_resolve_failed
 
 private const val DEMO_SOURCE = "demo"
 
@@ -125,7 +130,13 @@ internal class ArtistIdIndex(private val maxEntries: Int = 500) {
 internal sealed interface ArtistResolveResult {
     data class Found(val id: String, val name: String, val artworkUrl: String? = null) : ArtistResolveResult
     data object NotFound : ArtistResolveResult
-    data class Error(val message: String) : ArtistResolveResult
+    data class Error(val uiText: UiText) : ArtistResolveResult {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
 /**
@@ -167,7 +178,8 @@ internal class ArtistResolver(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            ArtistResolveResult.Error((e as? CatalogException)?.userMessage ?: "Gagal mencari artis. Coba lagi.")
+            val text = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.error_artist_resolve_failed)
+            ArtistResolveResult.Error(text)
         }
     }
 

@@ -64,6 +64,28 @@ import senada.app.nowplaying.FullViewThemeCard
 import senada.app.theme.AccentChoice
 import senada.app.theme.LocalSenadaLook
 import senada.app.theme.MonoLabel
+import senada.resources.Res
+import senada.resources.appearance_accent_follow_subtitle
+import senada.resources.appearance_accent_follow_title
+import senada.resources.appearance_accent_title
+import senada.resources.appearance_animation_speed_title
+import senada.resources.appearance_animation_system_controlled
+import senada.resources.appearance_cover_corner_label
+import senada.resources.appearance_cover_radius_decrease
+import senada.resources.appearance_cover_radius_increase
+import senada.resources.appearance_cover_radius_value
+import senada.resources.appearance_glass_subtitle
+import senada.resources.appearance_glass_title
+import senada.resources.appearance_player_backdrop_subtitle
+import senada.resources.appearance_player_backdrop_title
+import senada.resources.appearance_player_effects_heading
+import senada.resources.appearance_theme_title
+import senada.resources.state_locked_by_system
+import senada.resources.state_not_selected
+import senada.resources.state_off
+import senada.resources.state_on
+import senada.resources.state_selected
+import senada.resources.state_selected_by_system
 
 private val ThemeModesInDisplayOrder = listOf(ThemeMode.Dark, ThemeMode.Light, ThemeMode.System)
 private val CoverPreviewDarkColor = Color(0xFFD9D9DC)
@@ -144,7 +166,7 @@ private fun ThemeModeCard(
             modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            MonoLabel("Tema", Modifier.semantics { heading() })
+            MonoLabel(appString(Res.string.appearance_theme_title), Modifier.semantics { heading() })
             if (largeFont) {
                 Column(
                     modifier = Modifier
@@ -213,6 +235,9 @@ private fun ThemeSegment(
         targetValue = if (selected) colors.background else colors.onSurfaceVariant,
         animationSpec = look.tweenOrSnap(ControlTransitionMs),
     )
+    val selectedText = appString(Res.string.state_selected)
+    val notSelectedText = appString(Res.string.state_not_selected)
+    val language = LocalAppLanguage.current
     Box(
         modifier = modifier
             .heightIn(min = 48.dp)
@@ -222,7 +247,7 @@ private fun ThemeSegment(
                 role = Role.RadioButton,
                 onClick = onClick,
             )
-            .semantics { stateDescription = if (selected) "Dipilih" else "Tidak dipilih" }
+            .semantics { stateDescription = if (selected) selectedText else notSelectedText }
             .padding(vertical = if (largeFont) 0.dp else 2.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -236,7 +261,7 @@ private fun ThemeSegment(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = mode.label,
+                text = mode.label(language),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -266,15 +291,15 @@ private fun AccentCard(
             modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            MonoLabel("Warna aksen", Modifier.semantics { heading() })
+            MonoLabel(appString(Res.string.appearance_accent_title), Modifier.semantics { heading() })
             AccentSwatchRow(
                 selected = selectedSwatch,
                 enabled = enabled,
                 onSelect = onSelectSwatch,
             )
             AppearanceSwitchRow(
-                title = "Warna mengikuti sampul",
-                subtitle = "Aksen berubah sesuai lagu yang diputar",
+                title = appString(Res.string.appearance_accent_follow_title),
+                subtitle = appString(Res.string.appearance_accent_follow_subtitle),
                 checked = followCover,
                 enabled = enabled,
                 onCheckedChange = onFollowCoverChange,
@@ -301,6 +326,9 @@ private fun CoverRadiusCard(
     val currentOnChange by rememberUpdatedState(onRadiusChange)
     var cardWidthPx by remember { mutableStateOf(0f) }
 
+    val radiusDescription = appString(Res.string.appearance_cover_radius_value, radiusDp)
+    val decreaseLabel = appString(Res.string.appearance_cover_radius_decrease)
+    val increaseLabel = appString(Res.string.appearance_cover_radius_increase)
     val heightModifier = if (largeFont) Modifier.heightIn(min = 150.dp) else Modifier.height(150.dp)
     SenadaCard(modifier = heightModifier) {
         Box(
@@ -327,7 +355,7 @@ private fun CoverRadiusCard(
                     )
                 }
                 .semantics {
-                    stateDescription = "$radiusDp dp"
+                    stateDescription = radiusDescription
                     progressBarRangeInfo = ProgressBarRangeInfo(
                         current = radiusDp.toFloat(),
                         range = MIN_COVER_RADIUS_DP.toFloat()..MAX_COVER_RADIUS_DP.toFloat(),
@@ -355,7 +383,7 @@ private fun CoverRadiusCard(
                     verticalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = "Sudut\nsampul",
+                        text = appString(Res.string.appearance_cover_corner_label),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -408,8 +436,8 @@ private fun CoverRadiusCard(
                         onClick = { onRadiusChange(stepCoverRadiusBy(radiusDp, -1)) },
                     )
                     .semantics {
-                        contentDescription = "Kurangi sudut sampul"
-                        stateDescription = "$radiusDp dp"
+                        contentDescription = decreaseLabel
+                        stateDescription = radiusDescription
                     },
             )
             Box(
@@ -424,8 +452,8 @@ private fun CoverRadiusCard(
                         onClick = { onRadiusChange(stepCoverRadiusBy(radiusDp, 1)) },
                     )
                     .semantics {
-                        contentDescription = "Tambah sudut sampul"
-                        stateDescription = "$radiusDp dp"
+                        contentDescription = increaseLabel
+                        stateDescription = radiusDescription
                     },
             )
         }
@@ -451,24 +479,24 @@ private fun PlayerAndEffectsCard(
             modifier = Modifier.fillMaxWidth().padding(1.dp).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            MonoLabel("Pemutar & efek", Modifier.semantics { heading() })
+            MonoLabel(appString(Res.string.appearance_player_effects_heading), Modifier.semantics { heading() })
             AppearanceSwitchRow(
-                title = "Latar pemutar dari sampul",
-                subtitle = "Warna sampul diblur di layar Sedang diputar",
+                title = appString(Res.string.appearance_player_backdrop_title),
+                subtitle = appString(Res.string.appearance_player_backdrop_subtitle),
                 checked = playerBackdropFromCover,
                 enabled = enabled,
                 onCheckedChange = onPlayerBackdropChange,
             )
             AppearanceSwitchRow(
-                title = "Efek kaca",
-                subtitle = "Matikan bila HP terasa berat",
+                title = appString(Res.string.appearance_glass_title),
+                subtitle = appString(Res.string.appearance_glass_subtitle),
                 checked = glass,
                 enabled = enabled,
                 onCheckedChange = onGlassChange,
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Kecepatan animasi",
+                    text = appString(Res.string.appearance_animation_speed_title),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -479,7 +507,7 @@ private fun PlayerAndEffectsCard(
                 )
                 if (systemReduceMotion) {
                     Text(
-                        text = "Diatur oleh sistem",
+                        text = appString(Res.string.appearance_animation_system_controlled),
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
@@ -527,11 +555,12 @@ private fun AnimationSpeedChip(
         targetValue = if (selected) colors.background else colors.onSurface,
         animationSpec = look.tweenOrSnap(ControlTransitionMs),
     )
+    val language = LocalAppLanguage.current
     val stateLabel = when {
-        lockedBySystem && selected -> "Dipilih, diatur oleh sistem"
-        lockedBySystem -> "Dikunci oleh sistem"
-        selected -> "Dipilih"
-        else -> "Tidak dipilih"
+        lockedBySystem && selected -> appString(Res.string.state_selected_by_system)
+        lockedBySystem -> appString(Res.string.state_locked_by_system)
+        selected -> appString(Res.string.state_selected)
+        else -> appString(Res.string.state_not_selected)
     }
     Box(
         modifier = Modifier
@@ -557,7 +586,7 @@ private fun AnimationSpeedChip(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = speed.label,
+                text = speed.label(language),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -581,6 +610,7 @@ private fun AppearanceSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val switchState = appString(if (checked) Res.string.state_on else Res.string.state_off)
     AdaptiveRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -590,7 +620,7 @@ private fun AppearanceSwitchRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             )
-            .semantics { stateDescription = if (checked) "Aktif" else "Nonaktif" }
+            .semantics { stateDescription = switchState }
             .heightIn(min = 48.dp),
         minPrimaryWidth = 160.dp,
         horizontalSpacing = 12.dp,

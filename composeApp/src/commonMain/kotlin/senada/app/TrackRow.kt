@@ -37,6 +37,9 @@ import senada.app.theme.SenadaPalette
 import senada.app.theme.SenadaType
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.action_play
+import senada.resources.track_now_playing_suffix
 
 /**
  * Baris lagu dengan sampul 48 dp (atau nomor urut [trackNumber] di halaman album);
@@ -50,17 +53,19 @@ internal fun TrackRow(
     showArtworkWithNumber: Boolean = false,
     onClick: (() -> Unit)? = null,
     playing: Boolean = false,
-    onClickLabel: String = "Putar",
+    onClickLabel: String? = null,
     action: @Composable () -> Unit,
 ) {
+    val language = LocalAppLanguage.current
+    val resolvedClickLabel = onClickLabel ?: appString(Res.string.action_play)
     val metadata = listOfNotNull(
         track.artists.joinToString().takeIf { it.isNotEmpty() },
         track.durationMs?.let(::playbackTime),
     ).joinToString(" · ")
     val accessibilityLabel = buildString {
         if (trackNumber != null) append("$trackNumber. ")
-        append(trackAccessibilityLabel(track, favorite))
-        if (playing) append(", Sedang diputar")
+        append(trackAccessibilityLabel(track, favorite, language))
+        if (playing) append(appString(Res.string.track_now_playing_suffix))
     }
     AdaptiveRow(
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 2.dp),
@@ -72,7 +77,7 @@ internal fun TrackRow(
                     .fillMaxWidth()
                     .minTouchTarget()
                     .clip(MaterialTheme.shapes.small)
-                    .clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
+                    .clickable(onClickLabel = resolvedClickLabel, role = Role.Button, onClick = onClick)
                     .padding(vertical = 4.dp)
             } else {
                 Modifier.fillMaxWidth()

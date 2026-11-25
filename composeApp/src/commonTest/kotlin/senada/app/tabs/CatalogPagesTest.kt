@@ -310,7 +310,7 @@ class CatalogPagesTest {
 
         val rejectedMix = saveCatalogPlaylist(repo, "RDAMVM12345", "My Mix", tracks)
         assertIs<CatalogPlaylistSaveOutcome.Rejected>(rejectedMix)
-        assertEquals(MIX_SAVE_DISABLED_MESSAGE, rejectedMix.message)
+        assertEquals(mixSaveDisabledMessage(), rejectedMix.message)
 
         val storedPlaylists = repo.playlists.first()
         assertEquals(3, storedPlaylists.size)
@@ -328,7 +328,7 @@ class CatalogPagesTest {
         val sections = artistPageSections(detail)
 
         assertEquals(
-            listOf("Lagu terpopuler", "Album terpopuler", "Album terbaru"),
+            listOf("Popular songs", "Popular albums", "Latest releases"),
             sections.map { it.title },
         )
         val songsSection = assertIs<ArtistPageSection.PopularSongs>(sections[0])
@@ -367,7 +367,7 @@ class CatalogPagesTest {
 
         val sections = artistPageSections(detail)
 
-        assertEquals(listOf("Lagu terpopuler", "Album terbaru"), sections.map { it.title })
+        assertEquals(listOf("Popular songs", "Latest releases"), sections.map { it.title })
         val songsSection = assertIs<ArtistPageSection.PopularSongs>(sections[0])
         assertEquals(listOf("Lagu 1", "Lagu 2", "Lagu 3", "Lagu 4", "Lagu 5"), songsSection.songs.map { it.title })
         assertNull(songsSection.fullListPlaylistId)

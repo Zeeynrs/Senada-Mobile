@@ -41,7 +41,11 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.LocalAppLanguage
 import senada.app.OverflowActionItem
+import senada.app.appString
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlin.math.roundToLong
@@ -56,6 +60,29 @@ import senada.playback.RepeatMode
 import senada.playback.SampleAudioSource
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
+import senada.resources.Res
+import senada.resources.action_pause
+import senada.resources.action_play
+import senada.resources.playback_audio_failed
+import senada.resources.player_loading_audio
+import senada.resources.player_next
+import senada.resources.player_paused_position
+import senada.resources.player_position_label
+import senada.resources.player_position_of
+import senada.resources.player_previous
+import senada.resources.player_repeat_all
+import senada.resources.player_repeat_label
+import senada.resources.player_repeat_off
+import senada.resources.player_repeat_one
+import senada.resources.player_shuffle_label
+import senada.resources.player_shuffle_off
+import senada.resources.player_shuffle_on
+import senada.resources.player_status_ended
+import senada.resources.player_status_https
+import senada.resources.player_status_local
+import senada.resources.player_status_offline
+import senada.resources.player_status_paused
+import senada.resources.player_status_ytm
 
 internal val PlayerGlassTint = Color.White.copy(alpha = .12f)
 internal val PlayerGlassBorder = Color.White.copy(alpha = .14f)
@@ -113,17 +140,17 @@ internal fun NowPlayingControls(state: PlaybackState, playback: PlaybackControll
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TransportButton(
-            NowPlayingIcons.Previous, "Sebelumnya", 64.dp * scale, scale,
+            NowPlayingIcons.Previous, appString(Res.string.player_previous), 64.dp * scale, scale,
             enabled = audio.selection != null, onClick = playback::previous,
         )
         TransportButton(
             if (audio.isActive) NowPlayingIcons.Pause else NowPlayingIcons.Play,
-            if (audio.isActive) "Jeda" else "Putar",
+            appString(if (audio.isActive) Res.string.action_pause else Res.string.action_play),
             76.dp * scale, scale,
             enabled = audio.selection != null || state.queue.entries.isNotEmpty(),
         ) { if (audio.isActive) playback.pause() else playback.resume() }
         TransportButton(
-            NowPlayingIcons.Next, "Berikutnya", 64.dp * scale, scale,
+            NowPlayingIcons.Next, appString(Res.string.player_next), 64.dp * scale, scale,
             enabled = state.canGoNext, onClick = playback::next,
         )
     }
@@ -155,21 +182,23 @@ private fun TransportButton(
 @Composable
 internal fun PlayerPlaybackMenu(state: PlaybackState, playback: PlaybackController, select: (() -> Unit) -> Unit) {
     val queue = state.queue
-    val shuffle = if (queue.shuffleEnabled) "nyala" else "mati"
+    val shuffle = appString(if (queue.shuffleEnabled) Res.string.player_shuffle_on else Res.string.player_shuffle_off)
     val (repeat, nextMode) = when (queue.repeatMode) {
-        RepeatMode.Off -> "mati" to RepeatMode.All
-        RepeatMode.All -> "semua" to RepeatMode.One
-        RepeatMode.One -> "satu" to RepeatMode.Off
+        RepeatMode.Off -> appString(Res.string.player_repeat_off) to RepeatMode.All
+        RepeatMode.All -> appString(Res.string.player_repeat_all) to RepeatMode.One
+        RepeatMode.One -> appString(Res.string.player_repeat_one) to RepeatMode.Off
     }
+    val shuffleLabel = appString(Res.string.player_shuffle_label, shuffle)
+    val repeatLabel = appString(Res.string.player_repeat_label, repeat)
     OverflowActionItem(
-        label = "Acak: $shuffle",
+        label = shuffleLabel,
         icon = SenadaIcons.Shuffle,
-        modifier = Modifier.semantics { contentDescription = "Acak: $shuffle" },
+        modifier = Modifier.semantics { contentDescription = shuffleLabel },
     ) { select { playback.setShuffleEnabled(!queue.shuffleEnabled) } }
     OverflowActionItem(
-        label = "Ulangi: $repeat",
+        label = repeatLabel,
         icon = if (queue.repeatMode == RepeatMode.One) SenadaIcons.RepeatOne else SenadaIcons.Repeat,
-        modifier = Modifier.semantics { contentDescription = "Ulangi: $repeat" },
+        modifier = Modifier.semantics { contentDescription = repeatLabel },
     ) { select { playback.setRepeatMode(nextMode) } }
 }
 
@@ -204,8 +233,15 @@ internal fun NowPlayingPosition(audio: SampleAudioState, playback: PlaybackContr
         }
     }
     val shownPosition = shownSecond * 1_000L
-    val spokenPosition = accessibleDuration(shownPosition)
-    val spokenProgress = if (duration != null) "$spokenPosition dari ${accessibleDuration(duration)}" else spokenPosition
+    val language = LocalAppLanguage.current
+    val spokenPosition = accessibleDuration(shownPosition, language)
+    val spokenProgress = if (duration != null) {
+        appString(Res.string.player_position_of, spokenPosition, accessibleDuration(duration, language))
+    } else {
+        spokenPosition
+    }
+    val pausedPositionDesc = appString(Res.string.player_paused_position, spokenPosition)
+    val defaultPositionDesc = appString(Res.string.player_position_label)
     val trackHeight = 6.dp * scale
     val trackShape = RoundedCornerShape(3.dp * scale)
     val touchHeight = (48.dp * scale).coerceAtLeast(48.dp)
@@ -249,9 +285,9 @@ internal fun NowPlayingPosition(audio: SampleAudioState, playback: PlaybackContr
                 contentDescription = if (duration == null && audio.status == SampleAudioStatus.Paused &&
                     audio.selection?.isPending == true && hasRestoredPosition
                 ) {
-                    "Posisi jeda $spokenPosition"
+                    pausedPositionDesc
                 } else {
-                    "Posisi pemutaran"
+                    defaultPositionDesc
                 }
                 stateDescription = spokenProgress
             },
@@ -291,17 +327,22 @@ private fun NowPlayingProgressBar(
     )
 }
 
-internal fun playbackStatus(state: PlaybackState): String? = when (state.audio.status) {
+internal fun playbackStatus(
+    state: PlaybackState,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String? = when (state.audio.status) {
     SampleAudioStatus.Idle -> null
-    SampleAudioStatus.Loading -> "Memuat audio…"
+    SampleAudioStatus.Loading -> AppStrings.get(Res.string.player_loading_audio, language)
     SampleAudioStatus.Playing -> when (state.audio.selection?.source) {
-        SampleAudioSource.Local -> "Memutar file lokal"
-        SampleAudioSource.Offline -> "Memutar offline"
-        SampleAudioSource.Https -> "Memutar dari HTTPS"
-        SampleAudioSource.YouTubeMusic -> "Memutar dari YouTube Music"
+        SampleAudioSource.Local -> AppStrings.get(Res.string.player_status_local, language)
+        SampleAudioSource.Offline -> AppStrings.get(Res.string.player_status_offline, language)
+        SampleAudioSource.Https -> AppStrings.get(Res.string.player_status_https, language)
+        SampleAudioSource.YouTubeMusic -> AppStrings.get(Res.string.player_status_ytm, language)
         null -> null
     }
-    SampleAudioStatus.Paused -> "Dijeda"
-    SampleAudioStatus.Ended -> "Pemutaran selesai"
-    SampleAudioStatus.Failed -> state.problem ?: "Audio gagal diputar. Coba lagi."
+    SampleAudioStatus.Paused -> AppStrings.get(Res.string.player_status_paused, language)
+    SampleAudioStatus.Ended -> AppStrings.get(Res.string.player_status_ended, language)
+    SampleAudioStatus.Failed -> state.problemText?.resolve(language)
+        ?: state.problem
+        ?: AppStrings.get(Res.string.playback_audio_failed, language)
 }

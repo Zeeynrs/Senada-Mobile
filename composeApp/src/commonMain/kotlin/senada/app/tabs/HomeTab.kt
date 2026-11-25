@@ -50,6 +50,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
+import senada.app.appPlural
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
@@ -62,6 +65,23 @@ import senada.catalog.MoodChip
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.library.HomeHero
 import senada.library.RecentHomeItem
+import senada.resources.Res
+import senada.resources.a11y_play_track
+import senada.resources.a11y_playlist_named_count
+import senada.resources.action_loading
+import senada.resources.action_refresh
+import senada.resources.action_retry
+import senada.resources.home_favorites_subtitle
+import senada.resources.home_moods_title
+import senada.resources.home_recent_title
+import senada.resources.home_refresh_ytm_a11y
+import senada.resources.home_retry_ytm_a11y
+import senada.resources.home_ytm_loading_1
+import senada.resources.home_ytm_loading_2
+import senada.resources.label_playlist_count_subtitle
+import senada.resources.label_song_singular
+import senada.resources.library_filter_favorites
+import senada.resources.song_count
 
 private val HomeContentPadding = 20.dp
 private val HomeFavoritesBackground = Color(0xFF21413A)
@@ -166,6 +186,7 @@ internal fun LazyListScope.homeTab(
                             HomeFavoritesTile(onClick = onOpenFavorites)
                         }
                         items(section.items, key = { it.key }) { item ->
+                            val language = LocalAppLanguage.current
                             when (item) {
                                 is RecentHomeItem.Song -> {
                                     val track = item.track
@@ -173,25 +194,28 @@ internal fun LazyListScope.homeTab(
                                     val subtitle = track.artists
                                         .filter { it.isNotBlank() }
                                         .joinToString()
-                                        .ifEmpty { "Lagu" }
+                                        .ifEmpty { appString(Res.string.label_song_singular) }
                                     ShelfSquareCard(
                                         title = track.title,
                                         subtitle = subtitle,
                                         artworkUrl = track.artworkUrl,
                                         fallbackIcon = SenadaIcons.MusicNote,
-                                        accessibilityLabel = "Putar ${trackAccessibilityLabel(track, favorite)}",
+                                        accessibilityLabel = appString(
+                                            Res.string.a11y_play_track,
+                                            trackAccessibilityLabel(track, favorite, language),
+                                        ),
                                         onClick = { actions.playAll(listOf(track)) },
                                     )
                                 }
                                 is RecentHomeItem.Playlist -> {
                                     val summary = item.summary
-                                    val count = "${summary.trackCount} lagu"
+                                    val count = appPlural(Res.plurals.song_count, summary.trackCount, summary.trackCount)
                                     ShelfSquareCard(
                                         title = summary.name,
-                                        subtitle = "Playlist · $count",
+                                        subtitle = appString(Res.string.label_playlist_count_subtitle, count),
                                         artworkUrl = item.artworkUrl,
                                         fallbackIcon = SenadaIcons.Library,
-                                        accessibilityLabel = "Playlist ${summary.name}, $count",
+                                        accessibilityLabel = appString(Res.string.a11y_playlist_named_count, summary.name, count),
                                         onClick = { onOpenPlaylist(summary.id) },
                                     )
                                 }
@@ -216,20 +240,21 @@ internal fun LazyListScope.homeTab(
             is HomeSection.Moods -> {
                 item(key = "home-moods-title") {
                     ShelfTitle(
-                        title = "Mood & genre",
+                        title = appString(Res.string.home_moods_title),
                         modifier = Modifier
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                             .padding(top = 16.dp, start = HomeContentPadding, end = HomeContentPadding),
                         trailing = if (section.showRefresh) {
                             {
+                                val refreshDesc = appString(Res.string.home_refresh_ytm_a11y)
                                 TextButton(
                                     onClick = onRefreshHomeShelves,
                                     enabled = !homeShelves.loading,
                                     modifier = Modifier.minTouchTarget().semantics {
-                                        contentDescription = "Segarkan rekomendasi YouTube Music"
+                                        contentDescription = refreshDesc
                                     },
                                 ) {
-                                    Text(if (homeShelves.loading) "Memuat…" else "Segarkan")
+                                    Text(appString(if (homeShelves.loading) Res.string.action_loading else Res.string.action_refresh))
                                 }
                             }
                         } else {
@@ -270,7 +295,7 @@ internal fun LazyListScope.homeTab(
             HomeSection.YouTubeLoading -> {
                 item(key = "home-yt-loading-1") {
                     ShelfSkeletonRow(
-                        statusLabel = "Memuat rekomendasi YouTube Music…",
+                        statusLabel = appString(Res.string.home_ytm_loading_1),
                         horizontalPadding = HomeContentPadding,
                         modifier = Modifier
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
@@ -279,7 +304,7 @@ internal fun LazyListScope.homeTab(
                 }
                 item(key = "home-yt-loading-2") {
                     ShelfSkeletonRow(
-                        statusLabel = "Memuat rak lainnya…",
+                        statusLabel = appString(Res.string.home_ytm_loading_2),
                         horizontalPadding = HomeContentPadding,
                         modifier = Modifier
                             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
@@ -289,6 +314,7 @@ internal fun LazyListScope.homeTab(
             }
             is HomeSection.YouTubeError -> {
                 item(key = "home-yt-error") {
+                    val language = LocalAppLanguage.current
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -296,9 +322,9 @@ internal fun LazyListScope.homeTab(
                             .padding(top = 20.dp, start = HomeContentPadding, end = HomeContentPadding),
                     ) {
                         QuietNoticeCard(
-                            message = section.message,
-                            actionLabel = "Coba lagi",
-                            actionDescription = "Coba muat ulang rekomendasi YouTube Music",
+                            message = section.message(language),
+                            actionLabel = appString(Res.string.action_retry),
+                            actionDescription = appString(Res.string.home_retry_ytm_a11y),
                             onAction = onRefreshHomeShelves,
                         )
                     }
@@ -339,7 +365,7 @@ private fun HomeRecentHeader(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "Baru diputar",
+                text = appString(Res.string.home_recent_title),
                 style = homeSectionTitleStyle(),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.semantics { heading() },
@@ -384,7 +410,7 @@ private fun HomeFavoritesTile(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Favorit",
+            text = appString(Res.string.library_filter_favorites),
             style = homeTileTitleStyle(),
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = if (largeFont) 2 else 1,
@@ -392,7 +418,7 @@ private fun HomeFavoritesTile(
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            text = "Daftar favoritmu",
+            text = appString(Res.string.home_favorites_subtitle),
             style = homeTileSubtitleStyle(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = if (largeFont) 2 else 1,

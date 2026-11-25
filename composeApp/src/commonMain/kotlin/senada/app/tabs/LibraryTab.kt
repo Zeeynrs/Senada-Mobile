@@ -21,6 +21,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.CollectionPlayButtons
 import senada.app.CompactCollectionHeader
 import senada.app.ImportAudioButton
@@ -28,9 +30,11 @@ import senada.app.ImportAudioStatusMessage
 import senada.app.LibraryActions
 import senada.app.LibraryEmptyState
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
 import senada.app.SenadaFilterPill
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.appString
 import senada.app.collectionMeta
 import senada.app.favoritesTab
 import senada.app.historyTab
@@ -43,16 +47,44 @@ import senada.library.LibraryArtist
 import senada.model.Track
 import senada.offline.OfflineState
 import senada.platform.importedAudioStorage
+import senada.resources.Res
+import senada.resources.import_audio_button
+import senada.resources.import_audio_copying
+import senada.resources.library_artists_empty
+import senada.resources.library_artists_loading
+import senada.resources.library_filter_a11y
+import senada.resources.library_filter_all
+import senada.resources.library_filter_artists
+import senada.resources.library_filter_favorites
+import senada.resources.library_filter_history
+import senada.resources.library_filter_playlists
+import senada.resources.library_imported_empty_short
+import senada.resources.library_imported_eyebrow
+import senada.resources.library_shortcut_imported
+import senada.resources.library_shortcut_offline
+import senada.resources.offline_find_songs
 
 /** Pilihan filter di dalam satu tab Library. */
-internal enum class LibraryFilter(val label: String) {
-    All("Semua"),
-    Playlists("Playlist"),
-    Artists("Artis"),
-    Favorites("Favorit"),
-    Offline("Offline"),
-    History("Riwayat"),
-    Imported("File impor"),
+internal enum class LibraryFilter {
+    All,
+    Playlists,
+    Artists,
+    Favorites,
+    Offline,
+    History,
+    Imported;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        All -> AppStrings.get(Res.string.library_filter_all, language)
+        Playlists -> AppStrings.get(Res.string.library_filter_playlists, language)
+        Artists -> AppStrings.get(Res.string.library_filter_artists, language)
+        Favorites -> AppStrings.get(Res.string.library_filter_favorites, language)
+        Offline -> AppStrings.get(Res.string.library_shortcut_offline, language)
+        History -> AppStrings.get(Res.string.library_filter_history, language)
+        Imported -> AppStrings.get(Res.string.library_shortcut_imported, language)
+    }
+
+    val label: String get() = label()
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -94,10 +126,14 @@ internal fun LazyListScope.libraryTab(
         LibraryFilter.Offline -> offlineSongsTab(downloadState ?: OfflineState(), library, actions, onOpenSearch)
         LibraryFilter.Artists -> when {
             artists == null -> item(key = "library-artists-loading") {
-                Text("Memuat artis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(appString(Res.string.library_artists_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             artists.isEmpty() -> item(key = "library-artists-empty") {
-                LibraryEmptyState("Simpan lagu ke favorit atau playlist untuk melihat artisnya.", "Cari lagu", onAction = onOpenSearch)
+                LibraryEmptyState(
+                    message = appString(Res.string.library_artists_empty),
+                    actionLabel = appString(Res.string.offline_find_songs),
+                    onAction = onOpenSearch,
+                )
             }
             else -> libraryArtistRows(artists, actions)
         }
@@ -118,6 +154,7 @@ internal fun LazyListScope.libraryTab(
 
 @Composable
 private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter) -> Unit) {
+    val language = LocalAppLanguage.current
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -127,11 +164,13 @@ private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         for (filter in LibraryFilter.entries) {
+            val label = filter.label(language)
+            val filterDesc = appString(Res.string.library_filter_a11y, label)
             SenadaFilterPill(
-                label = filter.label,
+                label = label,
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
-                modifier = Modifier.semantics { contentDescription = "Filter Library ${filter.label}" },
+                modifier = Modifier.semantics { contentDescription = filterDesc },
             )
         }
     }
@@ -155,17 +194,19 @@ private fun ImportedTracksContent(
     actions: LibraryActions,
 ) {
     val importController = rememberAudioImportController(onImported = actions::addImportedTrack)
-    val meta = remember(tracks) {
-        collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks))
+    val language = LocalAppLanguage.current
+    val meta = remember(tracks, language) {
+        collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks), language = language)
     }
+    val importedTitle = appString(Res.string.library_shortcut_imported)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         CompactCollectionHeader(
-            title = "File impor",
+            title = importedTitle,
             meta = meta,
-            eyebrow = "Penyimpanan lokal",
+            eyebrow = appString(Res.string.library_imported_eyebrow),
         ) {
             CollectionPlayButtons(
-                title = "File impor",
+                title = importedTitle,
                 canPlay = tracks.isNotEmpty(),
                 onPlay = { actions.playImportedTracks(tracks) },
                 onShuffle = { actions.shuffleImportedTracks(tracks) },
@@ -173,8 +214,8 @@ private fun ImportedTracksContent(
         }
         if (tracks.isEmpty()) {
             LibraryEmptyState(
-                message = "Belum ada file audio impor.",
-                actionLabel = if (importController.busy) "Menyalin file…" else "Impor file audio",
+                message = appString(Res.string.library_imported_empty_short),
+                actionLabel = appString(if (importController.busy) Res.string.import_audio_copying else Res.string.import_audio_button),
                 actionEnabled = !importController.busy,
                 onAction = importController::launchImport,
             )

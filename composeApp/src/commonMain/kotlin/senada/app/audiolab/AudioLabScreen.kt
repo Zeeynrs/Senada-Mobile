@@ -44,13 +44,24 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
+import senada.app.appString
 import senada.app.nowplaying.SleepTimerMenu
 import senada.app.theme.MonoLabel
 import senada.app.theme.SenadaPalette
 import senada.audio.AudioEffects
 import senada.playback.PlaybackController
 import senada.playback.SleepTimerState
+import senada.resources.Res
+import senada.resources.audiolab_audio_quality_title
+import senada.resources.audiolab_eq_label
+import senada.resources.audiolab_fx_label
+import senada.resources.audiolab_platform_subtitle
+import senada.resources.audiolab_speed_pitch_title
+import senada.resources.audiolab_title_multiline
+import senada.resources.profile_back_to
+import senada.resources.sleep_timer_title
 
 internal fun LazyListScope.audioLabScreen(
     effects: AudioEffects,
@@ -72,31 +83,34 @@ internal fun LazyListScope.audioLabScreen(
         item(key = "audiolab-unavailable") { AudioLabUnavailableNotice() }
     }
     item(key = "audiolab-equalizer") {
+        val language = LocalAppLanguage.current
         AudioLabEqualizerCard(
-            status = equalizerStatus(effects),
+            status = equalizerStatus(effects, language),
             onClick = onOpenEqualizer,
         )
     }
     item(key = "audiolab-soundfx") {
+        val language = LocalAppLanguage.current
         AudioLabSoundFxCard(
-            status = soundFxStatus(effects),
+            status = soundFxStatus(effects, language),
             onClick = { onOpenSoundFx(false) },
         )
     }
     item(key = "audiolab-grid") {
+        val language = LocalAppLanguage.current
         Row(
             modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AudioLabGridCard(
-                title = "Kecepatan & nada",
-                status = speedStatus(effects),
+                title = appString(Res.string.audiolab_speed_pitch_title),
+                status = speedStatus(effects, language),
                 onClick = { onOpenSoundFx(true) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             AudioLabGridCard(
-                title = "Kualitas audio",
-                status = audioQualityStatus(saveMobileData),
+                title = appString(Res.string.audiolab_audio_quality_title),
+                status = audioQualityStatus(saveMobileData, language),
                 onClick = onOpenPlayback,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -116,7 +130,7 @@ private fun AudioLabHeader(previousLabel: String, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // LazyColumn memakai padding horizontal 12 dp; tombol 48 dp di +2 dp menempatkan lingkaran 44 dp di 16 dp.
         AudioLabBackButton(
-            description = "Kembali ke $previousLabel",
+            description = appString(Res.string.profile_back_to, previousLabel),
             onClick = onBack,
             modifier = Modifier.padding(start = 2.dp),
         )
@@ -126,7 +140,7 @@ private fun AudioLabHeader(previousLabel: String, onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             primary = {
                 Text(
-                    text = "Audio\nLab",
+                    text = appString(Res.string.audiolab_title_multiline),
                     style = MaterialTheme.typography.displayLarge.copy(
                         fontSize = 46.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -138,7 +152,7 @@ private fun AudioLabHeader(previousLabel: String, onBack: () -> Unit) {
                 )
             },
             trailing = {
-                MonoLabel("Android · iPhone")
+                MonoLabel(appString(Res.string.audiolab_platform_subtitle))
             },
         )
         // Bersama jarak 10 dp antar item LazyColumn, kartu pertama mulai di 252 dp pada skala baku.
@@ -205,7 +219,7 @@ private fun AudioLabEqualizerCard(status: CardStatus, onClick: () -> Unit) {
             ) {
                 AudioLabStatusLabel(status)
                 Text(
-                    text = "Equalizer",
+                    text = appString(Res.string.audiolab_eq_label),
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 26.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -274,7 +288,7 @@ private fun AudioLabSoundFxCard(status: CardStatus, onClick: () -> Unit) {
             ) {
                 AudioLabStatusLabel(status)
                 Text(
-                    text = "Efek suara",
+                    text = appString(Res.string.audiolab_fx_label),
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 26.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -324,7 +338,8 @@ private fun AudioLabSleepTimerCard(
     playback: PlaybackController,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    val status = sleepTimerStatus(state)
+    val language = LocalAppLanguage.current
+    val status = sleepTimerStatus(state, language)
     val colors = MaterialTheme.colorScheme
 
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -340,7 +355,7 @@ private fun AudioLabSleepTimerCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Timer tidur",
+                        text = appString(Res.string.sleep_timer_title),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,

@@ -23,9 +23,21 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import senada.app.AppearancePreferences
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
 import senada.app.SenadaFilterPill
+import senada.app.appString
 import senada.app.theme.MonoLabel
+import senada.resources.Res
+import senada.resources.lyrics_alignment_title
+import senada.resources.lyrics_font_title
+import senada.resources.lyrics_highlight_title
+import senada.resources.lyrics_preview_heading
+import senada.resources.lyrics_sample_1
+import senada.resources.lyrics_sample_2
+import senada.resources.lyrics_sample_3
+import senada.resources.lyrics_settings_sheet_title
+import senada.resources.lyrics_size_title
 
 @Composable
 internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
@@ -37,31 +49,32 @@ internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            MonoLabel("Pratinjau", Modifier.semantics { heading() })
+            val language = LocalAppLanguage.current
+            MonoLabel(appString(Res.string.lyrics_preview_heading), Modifier.semantics { heading() })
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 color = Color(0xFF16161A),
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LyricsLineText("Malam bergerak pelan", appearance, LyricLineState.Past, baseSize = 18f)
+                    LyricsLineText(appString(Res.string.lyrics_sample_1), appearance, LyricLineState.Past, baseSize = 18f)
                     LyricsLineText(
-                        "Kita ikuti iramanya", appearance, LyricLineState.Active,
+                        appString(Res.string.lyrics_sample_2), appearance, LyricLineState.Active,
                         baseSize = 18f, progress = .55f,
                     )
-                    LyricsLineText("Sampai cahaya datang", appearance, LyricLineState.Upcoming, baseSize = 18f)
+                    LyricsLineText(appString(Res.string.lyrics_sample_3), appearance, LyricLineState.Upcoming, baseSize = 18f)
                 }
             }
-            LyricsOptions("Ukuran teks", LyricsSize.entries, appearance.size, LyricsSize::label, enabled) { size ->
+            LyricsOptions(appString(Res.string.lyrics_size_title), LyricsSize.entries, appearance.size, { it.label(language) }, enabled) { size ->
                 preferences.updateLyricsAppearance { it.copy(size = size) }
             }
-            LyricsOptions("Font", LyricsFont.entries, appearance.font, LyricsFont::label, enabled) { font ->
+            LyricsOptions(appString(Res.string.lyrics_font_title), LyricsFont.entries, appearance.font, { it.label(language) }, enabled) { font ->
                 preferences.updateLyricsAppearance { it.copy(font = font) }
             }
-            LyricsOptions("Perataan", LyricsAlignment.entries, appearance.alignment, LyricsAlignment::label, enabled) { alignment ->
+            LyricsOptions(appString(Res.string.lyrics_alignment_title), LyricsAlignment.entries, appearance.alignment, { it.label(language) }, enabled) { alignment ->
                 preferences.updateLyricsAppearance { it.copy(alignment = alignment) }
             }
-            LyricsOptions("Sorotan baris aktif", LyricsHighlight.entries, appearance.highlight, LyricsHighlight::label, enabled) { highlight ->
+            LyricsOptions(appString(Res.string.lyrics_highlight_title), LyricsHighlight.entries, appearance.highlight, { it.label(language) }, enabled) { highlight ->
                 preferences.updateLyricsAppearance { it.copy(highlight = highlight) }
             }
         }
@@ -83,7 +96,7 @@ internal fun LyricsSettingsSheet(preferences: AppearancePreferences, onDismiss: 
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Tampilan lirik",
+                appString(Res.string.lyrics_settings_sheet_title),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.semantics { heading() },
             )

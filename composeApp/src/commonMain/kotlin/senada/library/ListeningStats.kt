@@ -15,17 +15,33 @@ import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.stats_period_all
+import senada.resources.stats_period_month
+import senada.resources.stats_period_week
+import senada.resources.stats_period_year
 
 internal data class ListenEvent(val id: String, val track: Track, val startedAt: Long, val listenedMs: Long)
 
-internal enum class ListenPeriod(val label: String, private val days: Int? = null) {
-    Week("7 hari", 7),
-    Month("30 hari", 30),
-    Year("Tahun ini"),
-    All("Semua");
+internal enum class ListenPeriod(private val days: Int? = null) {
+    Week(7),
+    Month(30),
+    Year,
+    All;
 
     val daily: Boolean get() = days != null
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Week -> AppStrings.get(Res.string.stats_period_week, language)
+        Month -> AppStrings.get(Res.string.stats_period_month, language)
+        Year -> AppStrings.get(Res.string.stats_period_year, language)
+        All -> AppStrings.get(Res.string.stats_period_all, language)
+    }
+
+    val label: String get() = label()
 
     fun start(now: Instant, zone: TimeZone): Instant {
         val today = now.toLocalDateTime(zone).date

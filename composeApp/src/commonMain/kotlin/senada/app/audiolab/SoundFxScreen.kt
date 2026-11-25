@@ -26,18 +26,39 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
 import senada.app.SenadaSwitch
+import senada.app.appString
 import senada.app.theme.LocalSenadaLook
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.audio.ReverbRoom
 import senada.audio.ReverbSettings
 import senada.audio.BassBoostSettings
+import senada.resources.Res
+import senada.resources.audiolab_fx_multiline
+import senada.resources.audiolab_speed_pitch_title
+import senada.resources.fx_bass_boost
+import senada.resources.fx_bass_boost_desc
+import senada.resources.fx_bass_strength
+import senada.resources.fx_bass_strength_a11y
+import senada.resources.fx_effect_off
+import senada.resources.fx_loudness
+import senada.resources.fx_loudness_desc
+import senada.resources.fx_pitch_lock
+import senada.resources.fx_pitch_lock_desc
+import senada.resources.fx_reverb
+import senada.resources.fx_reverb_desc
+import senada.resources.fx_reverb_mix
+import senada.resources.fx_reverb_mix_a11y
+import senada.resources.fx_reverb_room
+import senada.resources.fx_reverb_room_a11y
+import senada.resources.state_not_selected
+import senada.resources.state_selected
 
 private const val EffectDimmedAlpha = 0.4f
 private const val EffectDimAnimationMs = 150
-private const val EffectOffStateDescription = "Efek mati"
 
 @Composable
 private fun rememberEffectControlAlpha(effectEnabled: Boolean): Float {
@@ -65,7 +86,7 @@ internal fun LazyListScope.soundFxScreen(
     }
     item(key = "soundfx-title") {
         Text(
-            text = "Efek\nsuara",
+            text = appString(Res.string.audiolab_fx_multiline),
             style = MaterialTheme.typography.displayLarge.copy(
                 fontSize = 46.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -128,9 +149,10 @@ private fun LoudnessCard(checked: Boolean, enabled: Boolean, onToggle: (Boolean)
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            val loudnessTitle = appString(Res.string.fx_loudness)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Samakan volume",
+                    text = loudnessTitle,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 17.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -139,7 +161,7 @@ private fun LoudnessCard(checked: Boolean, enabled: Boolean, onToggle: (Boolean)
                     modifier = Modifier.semantics { heading() },
                 )
                 Text(
-                    text = "Meredam lagu yang lebih keras di YouTube Music",
+                    text = appString(Res.string.fx_loudness_desc),
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                     color = colors.onSurfaceVariant,
                 )
@@ -148,7 +170,7 @@ private fun LoudnessCard(checked: Boolean, enabled: Boolean, onToggle: (Boolean)
                 checked = checked,
                 onCheckedChange = onToggle,
                 enabled = enabled,
-                modifier = Modifier.semantics { contentDescription = "Samakan volume" },
+                modifier = Modifier.semantics { contentDescription = loudnessTitle },
             )
         }
     }
@@ -171,6 +193,7 @@ private fun ReverbCard(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val reverbTitle = appString(Res.string.fx_reverb)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -178,7 +201,7 @@ private fun ReverbCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Reverb",
+                        text = reverbTitle,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -187,7 +210,7 @@ private fun ReverbCard(
                         modifier = Modifier.semantics { heading() },
                     )
                     Text(
-                        text = "Memberi kesan ruang pada lagu",
+                        text = appString(Res.string.fx_reverb_desc),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = colors.onSurfaceVariant,
                     )
@@ -196,10 +219,14 @@ private fun ReverbCard(
                     checked = reverb.enabled,
                     onCheckedChange = onToggle,
                     enabled = enabled,
-                    modifier = Modifier.semantics { contentDescription = "Reverb" },
+                    modifier = Modifier.semantics { contentDescription = reverbTitle },
                 )
             }
 
+            val language = LocalAppLanguage.current
+            val offStateLabel = appString(Res.string.fx_effect_off)
+            val selectedLabel = appString(Res.string.state_selected)
+            val notSelectedLabel = appString(Res.string.state_not_selected)
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -211,7 +238,7 @@ private fun ReverbCard(
                 for (room in ReverbRoom.entries) {
                     val selected = reverb.room == room
                     AudioLabChip(
-                        label = room.name,
+                        label = room.label(language),
                         selected = selected,
                         enabled = enabled,
                         onClick = { onRoomSelect(room) },
@@ -220,7 +247,7 @@ private fun ReverbCard(
                         } else {
                             Modifier.semantics {
                                 stateDescription =
-                                    "${if (selected) "Dipilih" else "Tidak dipilih"}, $EffectOffStateDescription"
+                                    "${if (selected) selectedLabel else notSelectedLabel}, $offStateLabel"
                             }
                         },
                     )
@@ -228,21 +255,21 @@ private fun ReverbCard(
             }
 
             PercentSliderBlock(
-                label = "Campuran",
+                label = appString(Res.string.fx_reverb_mix),
                 value = reverb.mix,
                 enabled = enabled,
                 effectEnabled = reverb.enabled,
                 controlsAlpha = controlsAlpha,
-                accessibilityLabel = "Campuran reverb",
+                accessibilityLabel = appString(Res.string.fx_reverb_mix_a11y),
                 onValueChange = onMixChange,
             )
             PercentSliderBlock(
-                label = "Ukuran ruang",
+                label = appString(Res.string.fx_reverb_room),
                 value = reverb.size,
                 enabled = enabled,
                 effectEnabled = reverb.enabled,
                 controlsAlpha = controlsAlpha,
-                accessibilityLabel = "Ukuran ruang reverb",
+                accessibilityLabel = appString(Res.string.fx_reverb_room_a11y),
                 onValueChange = onSizeChange,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -265,6 +292,7 @@ private fun BassBoostCard(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val bassTitle = appString(Res.string.fx_bass_boost)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -272,7 +300,7 @@ private fun BassBoostCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Bass boost",
+                        text = bassTitle,
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -281,7 +309,7 @@ private fun BassBoostCard(
                         modifier = Modifier.semantics { heading() },
                     )
                     Text(
-                        text = "Menebalkan nada rendah",
+                        text = appString(Res.string.fx_bass_boost_desc),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = colors.onSurfaceVariant,
                     )
@@ -290,16 +318,16 @@ private fun BassBoostCard(
                     checked = bassBoost.enabled,
                     onCheckedChange = onToggle,
                     enabled = enabled,
-                    modifier = Modifier.semantics { contentDescription = "Bass boost" },
+                    modifier = Modifier.semantics { contentDescription = bassTitle },
                 )
             }
             PercentSliderBlock(
-                label = "Kekuatan",
+                label = appString(Res.string.fx_bass_strength),
                 value = bassBoost.strength,
                 enabled = enabled,
                 effectEnabled = bassBoost.enabled,
                 controlsAlpha = controlsAlpha,
-                accessibilityLabel = "Kekuatan bass boost",
+                accessibilityLabel = appString(Res.string.fx_bass_strength_a11y),
                 onValueChange = onStrengthChange,
             )
         }
@@ -321,8 +349,9 @@ private fun SpeedAndPitchCard(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            val language = LocalAppLanguage.current
             Text(
-                text = "Kecepatan & nada",
+                text = appString(Res.string.audiolab_speed_pitch_title),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -337,7 +366,7 @@ private fun SpeedAndPitchCard(
             ) {
                 for (choice in SpeedChoices) {
                     AudioLabChip(
-                        label = formatSpeed(choice),
+                        label = formatSpeed(choice, language),
                         selected = abs(speed - choice) < 0.01f,
                         enabled = enabled,
                         onClick = { onSpeedSelect(choice) },
@@ -345,6 +374,7 @@ private fun SpeedAndPitchCard(
                 }
             }
             Spacer(Modifier.height(2.dp))
+            val pitchLockTitle = appString(Res.string.fx_pitch_lock)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -352,7 +382,7 @@ private fun SpeedAndPitchCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Kunci nada",
+                        text = pitchLockTitle,
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
@@ -360,7 +390,7 @@ private fun SpeedAndPitchCard(
                         color = colors.onSurface,
                     )
                     Text(
-                        text = "Mati: nada ikut naik-turun seperti piringan hitam",
+                        text = appString(Res.string.fx_pitch_lock_desc),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = colors.onSurfaceVariant,
                     )
@@ -369,7 +399,7 @@ private fun SpeedAndPitchCard(
                     checked = pitchLock,
                     onCheckedChange = onPitchLockToggle,
                     enabled = enabled,
-                    modifier = Modifier.semantics { contentDescription = "Kunci nada" },
+                    modifier = Modifier.semantics { contentDescription = pitchLockTitle },
                 )
             }
         }
@@ -389,7 +419,8 @@ private fun PercentSliderBlock(
 ) {
     val colors = MaterialTheme.colorScheme
     val percentText = formatPercent(value)
-    val sliderStateDescription = if (effectEnabled) percentText else "$percentText, $EffectOffStateDescription"
+    val offStateLabel = appString(Res.string.fx_effect_off)
+    val sliderStateDescription = if (effectEnabled) percentText else "$percentText, $offStateLabel"
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(

@@ -7,29 +7,78 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.catalog.MoodChip
+import senada.resources.Res
+import senada.resources.catalog_type_album
+import senada.resources.catalog_type_artist
+import senada.resources.catalog_type_mood
+import senada.resources.catalog_type_playlist
+import senada.resources.nav_home
+import senada.resources.nav_library
+import senada.resources.nav_profile
+import senada.resources.nav_search
+import senada.resources.route_about
+import senada.resources.route_appearance
+import senada.resources.route_audio_lab
+import senada.resources.route_backup
+import senada.resources.route_developer
+import senada.resources.route_equalizer
+import senada.resources.route_language
+import senada.resources.route_lyrics
+import senada.resources.route_most_played
+import senada.resources.route_playback
+import senada.resources.route_sound_fx
+import senada.resources.route_stats
+import senada.resources.route_storage
 
 /** Empat tujuan di navigasi bawah. */
-internal enum class AppDestination(val label: String) {
-    Home("Beranda"),
-    Search("Cari"),
-    Library("Library"),
-    Profile("Profil"),
+internal enum class AppDestination {
+    Home, Search, Library, Profile;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Home -> AppStrings.get(Res.string.nav_home, language)
+        Search -> AppStrings.get(Res.string.nav_search, language)
+        Library -> AppStrings.get(Res.string.nav_library, language)
+        Profile -> AppStrings.get(Res.string.nav_profile, language)
+    }
+
+    val label: String get() = label()
 }
 
-internal enum class ProfileRoute(val label: String) {
-    Stats("Statistik dengar"),
-    MostPlayed("Paling sering diputar"),
-    AudioLab("Audio Lab"),
-    Equalizer("Equalizer"),
-    SoundFx("Efek suara"),
-    Appearance("Tampilan"),
-    Lyrics("Lirik"),
-    Playback("Pemutaran"),
-    Backup("Backup library"),
-    Storage("Penyimpanan"),
-    About("Tentang Senada"),
-    Developer("Pengembang"),
+internal enum class ProfileRoute {
+    Stats,
+    MostPlayed,
+    AudioLab,
+    Equalizer,
+    SoundFx,
+    Appearance,
+    Lyrics,
+    Language,
+    Playback,
+    Backup,
+    Storage,
+    About,
+    Developer;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Stats -> AppStrings.get(Res.string.route_stats, language)
+        MostPlayed -> AppStrings.get(Res.string.route_most_played, language)
+        AudioLab -> AppStrings.get(Res.string.route_audio_lab, language)
+        Equalizer -> AppStrings.get(Res.string.route_equalizer, language)
+        SoundFx -> AppStrings.get(Res.string.route_sound_fx, language)
+        Appearance -> AppStrings.get(Res.string.route_appearance, language)
+        Lyrics -> AppStrings.get(Res.string.route_lyrics, language)
+        Language -> AppStrings.get(Res.string.route_language, language)
+        Playback -> AppStrings.get(Res.string.route_playback, language)
+        Backup -> AppStrings.get(Res.string.route_backup, language)
+        Storage -> AppStrings.get(Res.string.route_storage, language)
+        About -> AppStrings.get(Res.string.route_about, language)
+        Developer -> AppStrings.get(Res.string.route_developer, language)
+    }
+
+    val label: String get() = label()
 }
 
 /** Rute halaman katalog di atas tab (artis, album, playlist, atau mood), disusun sebagai tumpukan kembali. */
@@ -37,13 +86,17 @@ internal sealed interface CatalogRoute {
     val id: String
     val label: String
     val artworkUrl: String?
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String
 
     data class Artist(
         override val id: String,
         val name: String,
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
-        override val label: String get() = name.ifBlank { "Artis" }
+        override fun label(language: AppLanguage): String =
+            name.ifBlank { AppStrings.get(Res.string.catalog_type_artist, language) }
+
+        override val label: String get() = label()
     }
 
     data class Album(
@@ -52,7 +105,10 @@ internal sealed interface CatalogRoute {
         val subtitle: String? = null,
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
-        override val label: String get() = title.ifBlank { "Album" }
+        override fun label(language: AppLanguage): String =
+            title.ifBlank { AppStrings.get(Res.string.catalog_type_album, language) }
+
+        override val label: String get() = label()
     }
 
     data class Playlist(
@@ -61,7 +117,10 @@ internal sealed interface CatalogRoute {
         val subtitle: String? = null,
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
-        override val label: String get() = title.ifBlank { "Playlist" }
+        override fun label(language: AppLanguage): String =
+            title.ifBlank { AppStrings.get(Res.string.catalog_type_playlist, language) }
+
+        override val label: String get() = label()
     }
 
     data class Mood(
@@ -70,7 +129,10 @@ internal sealed interface CatalogRoute {
         val params: String? = null,
         override val artworkUrl: String? = null,
     ) : CatalogRoute {
-        override val label: String get() = title.ifBlank { "Mood & genre" }
+        override fun label(language: AppLanguage): String =
+            title.ifBlank { AppStrings.get(Res.string.catalog_type_mood, language) }
+
+        override val label: String get() = label()
 
         /** Kunci cache unik karena beberapa kategori mood berbagi browseId yang sama dan dibedakan oleh [params]. */
         fun cacheKey(): String = if (params.isNullOrBlank()) id else "$id|$params"
@@ -107,8 +169,10 @@ internal class AppNavigator(
         get() = catalogStack.lastOrNull()
 
     /** Label layar sebelum rute katalog teratas, dipakai untuk tombol kembali. */
-    fun previousCatalogLabel(): String =
-        catalogStack.dropLast(1).lastOrNull()?.label ?: currentProfileRoute?.label ?: destination.label
+    fun previousCatalogLabel(language: AppLanguage = AppStrings.currentLanguage): String =
+        catalogStack.dropLast(1).lastOrNull()?.label(language)
+            ?: currentProfileRoute?.label(language)
+            ?: destination.label(language)
 
     /** Benar bila tombol kembali masih punya sesuatu untuk ditutup sebelum keluar aplikasi. */
     val canGoBack: Boolean

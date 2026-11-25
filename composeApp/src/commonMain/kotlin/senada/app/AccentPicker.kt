@@ -25,6 +25,10 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import senada.app.theme.AccentChoice
 import senada.app.theme.SenadaPalette
+import senada.resources.Res
+import senada.resources.a11y_accent_color
+import senada.resources.state_not_selected
+import senada.resources.state_selected
 
 /** Pilihan warna aksen tetap yang ditampilkan di deret bulatan; FollowCover memakai sakelar tersendiri. */
 internal val FixedAccentChoices: List<AccentChoice> =
@@ -53,6 +57,9 @@ internal fun AccentSwatchRow(
     ) {
         for (choice in FixedAccentChoices) {
             val isSelected = selected == choice
+            val choiceDescription = appString(Res.string.a11y_accent_color, choice.label(LocalAppLanguage.current))
+            val selectedLabel = appString(Res.string.state_selected)
+            val notSelectedLabel = appString(Res.string.state_not_selected)
             val swatchColor = if (choice == AccentChoice.Senada) {
                 if (darkTheme) SenadaPalette.AccentDark else SenadaPalette.AccentLight
             } else {
@@ -74,8 +81,8 @@ internal fun AccentSwatchRow(
                         onClick = { onSelect(choice) },
                     )
                     .semantics {
-                        contentDescription = "Warna aksen ${choice.label}"
-                        stateDescription = if (isSelected) "Dipilih" else "Tidak dipilih"
+                        contentDescription = choiceDescription
+                        stateDescription = if (isSelected) selectedLabel else notSelectedLabel
                     },
                 contentAlignment = Alignment.Center,
             ) {

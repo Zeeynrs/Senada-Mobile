@@ -73,12 +73,31 @@ import senada.app.FullViewTheme
 import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
 import senada.app.OverflowActionItem
 import senada.app.OverflowActionSheet
 import senada.app.rememberOfflineArtwork
 import senada.app.LocalArtworkAccent
 import senada.app.SenadaSources
 import senada.app.TrackMenu
+import senada.app.appString
+import senada.resources.Res
+import senada.resources.action_close
+import senada.resources.action_more_options
+import senada.resources.appearance_full_view_theme_title
+import senada.resources.player_audiolab_button
+import senada.resources.player_close_lyrics
+import senada.resources.player_close_queue
+import senada.resources.player_like
+import senada.resources.player_lyrics_button
+import senada.resources.player_now_playing
+import senada.resources.player_open_artist
+import senada.resources.player_open_artist_named
+import senada.resources.player_open_audiolab
+import senada.resources.player_open_full_lyrics
+import senada.resources.player_queue_button
+import senada.resources.player_unlike
+import senada.resources.queue_empty
 import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.PlatformBackHandler
 import senada.app.shell.SenadaIcons
@@ -170,6 +189,8 @@ internal fun NowPlayingScreen(
     val lyricsAppearance = appearance.settings?.lyricsAppearance ?: LyricsAppearance()
     val fullViewTheme = appearance.settings?.fullViewTheme ?: FullViewTheme.Standard
     val showThemePicker = { if (appearance.settings != null) themePickerOpen = true }
+    val language = LocalAppLanguage.current
+    val sourceLabel = source.label(language)
 
     if (immersive) NowPlayingSystemBars()
     val back: () -> Unit = { if (sheet == null) onClose() else sheet = null }
@@ -229,8 +250,8 @@ internal fun NowPlayingScreen(
                             val isLyrics = currentSheet == PlayerSheet.Lyrics
                             var settingsOpen by rememberSaveable { mutableStateOf(false) }
                             PlayerSheetContent(
-                                title = if (isLyrics) "Lirik" else "Antrean",
-                                closeLabel = if (isLyrics) "Tutup lirik" else "Tutup antrean",
+                                title = appString(if (isLyrics) Res.string.player_lyrics_button else Res.string.player_queue_button),
+                                closeLabel = appString(if (isLyrics) Res.string.player_close_lyrics else Res.string.player_close_queue),
                                 onClose = { sheet = null },
                                 onOpenSettings = if (isLyrics) ({ settingsOpen = true }) else null,
                             ) {
@@ -293,7 +314,7 @@ private fun PlayerMainContent(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(Modifier.fillMaxWidth()) {
-            PlayerHeader(sourceLabel ?: "Sedang diputar", scale, safeTop, onClose, onTheme)
+            PlayerHeader(sourceLabel ?: appString(Res.string.player_now_playing), scale, safeTop, onClose, onTheme)
             Cover(coverUrl, accent, coverSize)
             Spacer(Modifier.height(372.dp * scale - coverSize))
             PlayerTrack(
@@ -315,10 +336,10 @@ private fun PlayerMainContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PlayerGlassButton(NowPlayingIcons.Lyrics, "Lirik", scale, onClick = onLyrics)
+            PlayerGlassButton(NowPlayingIcons.Lyrics, appString(Res.string.player_lyrics_button), scale, onClick = onLyrics)
             SleepTimerButton(timer, state.audio.canStopAfterTrack, playback, scale)
-            PlayerGlassButton(NowPlayingIcons.AudioLab, "Audio Lab", scale, onClick = onOpenAudioLab)
-            PlayerGlassButton(NowPlayingIcons.Queue, "Antrean", scale, onClick = onQueue)
+            PlayerGlassButton(NowPlayingIcons.AudioLab, appString(Res.string.player_audiolab_button), scale, onClick = onOpenAudioLab)
+            PlayerGlassButton(NowPlayingIcons.Queue, appString(Res.string.player_queue_button), scale, onClick = onQueue)
         }
     }
 }
@@ -342,10 +363,12 @@ private fun PlayerHeader(sourceLabel: String, scale: Float, safeTop: Dp, onClose
                 modifier = Modifier.semantics { heading() },
             )
         }
+        val closeLabel = appString(Res.string.action_close)
+        val themeLabel = appString(Res.string.appearance_full_view_theme_title)
         Box(
             Modifier.align(Alignment.TopCenter).size(touch)
                 .clickable(role = Role.Button, onClick = onClose)
-                .semantics { contentDescription = "Tutup" },
+                .semantics { contentDescription = closeLabel },
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -354,7 +377,7 @@ private fun PlayerHeader(sourceLabel: String, scale: Float, safeTop: Dp, onClose
             )
         }
         Box(Modifier.align(Alignment.TopEnd).padding(end = 14.dp)) {
-            PlayerGlassButton(SenadaIcons.Appearance, "Tema Full View", scale = .85f, onClick = onTheme)
+            PlayerGlassButton(SenadaIcons.Appearance, themeLabel, scale = .85f, onClick = onTheme)
         }
     }
 }
@@ -370,8 +393,9 @@ private fun PlayerTrack(
     scale: Float,
     modifier: Modifier,
 ) {
-    val title = track?.title ?: state.audio.selection?.title ?: "Antrean kosong"
-    val status = playbackStatus(state)
+    val language = LocalAppLanguage.current
+    val title = track?.title ?: state.audio.selection?.title ?: appString(Res.string.queue_empty)
+    val status = playbackStatus(state, language)
     val choices = remember(track, actions.canOpenArtists) {
         if (track != null && actions.canOpenArtists && canOpenArtist(track)) artistChoicesFor(track) else emptyList()
     }
@@ -398,23 +422,25 @@ private fun PlayerTrack(
                 )
                 if (track != null && track.artists.isNotEmpty()) {
                     val artistText = track.artists.joinToString()
+                    val openArtistLabel = appString(Res.string.player_open_artist)
+                    val openArtistNamed = appString(Res.string.player_open_artist_named, artistText)
                     Text(
                         artistText, color = PlayerWhite.copy(alpha = .62f),
                         fontSize = playerSp(19, scale), lineHeight = playerSp(24, scale), fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = if (choices.isEmpty()) Modifier else Modifier
-                            .clickable(onClickLabel = "Buka artis", role = Role.Button) {
+                            .clickable(onClickLabel = openArtistLabel, role = Role.Button) {
                                 if (choices.size == 1) actions.openArtist(track, choices.first())
                                 else pickingArtist = true
                             }
-                            .semantics { contentDescription = "Buka artis $artistText" },
+                            .semantics { contentDescription = openArtistNamed },
                     )
                 }
             }
             val favorite = track != null && track.id in library.favoriteIds
             PlayerGlassButton(
                 if (favorite) NowPlayingIcons.HeartFilled else NowPlayingIcons.Heart,
-                if (favorite) "Hapus dari favorit" else "Tambahkan ke favorit",
+                appString(if (favorite) Res.string.player_unlike else Res.string.player_like),
                 scale, enabled = track != null, tint = if (favorite) SenadaPalette.Favorite else PlayerWhite,
             ) { if (track != null) actions.toggleFavorite(track) }
             PlayerTrackMenu(track, library, actions, state, playback, onOpenAudioLab, scale)
@@ -441,13 +467,13 @@ private fun PlayerTrackMenu(
     state: PlaybackState, playback: PlaybackController, onOpenAudioLab: () -> Unit, scale: Float,
 ) {
     val trigger: @Composable (() -> Unit) -> Unit = { open ->
-        PlayerGlassButton(NowPlayingIcons.More, "Menu lainnya", scale, onClick = open)
+        PlayerGlassButton(NowPlayingIcons.More, appString(Res.string.action_more_options), scale, onClick = open)
     }
     val playbackItems: @Composable ((() -> Unit) -> Unit) -> Unit = { select ->
         PlayerPlaybackMenu(state, playback, select)
     }
     val audioLabItem: @Composable ((() -> Unit) -> Unit) -> Unit = { select ->
-        OverflowActionItem("Buka Audio Lab", SenadaIcons.AudioLab) { select(onOpenAudioLab) }
+        OverflowActionItem(appString(Res.string.player_open_audiolab), SenadaIcons.AudioLab) { select(onOpenAudioLab) }
     }
     if (track != null) {
         TrackMenu(
@@ -461,7 +487,7 @@ private fun PlayerTrackMenu(
             trigger { expanded = true }
             if (expanded) {
                 OverflowActionSheet(
-                    title = state.audio.selection?.title ?: "Sedang diputar",
+                    title = state.audio.selection?.title ?: appString(Res.string.player_now_playing),
                     onDismiss = { expanded = false },
                 ) { select ->
                     playbackItems(select)
@@ -499,7 +525,7 @@ private fun ActiveLyric(line: String?, scale: Float, textScale: Float, onClick: 
     } else {
         Row(
             Modifier.fillMaxWidth().heightIn(min = target)
-                .clickable(onClickLabel = "Buka lirik penuh", role = Role.Button, onClick = onClick)
+                .clickable(onClickLabel = appString(Res.string.player_open_full_lyrics), role = Role.Button, onClick = onClick)
                 .padding(top = 14.dp * scale, bottom = 4.dp * scale),
             horizontalArrangement = Arrangement.spacedBy(6.dp * scale),
         ) {

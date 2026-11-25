@@ -23,8 +23,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okio.FileSystem
-import okio.Path
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.catalog.CatalogException
+import senada.resources.Res
+import senada.resources.error_offline_download_failed
+import senada.resources.error_offline_remove_failed
+import okio.Path
 import senada.catalog.StreamResolver
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.lyrics.LyricsDocument
@@ -33,7 +39,13 @@ import senada.model.Track
 internal sealed interface OfflineTransfer {
     data object Queued : OfflineTransfer
     data class Downloading(val percent: Int?) : OfflineTransfer
-    data class Failed(val message: String) : OfflineTransfer
+    data class Failed(val uiText: UiText) : OfflineTransfer {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
 internal data class OfflineTask(val track: Track, val transfer: OfflineTransfer)
@@ -42,8 +54,12 @@ internal data class OfflineState(
     val ready: Boolean = false,
     val songs: List<OfflineSong> = emptyList(),
     val tasks: Map<String, OfflineTask> = emptyMap(),
-    val problem: String? = null,
+    val problemText: UiText? = null,
 ) {
+    val problem: String? get() = problemText?.resolve()
+
+    fun problem(language: AppLanguage): String? = problemText?.resolve(language)
+
     fun song(id: String): OfflineSong? = songs.firstOrNull { it.track.id == id }
 }
 
@@ -97,7 +113,7 @@ internal class OfflineDownloads(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                mutableState.update { it.copy(problem = "Salinan lagu tidak dapat dihapus sepenuhnya.") }
+                mutableState.update { it.copy(problemText = UiText.Resource(Res.string.error_offline_remove_failed)) }
             } finally {
                 refreshSong(track)
                 removing.remove(track.id)
@@ -149,7 +165,8 @@ internal class OfflineDownloads(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            updateTask(track, OfflineTransfer.Failed((e as? CatalogException)?.userMessage ?: "Unduhan gagal. Coba lagi."))
+            val text = (e as? CatalogException)?.uiText ?: UiText.Resource(Res.string.error_offline_download_failed)
+            updateTask(track, OfflineTransfer.Failed(text))
         }
     }
 

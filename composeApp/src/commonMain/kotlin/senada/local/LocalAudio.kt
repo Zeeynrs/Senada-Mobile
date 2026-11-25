@@ -1,7 +1,13 @@
 package senada.local
 
 import kotlin.random.Random
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_import_not_enough_space
+import senada.resources.import_audio_default_name
 
 /** Sumber lagu dari file audio yang diimpor pengguna ke penyimpanan aplikasi. */
 internal const val LOCAL_FILE_SOURCE = "local"
@@ -9,7 +15,17 @@ private const val LOCAL_TRACK_PREFIX = "local:"
 private const val DAY_MS = 24L * 60 * 60 * 1_000
 
 /** Masalah file audio lokal yang perlu dijelaskan ke pengguna. */
-internal class LocalAudioException(val userMessage: String, cause: Throwable? = null) : Exception(userMessage, cause)
+internal class LocalAudioException(
+    internal val uiText: UiText,
+    cause: Throwable? = null,
+) : Exception(uiText.resolve(), cause) {
+    constructor(userMessage: String, cause: Throwable? = null) : this(UiText.Raw(userMessage), cause)
+
+    fun userMessage(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+    val userMessage: String
+        get() = userMessage()
+}
 
 /**
  * Folder file audio impor milik aplikasi. [Track.id] hanya menyimpan nama file, bukan path lengkap,
@@ -36,7 +52,8 @@ private val EXTRA_WHITESPACE_REGEX = Regex("\\s+")
 internal fun ImportedAudio.toTrack(): Track = Track(
     id = LOCAL_TRACK_PREFIX + fileName,
     title = title?.trim()?.takeIf { it.isNotEmpty() }
-        ?: displayName.substringBeforeLast('.').trim().ifEmpty { displayName.ifBlank { "File audio" } },
+        ?: displayName.substringBeforeLast('.').trim()
+            .ifEmpty { displayName.ifBlank { AppStrings.get(Res.string.import_audio_default_name) } },
     artists = parseImportedArtists(artist),
     durationMs = durationMs?.takeIf { it > 0 && it < DAY_MS },
     source = LOCAL_FILE_SOURCE,
@@ -77,4 +94,4 @@ internal fun newLocalFileName(displayName: String, random: Random = Random.Defau
 /** Ruang yang disisakan setelah menyalin, supaya ponsel tidak kehabisan penyimpanan sama sekali. */
 internal const val FREE_SPACE_MARGIN_BYTES = 50L * 1024 * 1024
 
-internal fun notEnoughSpace() = LocalAudioException("Ruang penyimpanan tidak cukup untuk menyalin file ini.")
+internal fun notEnoughSpace() = LocalAudioException(UiText.Resource(Res.string.error_import_not_enough_space))

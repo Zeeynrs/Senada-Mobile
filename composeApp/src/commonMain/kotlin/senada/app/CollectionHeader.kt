@@ -61,6 +61,32 @@ import senada.catalog.AlbumDetail
 import senada.catalog.PlaylistDetail
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_open_menu_named
+import senada.resources.a11y_pause_track
+import senada.resources.a11y_play_track
+import senada.resources.a11y_shuffle_play
+import senada.resources.action_delete
+import senada.resources.action_rename
+import senada.resources.action_saved
+import senada.resources.action_saving
+import senada.resources.catalog_type_album
+import senada.resources.collection_duration_hour_short
+import senada.resources.collection_duration_min_short
+import senada.resources.collection_duration_under_min
+import senada.resources.collection_duration_under_min_short
+import senada.resources.collection_enqueue_all
+import senada.resources.collection_mix_radio
+import senada.resources.collection_open_artist
+import senada.resources.collection_save_to_library
+import senada.resources.playlist_count
+import senada.resources.playlist_delete_title
+import senada.resources.profile_back_to
+import senada.resources.a11y_hours
+import senada.resources.a11y_minutes
+import senada.resources.song_count
+
+internal fun CollectionKind.labelOrFallback(): String = ""
 
 /** Aksi yang dapat muncul di menu ⋯ header koleksi. */
 internal enum class CollectionMenuAction {
@@ -93,27 +119,28 @@ internal sealed interface CollectionKind {
 internal fun collectionMenuItems(
     kind: CollectionKind,
     hasTracks: Boolean,
+    language: AppLanguage = AppStrings.currentLanguage,
 ): List<CollectionMenuItem> = when (kind) {
     CollectionKind.LibraryPlaylist -> listOf(
-        CollectionMenuItem(CollectionMenuAction.RenamePlaylist, "Ganti nama"),
-        CollectionMenuItem(CollectionMenuAction.DeletePlaylist, "Hapus playlist"),
+        CollectionMenuItem(CollectionMenuAction.RenamePlaylist, AppStrings.get(Res.string.action_rename, language)),
+        CollectionMenuItem(CollectionMenuAction.DeletePlaylist, AppStrings.get(Res.string.playlist_delete_title, language).removeSuffix("?")),
     )
     CollectionKind.Favorites -> listOf(
-        CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = hasTracks),
+        CollectionMenuItem(CollectionMenuAction.EnqueueAll, AppStrings.get(Res.string.collection_enqueue_all, language), enabled = hasTracks),
     )
     is CollectionKind.Album -> buildList {
-        add(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = hasTracks))
+        add(CollectionMenuItem(CollectionMenuAction.EnqueueAll, AppStrings.get(Res.string.collection_enqueue_all, language), enabled = hasTracks))
         if (kind.hasArtistId) {
-            add(CollectionMenuItem(CollectionMenuAction.OpenArtist, "Buka artis"))
+            add(CollectionMenuItem(CollectionMenuAction.OpenArtist, AppStrings.get(Res.string.collection_open_artist, language)))
         }
     }
     is CollectionKind.YouTubePlaylist -> buildList {
-        add(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = hasTracks))
+        add(CollectionMenuItem(CollectionMenuAction.EnqueueAll, AppStrings.get(Res.string.collection_enqueue_all, language), enabled = hasTracks))
         if (!kind.isMix) {
             val saveLabel = when (kind.saveStatus) {
-                is PlaylistSaveStatus.Saving -> "Menyimpan…"
-                is PlaylistSaveStatus.Saved -> "Tersimpan"
-                is PlaylistSaveStatus.Failed, null -> "Simpan ke Library"
+                is PlaylistSaveStatus.Saving -> AppStrings.get(Res.string.action_saving, language)
+                is PlaylistSaveStatus.Saved -> AppStrings.get(Res.string.action_saved, language)
+                is PlaylistSaveStatus.Failed, null -> AppStrings.get(Res.string.collection_save_to_library, language)
             }
             val canSave = hasTracks &&
                 kind.saveStatus !is PlaylistSaveStatus.Saving &&
@@ -143,19 +170,35 @@ internal fun sumKnownDurationMs(tracks: List<Track>): Long? {
     return total.takeIf { found && it > 0L }
 }
 
-/** Memformat total durasi koleksi untuk tampilan ringkas, misalnya "7 j 50 mnt" atau "45 mnt". */
-internal fun formatCollectionDuration(durationMs: Long): String? =
-    formatDurationWithUnits(durationMs, hourUnit = "j", minuteUnit = "mnt", underOneMinute = "< 1 mnt")
+/** Memformat total durasi koleksi untuk tampilan ringkas sesuai bahasa aktif. */
+internal fun formatCollectionDuration(
+    durationMs: Long,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String? = formatDurationWithUnits(
+    durationMs,
+    hourUnit = { AppStrings.get(Res.string.collection_duration_hour_short, language) },
+    minuteUnit = { AppStrings.get(Res.string.collection_duration_min_short, language) },
+    underOneMinute = AppStrings.get(Res.string.collection_duration_under_min_short, language),
+)
 
-/** Memformat total durasi koleksi menjadi frasa penuh bahasa Indonesia untuk pembaca layar. */
-internal fun spokenCollectionDuration(durationMs: Long): String? =
-    formatDurationWithUnits(durationMs, hourUnit = "jam", minuteUnit = "menit", underOneMinute = "kurang dari 1 menit")
+/** Memformat total durasi koleksi menjadi frasa penuh sesuai bahasa aktif untuk pembaca layar. */
+internal fun spokenCollectionDuration(
+    durationMs: Long,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String? = formatDurationWithUnits(
+    durationMs,
+    hourUnit = { AppStrings.plural(Res.plurals.a11y_hours, it.toInt(), language, it.toInt()) },
+    minuteUnit = { AppStrings.plural(Res.plurals.a11y_minutes, it.toInt(), language, it.toInt()) },
+    underOneMinute = AppStrings.get(Res.string.collection_duration_under_min, language),
+    includeNumberInUnit = true,
+)
 
 private fun formatDurationWithUnits(
     durationMs: Long,
-    hourUnit: String,
-    minuteUnit: String,
+    hourUnit: (Long) -> String,
+    minuteUnit: (Long) -> String,
     underOneMinute: String,
+    includeNumberInUnit: Boolean = false,
 ): String? {
     if (durationMs <= 0L) return null
     val totalMinutes = durationMs / 60_000L
@@ -163,8 +206,8 @@ private fun formatDurationWithUnits(
     val hours = totalMinutes / 60L
     val minutes = totalMinutes % 60L
     return buildList {
-        if (hours > 0L) add("$hours $hourUnit")
-        if (minutes > 0L) add("$minutes $minuteUnit")
+        if (hours > 0L) add(if (includeNumberInUnit) hourUnit(hours) else "$hours ${hourUnit(hours)}")
+        if (minutes > 0L) add(if (includeNumberInUnit) minuteUnit(minutes) else "$minutes ${minuteUnit(minutes)}")
     }.joinToString(" ")
 }
 
@@ -174,34 +217,49 @@ internal fun collectionMeta(
     totalDurationMs: Long? = null,
     prefixParts: List<String> = emptyList(),
     countTextOverride: String? = null,
+    language: AppLanguage = AppStrings.currentLanguage,
 ): CollectionMeta {
     val cleanPrefix = prefixParts.map(String::trim).filter(String::isNotEmpty)
-    val countText = countTextOverride?.trim()?.takeIf(String::isNotEmpty) ?: "$trackCount lagu"
-    val durationDisplay = totalDurationMs?.let(::formatCollectionDuration)
-    val durationSpoken = totalDurationMs?.let(::spokenCollectionDuration)
+    val countText = countTextOverride?.trim()?.takeIf(String::isNotEmpty)
+        ?: AppStrings.plural(Res.plurals.song_count, trackCount, language, trackCount)
+    val durationDisplay = totalDurationMs?.let { formatCollectionDuration(it, language) }
+    val durationSpoken = totalDurationMs?.let { spokenCollectionDuration(it, language) }
     return CollectionMeta(
         display = (cleanPrefix + listOfNotNull(countText, durationDisplay)).joinToString(" · "),
         spoken = (cleanPrefix + listOfNotNull(countText, durationSpoken)).joinToString(", "),
     )
 }
 
-internal fun playlistCollectionMeta(trackCount: Int, totalDurationMs: Long?): CollectionMeta =
-    collectionMeta(trackCount = trackCount, totalDurationMs = totalDurationMs)
+internal fun playlistCollectionMeta(
+    trackCount: Int,
+    totalDurationMs: Long?,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CollectionMeta = collectionMeta(trackCount = trackCount, totalDurationMs = totalDurationMs, language = language)
 
-internal fun favoritesCollectionMeta(trackCount: Int, totalDurationMs: Long?): CollectionMeta =
-    collectionMeta(trackCount = trackCount, totalDurationMs = totalDurationMs)
+internal fun favoritesCollectionMeta(
+    trackCount: Int,
+    totalDurationMs: Long?,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CollectionMeta = collectionMeta(trackCount = trackCount, totalDurationMs = totalDurationMs, language = language)
 
 /** Menyusun baris meta jumlah playlist untuk header ringkas daftar playlist. */
-internal fun playlistListMeta(playlistCount: Int): CollectionMeta {
+internal fun playlistListMeta(
+    playlistCount: Int,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CollectionMeta {
     val count = playlistCount.coerceAtLeast(0)
-    val text = "$count playlist"
+    val text = AppStrings.plural(Res.plurals.playlist_count, count, language, count)
     return CollectionMeta(display = text, spoken = text)
 }
 
-internal fun albumCollectionMeta(detail: AlbumDetail?, fallbackSubtitle: String?): CollectionMeta? {
+internal fun albumCollectionMeta(
+    detail: AlbumDetail?,
+    fallbackSubtitle: String?,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CollectionMeta? {
     if (detail == null) return fallbackMeta(fallbackSubtitle)
     val prefix = listOfNotNull(
-        detail.typeLabel?.takeIf { it.isNotBlank() } ?: "Album",
+        detail.typeLabel?.takeIf { it.isNotBlank() } ?: AppStrings.get(Res.string.catalog_type_album, language),
         detail.artists.filter { it.isNotBlank() }.joinToString().takeIf { it.isNotEmpty() },
         detail.year?.takeIf { it.isNotBlank() },
     )
@@ -210,6 +268,7 @@ internal fun albumCollectionMeta(detail: AlbumDetail?, fallbackSubtitle: String?
             trackCount = detail.tracks.size,
             totalDurationMs = sumKnownDurationMs(detail.tracks),
             prefixParts = prefix,
+            language = language,
         )
     }
     return prefix.takeIf { it.isNotEmpty() }?.let {
@@ -221,10 +280,11 @@ internal fun youTubePlaylistCollectionMeta(
     detail: PlaylistDetail?,
     isMix: Boolean,
     fallbackSubtitle: String?,
+    language: AppLanguage = AppStrings.currentLanguage,
 ): CollectionMeta? {
     if (detail == null) return fallbackMeta(fallbackSubtitle)
     val prefix = listOfNotNull(
-        "Mix / Radio".takeIf { isMix },
+        AppStrings.get(Res.string.collection_mix_radio, language).takeIf { isMix },
         detail.owner?.takeIf { it.isNotBlank() },
     )
     if (!detail.truncated) {
@@ -232,16 +292,19 @@ internal fun youTubePlaylistCollectionMeta(
             trackCount = detail.tracks.size,
             totalDurationMs = sumKnownDurationMs(detail.tracks),
             prefixParts = prefix,
+            language = language,
         )
     }
     val countText = detail.songCountText?.takeIf { it.isNotBlank() }
-        ?: "${detail.tracks.size} lagu".takeIf { detail.tracks.isNotEmpty() }
+        ?: AppStrings.plural(Res.plurals.song_count, detail.tracks.size, language, detail.tracks.size)
+            .takeIf { detail.tracks.isNotEmpty() }
     if (countText != null) {
         return collectionMeta(
             trackCount = detail.tracks.size,
             totalDurationMs = null,
             prefixParts = prefix,
             countTextOverride = countText,
+            language = language,
         )
     }
     return prefix.takeIf { it.isNotEmpty() }?.let {
@@ -272,6 +335,7 @@ internal fun CollectionBackButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val colors = MaterialTheme.colorScheme
+    val backDescription = appString(Res.string.profile_back_to, previousLabel)
     Box(
         modifier = modifier
             .size(48.dp)
@@ -283,7 +347,7 @@ internal fun CollectionBackButton(
             )
             .semantics {
                 role = Role.Button
-                contentDescription = "Kembali ke $previousLabel"
+                contentDescription = backDescription
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -546,6 +610,7 @@ private fun CollectionActionRow(
     val colors = MaterialTheme.colorScheme
     val interactionSource = remember { MutableInteractionSource() }
 
+    val openMenuDesc = appString(Res.string.a11y_open_menu_named, title)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -563,7 +628,7 @@ private fun CollectionActionRow(
                     )
                     .semantics {
                         role = Role.Button
-                        contentDescription = "Buka menu $title"
+                        contentDescription = openMenuDesc
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -628,6 +693,8 @@ internal fun CollectionPlayButtons(
     val playContainer = if (canPlay) colors.primary else colors.surfaceContainerHighest
     val playContent = if (canPlay) textOnAccent(playContainer) else colors.onSurface.copy(alpha = 0.38f)
 
+    val shuffleLabel = appString(Res.string.a11y_shuffle_play, title)
+    val playPauseLabel = appString(if (isPlaying) Res.string.a11y_pause_track else Res.string.a11y_play_track, title)
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -640,7 +707,7 @@ internal fun CollectionPlayButtons(
             border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
             modifier = Modifier.size(48.dp).semantics {
                 role = Role.Button
-                contentDescription = "Putar acak $title"
+                contentDescription = shuffleLabel
             },
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -659,7 +726,7 @@ internal fun CollectionPlayButtons(
             contentColor = playContent,
             modifier = Modifier.size(56.dp).semantics {
                 role = Role.Button
-                contentDescription = if (isPlaying) "Jeda $title" else "Putar $title"
+                contentDescription = playPauseLabel
             },
         ) {
             Box(contentAlignment = Alignment.Center) {

@@ -25,6 +25,9 @@ import senada.epochMillis
 import senada.local.localFileNameFromId
 import senada.local.localFileNameOf
 import senada.model.Track
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.playlist_default_name
 
 data class PlaylistSummary(
     val id: String,
@@ -228,7 +231,12 @@ class LibraryRepository internal constructor(
     suspend fun createPlaylist(name: String, tracks: List<Track> = emptyList(), description: String = ""): String {
         val id = newPlaylistId()
         write {
-            queries.insertPlaylist(id, name.trim().ifEmpty { DEFAULT_PLAYLIST_NAME }, description, now())
+            queries.insertPlaylist(
+                id,
+                name.trim().ifEmpty { AppStrings.get(Res.string.playlist_default_name) },
+                description,
+                now(),
+            )
             appendNow(id, tracks)
         }
         return id

@@ -18,6 +18,16 @@ import senada.app.theme.AccentChoice
 import senada.lyrics.LyricsAppearance
 import senada.lyrics.lyricsAppearanceFromJson
 import senada.lyrics.toJson
+import senada.resources.Res
+import senada.resources.motion_fast
+import senada.resources.motion_normal
+import senada.resources.motion_off
+import senada.resources.motion_slow
+import senada.resources.player_theme_standard
+import senada.resources.player_theme_vinyl
+import senada.resources.theme_dark
+import senada.resources.theme_light
+import senada.resources.theme_system
 
 internal const val MIN_COVER_RADIUS_DP = 0
 internal const val MAX_COVER_RADIUS_DP = 28
@@ -27,23 +37,46 @@ internal const val COVER_RADIUS_STEP_DP = 2
 internal fun clampCoverRadius(radiusDp: Int): Int =
     radiusDp.coerceIn(MIN_COVER_RADIUS_DP, MAX_COVER_RADIUS_DP)
 
-internal enum class ThemeMode(val label: String) {
-    System("Ikuti sistem"), Light("Terang"), Dark("Gelap"),
+internal enum class ThemeMode {
+    System, Light, Dark;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        System -> AppStrings.get(Res.string.theme_system, language)
+        Light -> AppStrings.get(Res.string.theme_light, language)
+        Dark -> AppStrings.get(Res.string.theme_dark, language)
+    }
+
+    val label: String get() = label()
 }
 
-internal enum class FullViewTheme(val key: String, val label: String) {
-    Standard("standard", "Standar"), Vinyl("vinyl", "Vinyl"),
+internal enum class FullViewTheme(val key: String) {
+    Standard("standard"), Vinyl("vinyl");
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Standard -> AppStrings.get(Res.string.player_theme_standard, language)
+        Vinyl -> AppStrings.get(Res.string.player_theme_vinyl, language)
+    }
+
+    val label: String get() = label()
 }
 
 internal enum class AnimationSpeed(
     val key: String,
-    val label: String,
     val scale: Float,
 ) {
-    Slow("slow", "Pelan", 1.5f),
-    Normal("normal", "Normal", 1.0f),
-    Fast("fast", "Cepat", 0.6f),
-    Off("off", "Mati", 0f),
+    Slow("slow", 1.5f),
+    Normal("normal", 1.0f),
+    Fast("fast", 0.6f),
+    Off("off", 0f);
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Slow -> AppStrings.get(Res.string.motion_slow, language)
+        Normal -> AppStrings.get(Res.string.motion_normal, language)
+        Fast -> AppStrings.get(Res.string.motion_fast, language)
+        Off -> AppStrings.get(Res.string.motion_off, language)
+    }
+
+    val label: String get() = label()
 }
 
 internal data class Appearance(
@@ -56,6 +89,7 @@ internal data class Appearance(
     val animation: AnimationSpeed = AnimationSpeed.Normal,
     val lyricsAppearance: LyricsAppearance = LyricsAppearance(),
     val fullViewTheme: FullViewTheme = FullViewTheme.Standard,
+    val language: AppLanguage = AppLanguage.English,
 )
 
 /** Satu nilai berversi agar tema, aksen, penghemat data, dan tampilan visual disimpan bersama. */
@@ -86,6 +120,7 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
                 val animationKey = (value["animation"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 val animation = AnimationSpeed.entries.firstOrNull { it.key == animationKey } ?: AnimationSpeed.Normal
                 val fullViewKey = (value["fullViewTheme"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                val languageTag = (value["language"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 Appearance(
                     mode = mode,
                     accent = accent,
@@ -96,6 +131,7 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
                     animation = animation,
                     lyricsAppearance = lyricsAppearanceFromJson(value["lyricsAppearance"]),
                     fullViewTheme = FullViewTheme.entries.firstOrNull { it.key == fullViewKey } ?: FullViewTheme.Standard,
+                    language = AppLanguage.fromTag(languageTag),
                 )
             } else {
                 Appearance(mode = mode, accent = accent, saveMobileData = saveData)
@@ -116,6 +152,7 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
         put("animation", settings.animation.key)
         put("lyricsAppearance", settings.lyricsAppearance.toJson())
         put("fullViewTheme", settings.fullViewTheme.key)
+        put("language", settings.language.tag)
     }.toString())
 }
 

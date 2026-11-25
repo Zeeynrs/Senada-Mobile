@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import senada.app.AppLanguage
 import senada.audio.AudioEffects
 import senada.audio.BassBoostSettings
 import senada.audio.EqPreset
@@ -16,18 +17,20 @@ import senada.playback.SleepTimerState
 
 class AudioLabFormatTest {
     @Test
-    fun formatsSpeedDbAndPercentInIndonesianStyle() {
-        assertEquals("0,75×", formatSpeed(0.75f))
-        assertEquals("1,00×", formatSpeed(1f))
-        assertEquals("1,25×", formatSpeed(1.25f))
-        assertEquals("1,50×", formatSpeed(1.5f))
+    fun formatsSpeedDbAndPercentInEnglishAndIndonesianStyles() {
+        assertEquals("0.75×", formatSpeed(0.75f))
+        assertEquals("1.00×", formatSpeed(1f))
+        assertEquals("1.25×", formatSpeed(1.25f))
+        assertEquals("1.50×", formatSpeed(1.5f))
+        assertEquals("0,75×", formatSpeed(0.75f, AppLanguage.Indonesian))
 
         assertEquals("0", formatDb(0f))
         assertEquals("0", formatDb(-0.0f))
         assertEquals("+7", formatDb(7f))
-        assertEquals("+1,5", formatDb(1.5f))
+        assertEquals("+1.5", formatDb(1.5f))
+        assertEquals("+1,5", formatDb(1.5f, AppLanguage.Indonesian))
         assertEquals("−2", formatDb(-2f))
-        assertEquals("−2,5", formatDb(-2.5f))
+        assertEquals("−2.5", formatDb(-2.5f))
         assertEquals("−12", formatDb(-12f))
 
         assertEquals("0%", formatPercent(0f))
@@ -36,7 +39,8 @@ class AudioLabFormatTest {
         assertEquals("100%", formatPercent(1f))
 
         assertEquals("31 Hz, +7 dB", bandContentDescription(0, 7f))
-        assertEquals("1k Hz, −1,5 dB", bandContentDescription(5, -1.5f))
+        assertEquals("1k Hz, −1.5 dB", bandContentDescription(5, -1.5f))
+        assertEquals("1k Hz, −1,5 dB", bandContentDescription(5, -1.5f, AppLanguage.Indonesian))
         assertEquals("16k Hz, 0 dB", bandContentDescription(9, 0f))
     }
 
@@ -53,12 +57,12 @@ class AudioLabFormatTest {
     @Test
     fun computesCardStatusesFromSettings() {
         val defaults = AudioEffects()
-        assertEquals(CardStatus("Mati", active = false), equalizerStatus(defaults))
-        assertEquals(CardStatus("Mati", active = false), soundFxStatus(defaults))
-        assertEquals(CardStatus("1,00× · Nada terkunci", active = false), speedStatus(defaults))
-        assertEquals(CardStatus("Wi-Fi & seluler tinggi", active = false), audioQualityStatus(false))
-        assertEquals(CardStatus("Wi-Fi tinggi · seluler hemat", active = true), audioQualityStatus(true))
-        assertEquals(CardStatus("Mati", active = false), sleepTimerStatus(SleepTimerState.Off))
+        assertEquals(CardStatus("Off", active = false), equalizerStatus(defaults))
+        assertEquals(CardStatus("Off", active = false), soundFxStatus(defaults))
+        assertEquals(CardStatus("1.00× · Pitch locked", active = false), speedStatus(defaults))
+        assertEquals(CardStatus("High on Wi-Fi & cellular", active = false), audioQualityStatus(false))
+        assertEquals(CardStatus("High on Wi-Fi · saver on cellular", active = true), audioQualityStatus(true))
+        assertEquals(CardStatus("Off", active = false), sleepTimerStatus(SleepTimerState.Off))
 
         val bass = EqPreset.BuiltIns.first { it.id == "bass" }
         val active = AudioEffects(
@@ -68,17 +72,18 @@ class AudioLabFormatTest {
             speed = 1.25f,
             pitchLock = false,
         )
-        assertEquals(CardStatus("Aktif · Bass+", active = true), equalizerStatus(active))
+        assertEquals(CardStatus("On · Bass+", active = true), equalizerStatus(active))
         assertEquals(CardStatus("Reverb · Bass boost", active = true), soundFxStatus(active))
-        assertEquals(CardStatus("1,25× · Nada ikut", active = true), speedStatus(active))
-        assertEquals(CardStatus("Berhenti dalam 15 menit", active = true), sleepTimerStatus(SleepTimerState.CountingDown(15)))
-        assertEquals(CardStatus("Berhenti di akhir lagu", active = true), sleepTimerStatus(SleepTimerState.EndOfTrack))
+        assertEquals(CardStatus("1.25× · Pitch follows", active = true), speedStatus(active))
+        assertEquals(CardStatus("Stops in 15 minutes", active = true), sleepTimerStatus(SleepTimerState.CountingDown(15)))
+        assertEquals(CardStatus("Stop at end of track", active = true), sleepTimerStatus(SleepTimerState.EndOfTrack))
+        assertEquals(CardStatus("Berhenti dalam 15 menit", active = true), sleepTimerStatus(SleepTimerState.CountingDown(15), AppLanguage.Indonesian))
 
         val reverbOnly = defaults.copy(reverb = ReverbSettings(enabled = true))
         assertEquals(CardStatus("Reverb", active = true), soundFxStatus(reverbOnly))
         val bassOnly = defaults.copy(bassBoost = BassBoostSettings(enabled = true))
         assertEquals(CardStatus("Bass boost", active = true), soundFxStatus(bassOnly))
-        assertEquals(CardStatus("Samakan volume", active = true), soundFxStatus(defaults.copy(loudnessMatch = true)))
+        assertEquals(CardStatus("Match volume", active = true), soundFxStatus(defaults.copy(loudnessMatch = true)))
     }
 
     @Test

@@ -53,6 +53,13 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import senada.app.appString
+import senada.resources.Res
+import senada.resources.audiolab_ios_preparing
+import senada.resources.profile_back_to
+import senada.resources.state_not_selected
+import senada.resources.state_selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
@@ -128,7 +135,7 @@ internal fun AudioLabTopBar(previousLabel: String, onBack: () -> Unit) {
     ) {
         // Geser 2 dp ke kiri agar lingkaran visual 44 dp tetap sejajar di tepi 16 dp.
         AudioLabBackButton(
-            description = "Kembali ke $previousLabel",
+            description = appString(Res.string.profile_back_to, previousLabel),
             onClick = onBack,
             modifier = Modifier.offset(x = (-2).dp),
         )
@@ -159,7 +166,7 @@ internal fun AudioLabStatusLabel(status: CardStatus, modifier: Modifier = Modifi
 internal fun AudioLabUnavailableNotice() {
     SenadaCard {
         Text(
-            text = AudioLabUnavailableMessage,
+            text = appString(Res.string.audiolab_ios_preparing),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -187,6 +194,7 @@ internal fun AudioLabChip(
     val background = if (selected) colors.onSurface else colors.surfaceContainerHigh
     val contentColor = if (selected) colors.background else colors.onSurface
     val shape = RoundedCornerShape(20.dp)
+    val stateLabel = appString(if (selected) Res.string.state_selected else Res.string.state_not_selected)
 
     Box(
         modifier = modifier
@@ -202,7 +210,7 @@ internal fun AudioLabChip(
             )
             .semantics {
                 this.selected = selected
-                stateDescription = if (selected) "Dipilih" else "Tidak dipilih"
+                stateDescription = stateLabel
                 if (!enabled) disabled()
                 if (enabled && onLongClick != null && onLongClickLabel != null) {
                     customActions = listOf(CustomAccessibilityAction(onLongClickLabel) {

@@ -136,7 +136,7 @@ class LibraryRepositoryTest {
         library.createPlaylist("Lama")
         library.createPlaylist("   ")
 
-        assertEquals(listOf("Playlist baru", "Lama"), library.playlists.first().map { it.name })
+        assertEquals(listOf("New playlist", "Lama"), library.playlists.first().map { it.name })
     }
 
     @Test

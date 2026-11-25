@@ -1,14 +1,18 @@
 package senada.app.theme
 
 import androidx.compose.ui.graphics.Color
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.accent_follow_cover
 
 internal enum class AccentChoice(
     val key: String,
-    val label: String,
+    private val fixedLabel: String?,
     private val color: Color? = null,
 ) {
     Senada("senada", "Senada"),
-    FollowCover("followCover", "Ikuti sampul"),
+    FollowCover("followCover", null),
     Mint("mint", "Mint", Color(0xFF1ED760)),
     Indigo("indigo", "Indigo", Color(0xFF5865F2)),
     Sky("sky", "Sky", Color(0xFF2AABEE)),
@@ -21,6 +25,11 @@ internal enum class AccentChoice(
     Rose("rose", "Rose", Color(0xFFF43F5E)),
     Carbon("carbon", "Carbon", Color(0xFF8A8F98)),
     Chrome("chrome", "Chrome", Color(0xFFA78BFA));
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String =
+        fixedLabel ?: AppStrings.get(Res.string.accent_follow_cover, language)
+
+    val label: String get() = label()
 
     /** Nilai null memakai aksen Senada sesuai tema terang atau gelap. */
     fun source(cover: Color?): Color? = if (this == FollowCover) cover else color

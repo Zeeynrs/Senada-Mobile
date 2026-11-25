@@ -118,15 +118,17 @@ class YouTubeMusicPlaylistTest {
     fun reportsClearErrorForPrivateMissingOrEmptyPlaylists() = runTest {
         val notFound = YouTubeMusicPlaylists(innertube { json("{}", HttpStatusCode.NotFound) })
         val notFoundError = assertFailsWith<PlaylistImportException> { notFound.fetchPlaylist("PLmissing") }
-        assertTrue(notFoundError.userMessage.contains("publik", ignoreCase = true))
+        assertTrue(notFoundError.userMessage.contains("public", ignoreCase = true), notFoundError.userMessage)
+        assertTrue(notFoundError.userMessage(senada.app.AppLanguage.Indonesian).contains("publik", ignoreCase = true))
 
         val empty = YouTubeMusicPlaylists(innertube { json(EMPTY_PLAYLIST_RESPONSE) })
         val emptyError = assertFailsWith<PlaylistImportException> { empty.fetchPlaylist("PLempty") }
-        assertTrue(emptyError.userMessage.contains("publik", ignoreCase = true))
+        assertTrue(emptyError.userMessage.contains("public", ignoreCase = true), emptyError.userMessage)
 
         val rateLimited = YouTubeMusicPlaylists(innertube { json("{}", HttpStatusCode.TooManyRequests) })
         val rateError = assertFailsWith<PlaylistImportException> { rateLimited.fetchPlaylist("PLrate") }
-        assertTrue(rateError.userMessage.contains("membatasi", ignoreCase = true))
+        assertTrue(rateError.userMessage.contains("limiting", ignoreCase = true), rateError.userMessage)
+        assertTrue(rateError.userMessage(senada.app.AppLanguage.Indonesian).contains("membatasi", ignoreCase = true))
     }
 
     @Test

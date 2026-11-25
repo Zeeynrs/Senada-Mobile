@@ -23,6 +23,15 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import senada.app.UiText
+import senada.resources.Res
+import senada.resources.spotify_empty_or_private
+import senada.resources.spotify_format_changed
+import senada.resources.spotify_http_rejected
+import senada.resources.spotify_network_error
+import senada.resources.spotify_not_found_or_private
+import senada.resources.spotify_rate_limited
+import senada.resources.spotify_unreadable_data
 import kotlinx.serialization.json.putJsonObject
 import senada.catalog.PlaylistImportException
 
@@ -68,7 +77,7 @@ internal class SpotifyPlaylistReader(
         if (embed.rawTrackCount < PAGE_SIZE || firstTracks.size >= limit || embed.accessToken.isBlank()) {
             val capped = firstTracks.take(limit)
             if (capped.isEmpty()) {
-                throw PlaylistImportException(EMPTY_OR_PRIVATE)
+                throw PlaylistImportException(UiText.Resource(Res.string.spotify_empty_or_private))
             }
             return SpotifyPlaylist(
                 id = playlistId,
@@ -87,7 +96,7 @@ internal class SpotifyPlaylistReader(
         )
         val deduped = tracks.distinctBy { it.id }.take(limit)
         if (deduped.isEmpty()) {
-            throw PlaylistImportException(EMPTY_OR_PRIVATE)
+            throw PlaylistImportException(UiText.Resource(Res.string.spotify_empty_or_private))
         }
         return SpotifyPlaylist(
             id = playlistId,
@@ -104,10 +113,10 @@ internal class SpotifyPlaylistReader(
                 header(HttpHeaders.Accept, "text/html,application/xhtml+xml")
             }
             when (response.status) {
-                HttpStatusCode.NotFound -> throw PlaylistImportException(NOT_FOUND_OR_PRIVATE)
-                HttpStatusCode.TooManyRequests -> throw PlaylistImportException(RATE_LIMITED)
+                HttpStatusCode.NotFound -> throw PlaylistImportException(UiText.Resource(Res.string.spotify_not_found_or_private))
+                HttpStatusCode.TooManyRequests -> throw PlaylistImportException(UiText.Resource(Res.string.spotify_rate_limited))
                 else -> if (!response.status.isSuccess()) {
-                    throw PlaylistImportException("Spotify menolak permintaan (HTTP ${response.status.value}).")
+                    throw PlaylistImportException(UiText.Resource(Res.string.spotify_http_rejected, response.status.value))
                 }
             }
             response.bodyAsText()
@@ -116,7 +125,7 @@ internal class SpotifyPlaylistReader(
         } catch (e: PlaylistImportException) {
             throw e
         } catch (e: Exception) {
-            throw PlaylistImportException("Tidak dapat terhubung ke Spotify. Periksa koneksi internet.", e)
+            throw PlaylistImportException(UiText.Resource(Res.string.spotify_network_error), e)
         }
         return parseEmbedHtml(html)
     }
@@ -331,18 +340,18 @@ internal class SpotifyPlaylistReader(
 
         internal fun parseEmbedHtml(html: String): EmbedPage {
             val jsonText = NEXT_DATA_REGEX.find(html)?.groupValues?.getOrNull(1)
-                ?: throw PlaylistImportException(FORMAT_CHANGED)
+                ?: throw PlaylistImportException(UiText.Resource(Res.string.spotify_format_changed))
             val root = try {
                 parseJsonObject(jsonText)
             } catch (e: Exception) {
-                throw PlaylistImportException(UNREADABLE_DATA, e)
+                throw PlaylistImportException(UiText.Resource(Res.string.spotify_unreadable_data), e)
             }
 
             val state = root.at("props", "pageProps", "state")
             val entity = state.at("data", "entity")
             val name = entity.str("name")?.trim()?.takeIf { it.isNotEmpty() }
                 ?: entity.str("title")?.trim()?.takeIf { it.isNotEmpty() }
-                ?: throw PlaylistImportException(NOT_FOUND_OR_PRIVATE)
+                ?: throw PlaylistImportException(UiText.Resource(Res.string.spotify_not_found_or_private))
 
             val token = state.str("settings", "session", "accessToken").orEmpty()
             val rawList = entity.arr("trackList")

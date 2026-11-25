@@ -25,19 +25,22 @@ class CollectionHeaderTest {
     @Test
     fun formatsDurationsForHoursMinutesAndShortCollections() {
         val sevenHoursFiftyMinutes = (7 * 60L + 50L) * 60_000L
-        assertEquals("7 j 50 mnt", formatCollectionDuration(sevenHoursFiftyMinutes))
-        assertEquals("7 jam 50 menit", spokenCollectionDuration(sevenHoursFiftyMinutes))
+        assertEquals("7 h 50 m", formatCollectionDuration(sevenHoursFiftyMinutes))
+        assertEquals("7 hours 50 minutes", spokenCollectionDuration(sevenHoursFiftyMinutes))
+        assertEquals("7 j 50 mnt", formatCollectionDuration(sevenHoursFiftyMinutes, AppLanguage.Indonesian))
+        assertEquals("7 jam 50 menit", spokenCollectionDuration(sevenHoursFiftyMinutes, AppLanguage.Indonesian))
 
         val fortyFiveMinutes = 45L * 60_000L
-        assertEquals("45 mnt", formatCollectionDuration(fortyFiveMinutes))
-        assertEquals("45 menit", spokenCollectionDuration(fortyFiveMinutes))
+        assertEquals("45 m", formatCollectionDuration(fortyFiveMinutes))
+        assertEquals("45 minutes", spokenCollectionDuration(fortyFiveMinutes))
 
-        assertEquals("2 j", formatCollectionDuration(120L * 60_000L))
-        assertEquals("2 jam", spokenCollectionDuration(120L * 60_000L))
+        assertEquals("2 h", formatCollectionDuration(120L * 60_000L))
+        assertEquals("2 hours", spokenCollectionDuration(120L * 60_000L))
 
-        assertEquals("1 j 1 mnt", formatCollectionDuration(61L * 60_000L))
-        assertEquals("< 1 mnt", formatCollectionDuration(24_000L))
-        assertEquals("kurang dari 1 menit", spokenCollectionDuration(24_000L))
+        assertEquals("1 h 1 m", formatCollectionDuration(61L * 60_000L))
+        assertEquals("< 1 m", formatCollectionDuration(24_000L))
+        assertEquals("less than 1 minute", spokenCollectionDuration(24_000L))
+        assertEquals("kurang dari 1 menit", spokenCollectionDuration(24_000L, AppLanguage.Indonesian))
 
         assertNull(formatCollectionDuration(0L))
         assertNull(formatCollectionDuration(-1_000L))
@@ -63,19 +66,19 @@ class CollectionHeaderTest {
             trackCount = 131,
             totalDurationMs = (7 * 60L + 50L) * 60_000L,
         )
-        assertEquals("131 lagu · 7 j 50 mnt", longMeta.display)
-        assertEquals("131 lagu, 7 jam 50 menit", longMeta.spoken)
+        assertEquals("131 songs · 7 h 50 m", longMeta.display)
+        assertEquals("131 songs, 7 hours 50 minutes", longMeta.spoken)
 
         val singleMeta = favoritesCollectionMeta(trackCount = 1, totalDurationMs = 45L * 60_000L)
-        assertEquals("1 lagu · 45 mnt", singleMeta.display)
-        assertEquals("1 lagu, 45 menit", singleMeta.spoken)
+        assertEquals("1 song · 45 m", singleMeta.display)
+        assertEquals("1 song, 45 minutes", singleMeta.spoken)
 
         val unknownMeta = favoritesCollectionMeta(trackCount = 5, totalDurationMs = null)
-        assertEquals("5 lagu", unknownMeta.display)
-        assertEquals("5 lagu", unknownMeta.spoken)
+        assertEquals("5 songs", unknownMeta.display)
+        assertEquals("5 songs", unknownMeta.spoken)
 
         val emptyMeta = playlistCollectionMeta(trackCount = 0, totalDurationMs = null)
-        assertEquals("0 lagu", emptyMeta.display)
+        assertEquals("0 songs", emptyMeta.display)
     }
 
     @Test
@@ -94,12 +97,12 @@ class CollectionHeaderTest {
             ),
         )
         val albumMeta = albumCollectionMeta(album, fallbackSubtitle = null)
-        assertEquals("Album · Tulus · 2022 · 3 lagu · 45 mnt", albumMeta?.display)
-        assertEquals("Album, Tulus, 2022, 3 lagu, 45 menit", albumMeta?.spoken)
+        assertEquals("Album · Tulus · 2022 · 3 songs · 45 m", albumMeta?.display)
+        assertEquals("Album, Tulus, 2022, 3 songs, 45 minutes", albumMeta?.spoken)
 
         val albumNoDuration = album.copy(tracks = listOf(track("1", null)))
         assertEquals(
-            "Album · Tulus · 2022 · 1 lagu",
+            "Album · Tulus · 2022 · 1 song",
             albumCollectionMeta(albumNoDuration, fallbackSubtitle = null)?.display,
         )
 
@@ -112,7 +115,7 @@ class CollectionHeaderTest {
             truncated = false,
         )
         assertEquals(
-            "YouTube Music · 2 lagu · 45 mnt",
+            "YouTube Music · 2 songs · 45 m",
             youTubePlaylistCollectionMeta(ytPlaylist, isMix = false, fallbackSubtitle = null)?.display,
         )
 
@@ -130,7 +133,7 @@ class CollectionHeaderTest {
             tracks = listOf(track("1", 45L * 60_000L)),
         )
         assertEquals(
-            "Mix / Radio · 1 lagu · 45 mnt",
+            "Mix / Radio · 1 song · 45 m",
             youTubePlaylistCollectionMeta(mixPlaylist, isMix = true, fallbackSubtitle = null)?.display,
         )
     }
@@ -139,44 +142,44 @@ class CollectionHeaderTest {
     fun buildsHeaderMenuItemsPerPageType() {
         assertEquals(
             listOf(
-                CollectionMenuItem(CollectionMenuAction.RenamePlaylist, "Ganti nama", enabled = true),
-                CollectionMenuItem(CollectionMenuAction.DeletePlaylist, "Hapus playlist", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.RenamePlaylist, "Rename", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.DeletePlaylist, "Delete playlist", enabled = true),
             ),
             collectionMenuItems(CollectionKind.LibraryPlaylist, hasTracks = false),
         )
 
         assertEquals(
-            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = false)),
+            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = false)),
             collectionMenuItems(CollectionKind.Favorites, hasTracks = false),
         )
         assertEquals(
-            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true)),
+            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true)),
             collectionMenuItems(CollectionKind.Favorites, hasTracks = true),
         )
 
         assertEquals(
-            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true)),
+            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true)),
             collectionMenuItems(CollectionKind.Album(hasArtistId = false), hasTracks = true),
         )
         assertEquals(
             listOf(
-                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true),
-                CollectionMenuItem(CollectionMenuAction.OpenArtist, "Buka artis", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.OpenArtist, "Open artist", enabled = true),
             ),
             collectionMenuItems(CollectionKind.Album(hasArtistId = true), hasTracks = true),
         )
 
         assertEquals(
             listOf(
-                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true),
-                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Simpan ke Library", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Save to Library", enabled = true),
             ),
             collectionMenuItems(CollectionKind.YouTubePlaylist(isMix = false, saveStatus = null), hasTracks = true),
         )
         assertEquals(
             listOf(
-                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true),
-                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Menyimpan…", enabled = false),
+                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Saving…", enabled = false),
             ),
             collectionMenuItems(
                 CollectionKind.YouTubePlaylist(isMix = false, saveStatus = PlaylistSaveStatus.Saving),
@@ -185,8 +188,8 @@ class CollectionHeaderTest {
         )
         assertEquals(
             listOf(
-                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true),
-                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Tersimpan", enabled = false),
+                CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.SaveToLibrary, "Saved", enabled = false),
             ),
             collectionMenuItems(
                 CollectionKind.YouTubePlaylist(
@@ -197,8 +200,15 @@ class CollectionHeaderTest {
             ),
         )
         assertEquals(
-            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Tambah semua ke antrean", enabled = true)),
+            listOf(CollectionMenuItem(CollectionMenuAction.EnqueueAll, "Add all to queue", enabled = true)),
             collectionMenuItems(CollectionKind.YouTubePlaylist(isMix = true), hasTracks = true),
+        )
+        assertEquals(
+            listOf(
+                CollectionMenuItem(CollectionMenuAction.RenamePlaylist, "Ganti nama", enabled = true),
+                CollectionMenuItem(CollectionMenuAction.DeletePlaylist, "Hapus playlist", enabled = true),
+            ),
+            collectionMenuItems(CollectionKind.LibraryPlaylist, hasTracks = false, language = AppLanguage.Indonesian),
         )
     }
 

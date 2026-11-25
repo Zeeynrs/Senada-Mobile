@@ -37,6 +37,28 @@ import senada.backup.ImportSummary
 import senada.backup.exportBackup
 import senada.backup.importBackup
 import senada.library.LibraryRepository
+import senada.resources.Res
+import senada.resources.action_apply
+import senada.resources.action_cancel
+import senada.resources.action_close
+import senada.resources.backup_added_prefix
+import senada.resources.backup_all_present
+import senada.resources.backup_applied
+import senada.resources.backup_apply_title
+import senada.resources.backup_desc
+import senada.resources.backup_export
+import senada.resources.backup_favorites_imported
+import senada.resources.backup_history_imported
+import senada.resources.backup_import
+import senada.resources.backup_io_error
+import senada.resources.backup_nothing_new_title
+import senada.resources.backup_playlist_tracks_imported
+import senada.resources.backup_playlists_imported
+import senada.resources.backup_processing
+import senada.resources.backup_saved
+import senada.resources.backup_saved_imported
+import senada.resources.backup_skipped_entries
+import senada.resources.backup_title
 
 @Composable
 internal fun SenadaCard(
@@ -87,31 +109,33 @@ internal fun BackupSection(library: LibraryRepository) {
     val files = rememberBackupFiles()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<UiText?>(null) }
     var pending by remember { mutableStateOf<PendingImport?>(null) }
+    var lastAppliedSummary by remember { mutableStateOf<ImportSummary?>(null) }
+    val language = LocalAppLanguage.current
 
-    fun launchTask(block: suspend () -> String?) {
+    fun launchTask(block: suspend () -> UiText?) {
         busy = true
         message = null
+        lastAppliedSummary = null
         scope.launch {
             message = try {
                 block()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: BackupException) {
-                e.userMessage
-            } catch (e: Exception) {
-                "File backup tidak dapat dibaca atau disimpan."
+                e.uiText
+            } catch (_: Exception) {
+                UiText.Resource(Res.string.backup_io_error)
             } finally {
                 busy = false
             }
         }
     }
 
-    SettingsCard("Backup library") {
+    SettingsCard(appString(Res.string.backup_title)) {
         Text(
-            "Simpan favorit, playlist, riwayat dan item tersimpan ke satu file JSON yang juga bisa dibuka " +
-                "Senada desktop. Pengaturan tidak ikut. Impor menambahkan yang belum ada tanpa menghapus apa pun.",
+            appString(Res.string.backup_desc),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -122,12 +146,18 @@ internal fun BackupSection(library: LibraryRepository) {
         ) {
             Button(
                 onClick = {
-                    launchTask { if (files.save(backupFileName(), library.exportBackup())) "Backup disimpan." else null }
+                    launchTask {
+                        if (files.save(backupFileName(), library.exportBackup())) {
+                            UiText.Resource(Res.string.backup_saved)
+                        } else {
+                            null
+                        }
+                    }
                 },
                 enabled = !busy,
                 shape = CircleShape,
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Ekspor backup") }
+            ) { Text(appString(Res.string.backup_export)) }
             OutlinedButton(
                 onClick = {
                     launchTask {
@@ -139,9 +169,16 @@ internal fun BackupSection(library: LibraryRepository) {
                 enabled = !busy,
                 shape = CircleShape,
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Impor backup") }
+            ) { Text(appString(Res.string.backup_import)) }
         }
-        val status = if (busy) "Memproses…" else message
+        val status = when {
+            busy -> appString(Res.string.backup_processing)
+            lastAppliedSummary != null -> {
+                val summaryLine = describe(lastAppliedSummary!!, language).lines().first()
+                appString(Res.string.backup_applied, summaryLine)
+            }
+            else -> message?.resolve(language)
+        }
         if (status != null) {
             Text(
                 status,
@@ -156,53 +193,68 @@ internal fun BackupSection(library: LibraryRepository) {
     if (request.summary.changesNothing) {
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Tidak ada yang baru", modifier = Modifier.semantics { heading() }) },
-            text = { Text(describe(request.summary)) },
+            title = { Text(appString(Res.string.backup_nothing_new_title), modifier = Modifier.semantics { heading() }) },
+            text = { Text(describe(request.summary, language)) },
             confirmButton = {
-                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) { Text("Tutup") }
+                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) {
+                    Text(appString(Res.string.action_close))
+                }
             },
         )
     } else {
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Terapkan backup?", modifier = Modifier.semantics { heading() }) },
-            text = { Text(describe(request.summary)) },
+            title = { Text(appString(Res.string.backup_apply_title), modifier = Modifier.semantics { heading() }) },
+            text = { Text(describe(request.summary, language)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         pending = null
                         launchTask {
                             val applied = library.importBackup(request.text)
-                            "Backup diterapkan. ${describe(applied).lines().first()}"
+                            lastAppliedSummary = applied
+                            null
                         }
                     },
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Terapkan") }
+                ) { Text(appString(Res.string.action_apply)) }
             },
             dismissButton = {
-                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+                TextButton(onClick = { pending = null }, modifier = Modifier.minTouchTarget()) {
+                    Text(appString(Res.string.action_cancel))
+                }
             },
         )
     }
 }
 
 /** Ringkasan dalam kalimat; baris pertama dipakai juga sebagai pesan setelah diterapkan. */
-internal fun describe(summary: ImportSummary): String {
+internal fun describe(summary: ImportSummary, language: AppLanguage = AppStrings.currentLanguage): String {
     if (summary.changesNothing) {
-        return "Semua isi backup sudah ada di library." +
-            if (summary.skipped > 0) "\n${summary.skipped} entri dilewati (file lokal desktop atau sumber selain YouTube Music)." else ""
+        return AppStrings.get(Res.string.backup_all_present, language) +
+            if (summary.skipped > 0) {
+                "\n" + AppStrings.plural(Res.plurals.backup_skipped_entries, summary.skipped, language, summary.skipped)
+            } else {
+                ""
+            }
     }
     val added = listOfNotNull(
-        "${summary.favoritesAdded} favorit".takeIf { summary.favoritesAdded > 0 },
-        "${summary.playlistsAdded} playlist".takeIf { summary.playlistsAdded > 0 },
-        "${summary.playlistTracksAdded} lagu ke playlist yang ada".takeIf { summary.playlistTracksAdded > 0 },
-        "${summary.savedAdded} item tersimpan".takeIf { summary.savedAdded > 0 },
-        "${summary.historyAdded} lagu riwayat".takeIf { summary.historyAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_favorites_imported, summary.favoritesAdded, language, summary.favoritesAdded)
+            .takeIf { summary.favoritesAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_playlists_imported, summary.playlistsAdded, language, summary.playlistsAdded)
+            .takeIf { summary.playlistsAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_playlist_tracks_imported, summary.playlistTracksAdded, language, summary.playlistTracksAdded)
+            .takeIf { summary.playlistTracksAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_saved_imported, summary.savedAdded, language, summary.savedAdded)
+            .takeIf { summary.savedAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_history_imported, summary.historyAdded, language, summary.historyAdded)
+            .takeIf { summary.historyAdded > 0 },
     )
     return buildString {
-        append("Ditambahkan: ").append(added.joinToString(", ")).append('.')
+        append(AppStrings.get(Res.string.backup_added_prefix, language, added.joinToString(", ")))
         if (summary.skipped > 0) {
-            append("\n${summary.skipped} entri dilewati (file lokal desktop atau sumber selain YouTube Music).")
+            append('\n')
+            append(AppStrings.plural(Res.plurals.backup_skipped_entries, summary.skipped, language, summary.skipped))
         }
     }
 }

@@ -13,11 +13,21 @@ import androidx.compose.ui.unit.dp
 import senada.app.CollectionBackButton
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
+import senada.app.appPlural
+import senada.app.appString
 import senada.app.shell.CatalogRoute
 import senada.catalog.AlbumSummary
 import senada.catalog.HomeItem
 import senada.catalog.HomeShelf
 import senada.catalog.PlaylistSummary
+import senada.resources.Res
+import senada.resources.catalog_mood_empty
+import senada.resources.catalog_mood_loading
+import senada.resources.catalog_mood_stats
+import senada.resources.catalog_pick_count
+import senada.resources.catalog_shelf_count
+import senada.resources.catalog_type_mood
 
 /** Halaman detail satu mood & genre yang menampilkan rak playlist dari [senada.catalog.HomeCatalog.mood]. */
 internal fun LazyListScope.moodDetailScreen(
@@ -45,7 +55,7 @@ internal fun LazyListScope.moodDetailScreen(
                 onBack = onBack,
             )
             Text(
-                text = "Mood & genre",
+                text = appString(Res.string.catalog_type_mood),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -57,8 +67,10 @@ internal fun LazyListScope.moodDetailScreen(
             )
             if (shelves.isNotEmpty()) {
                 val totalItems = shelves.sumOf { it.items.size }
+                val shelfCountText = appPlural(Res.plurals.catalog_shelf_count, shelves.size, shelves.size)
+                val pickCountText = appPlural(Res.plurals.catalog_pick_count, totalItems, totalItems)
                 Text(
-                    text = "${shelves.size} rak · $totalItems pilihan",
+                    text = appString(Res.string.catalog_mood_stats, shelfCountText, pickCountText),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -68,13 +80,14 @@ internal fun LazyListScope.moodDetailScreen(
 
     if (state.loading && state.data == null) {
         item(key = "mood-loading-$routeKey") {
-            ShelfSkeletonRow(statusLabel = "Memuat rak ${route.label}…")
+            ShelfSkeletonRow(statusLabel = appString(Res.string.catalog_mood_loading, route.label))
         }
     }
 
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "mood-error-$routeKey") {
-            CatalogErrorCard(message = message, onRetry = onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(message = errorText.resolve(language), onRetry = onRetry)
         }
     }
 
@@ -99,9 +112,9 @@ internal fun LazyListScope.moodDetailScreen(
         )
     }
 
-    if (!state.loading && state.error == null && state.data != null && shelves.isEmpty()) {
+    if (!state.loading && state.errorText == null && state.data != null && shelves.isEmpty()) {
         item(key = "mood-empty-$routeKey") {
-            PoliteStatusText("Belum ada playlist untuk kategori ini.")
+            PoliteStatusText(appString(Res.string.catalog_mood_empty))
         }
     }
 }

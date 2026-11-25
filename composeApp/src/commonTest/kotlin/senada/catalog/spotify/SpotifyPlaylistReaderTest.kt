@@ -196,12 +196,13 @@ class SpotifyPlaylistReaderTest {
         val notFound = assertFailsWith<PlaylistImportException> {
             reader { html("Not found", HttpStatusCode.NotFound) }.fetchPlaylist("37i9dQZF1DXcBWIGoYBM5M")
         }
-        assertTrue(notFound.userMessage.contains("publik", ignoreCase = true))
+        assertTrue(notFound.userMessage.contains("public", ignoreCase = true), notFound.userMessage)
+        assertTrue(notFound.userMessage(senada.app.AppLanguage.Indonesian).contains("publik", ignoreCase = true))
 
         val brokenHtml = assertFailsWith<PlaylistImportException> {
             reader { html("<html><body>No next data</body></html>") }.fetchPlaylist("37i9dQZF1DXcBWIGoYBM5M")
         }
-        assertTrue(brokenHtml.userMessage.contains("Format", ignoreCase = true))
+        assertTrue(brokenHtml.userMessage.contains("format", ignoreCase = true), brokenHtml.userMessage)
 
         val emptyHtml = wrapNextData(
             """{"props":{"pageProps":{"state":{"data":{"entity":{"name":"Kosong","trackList":[]}}}}}}""",
@@ -209,7 +210,8 @@ class SpotifyPlaylistReaderTest {
         val empty = assertFailsWith<PlaylistImportException> {
             reader { html(emptyHtml) }.fetchPlaylist("37i9dQZF1DXcBWIGoYBM5M")
         }
-        assertTrue(empty.userMessage.contains("kosong", ignoreCase = true))
+        assertTrue(empty.userMessage.contains("empty", ignoreCase = true), empty.userMessage)
+        assertTrue(empty.userMessage(senada.app.AppLanguage.Indonesian).contains("kosong", ignoreCase = true))
     }
 
     private fun wrapNextData(json: String): String =

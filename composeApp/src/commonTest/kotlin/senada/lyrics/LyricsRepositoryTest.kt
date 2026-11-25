@@ -186,13 +186,14 @@ class LyricsRepositoryTest {
     }
 
     @Test
-    fun connectionFailureHasAnIndonesianMessageAndCanBeRetried() = runTest {
+    fun connectionFailureHasAUserMessageAndCanBeRetried() = runTest {
         val repo = repository {
             if (requests.size == 1) throw IllegalStateException("offline")
             respond("""{"plainLyrics":"Langit jingga"}""")
         }
         val error = assertFailsWith<LyricsException> { repo.get(track) }
-        assertEquals("Tidak dapat terhubung ke LRCLIB. Periksa koneksi internet.", error.userMessage)
+        assertEquals("Cannot connect to the lyrics service. Check your internet connection.", error.userMessage)
+        assertEquals("Tidak dapat terhubung ke layanan lirik. Periksa koneksi internet.", error.userMessage(senada.app.AppLanguage.Indonesian))
         assertEquals(LyricsDocument.Plain(listOf("Langit jingga")), repo.get(track))
     }
 
@@ -202,6 +203,7 @@ class LyricsRepositoryTest {
             if (request.url.encodedPath == "/api/get") respond("{}") else respond("<html>")
         }
         val error = assertFailsWith<LyricsException> { repo.get(track) }
-        assertEquals("Balasan LRCLIB tidak dapat dibaca.", error.userMessage)
+        assertEquals("Lyrics response could not be read.", error.userMessage)
+        assertEquals("Balasan lirik tidak dapat dibaca.", error.userMessage(senada.app.AppLanguage.Indonesian))
     }
 }

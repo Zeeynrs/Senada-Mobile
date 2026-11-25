@@ -39,6 +39,12 @@ import senada.local.LocalAudioException
 import senada.local.importedAudioLock
 import senada.local.toTrack
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.import_audio_added_to_queue
+import senada.resources.import_audio_button
+import senada.resources.import_audio_copying
+import senada.resources.import_audio_failed
+import senada.resources.import_audio_subtitle
 
 /** Pengendali impor file audio agar status sibuk dan pesan tetap bertahan saat daftar kosong terisi. */
 internal class AudioImportController(
@@ -48,28 +54,30 @@ internal class AudioImportController(
 ) {
     var busy by mutableStateOf(false)
         private set
-    var message by mutableStateOf<String?>(null)
+    var messageText by mutableStateOf<UiText?>(null)
         private set
+    val message: String?
+        get() = messageText?.resolve()
 
     fun launchImport() {
         if (busy) return
         busy = true
-        message = null
+        messageText = null
         scope.launch {
-            message = try {
+            messageText = try {
                 importedAudioLock.withLock {
                     importer.import()?.let { audio ->
                         val track = audio.toTrack()
                         withContext(NonCancellable) { onImported(track) }
-                        "\"${track.title}\" (${formatSize(audio.sizeBytes)}) ditambahkan ke antrean."
+                        UiText.Resource(Res.string.import_audio_added_to_queue, track.title, formatSize(audio.sizeBytes))
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: LocalAudioException) {
-                e.userMessage
+                e.uiText
             } catch (_: Exception) {
-                "File audio gagal diimpor."
+                UiText.Resource(Res.string.import_audio_failed)
             } finally {
                 busy = false
             }
@@ -91,6 +99,7 @@ internal fun rememberAudioImportController(onImported: suspend (Track) -> Unit):
 @Composable
 internal fun ImportAudioButton(controller: AudioImportController) {
     val colors = MaterialTheme.colorScheme
+    val language = LocalAppLanguage.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SenadaCard {
             Row(
@@ -118,12 +127,12 @@ internal fun ImportAudioButton(controller: AudioImportController) {
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        if (controller.busy) "Menyalin file…" else "Impor file audio",
+                        appString(if (controller.busy) Res.string.import_audio_copying else Res.string.import_audio_button),
                         style = browseRowTitleStyle(),
                         color = colors.onSurface,
                     )
                     Text(
-                        "Tambahkan file dari ponsel ke antrean",
+                        appString(Res.string.import_audio_subtitle),
                         style = browseRowSubtitleStyle(),
                         color = colors.onSurfaceVariant,
                     )
@@ -136,7 +145,7 @@ internal fun ImportAudioButton(controller: AudioImportController) {
                 )
             }
         }
-        controller.message?.let { ImportAudioStatusMessage(it) }
+        controller.messageText?.let { ImportAudioStatusMessage(it.resolve(language)) }
     }
 }
 

@@ -40,6 +40,7 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
         if (loaded.accent != AccentChoice.FollowCover) {
             lastFixedAccent = loaded.accent
         }
+        AppStrings.setLanguage(loaded.language)
         settings = loaded
     }
 
@@ -79,6 +80,11 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
     fun updateLyricsAppearance(change: (LyricsAppearance) -> LyricsAppearance) =
         update { it.copy(lyricsAppearance = change(it.lyricsAppearance)) }
 
+    fun selectLanguage(language: AppLanguage) {
+        AppStrings.setLanguage(language)
+        update { it.copy(language = language) }
+    }
+
     private fun update(change: (Appearance) -> Appearance) {
         val previous = settings ?: return
         val next = change(previous)
@@ -91,9 +97,14 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
 @Composable
 internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Composable (AppearancePreferences) -> Unit) {
     val context = LocalPlatformContext.current
+    remember(context) { registerPlatformContext(context) }
     val preferences = remember(context) { AppearancePreferences(appearanceStore(context)) }
-    LaunchedEffect(preferences) { preferences.restore() }
+    LaunchedEffect(preferences) {
+        AppStrings.ensureLoadedAsync()
+        preferences.restore()
+    }
     val settings = preferences.settings ?: Appearance()
+    AppStrings.setLanguage(settings.language)
     val systemReduceMotion = rememberSystemReduceMotion()
     val look = remember(settings, systemReduceMotion) { senadaLook(settings, systemReduceMotion) }
     val dark = when (settings.mode) {
@@ -111,6 +122,7 @@ internal fun SenadaTheme(artworkUrl: String?, visible: Boolean, content: @Compos
     CompositionLocalProvider(
         LocalArtworkAccent provides cover,
         LocalSenadaLook provides look,
+        LocalAppLanguage provides settings.language,
     ) {
         MaterialTheme(colorScheme = colors, typography = senadaTypography(), shapes = SenadaShapes) { content(preferences) }
     }

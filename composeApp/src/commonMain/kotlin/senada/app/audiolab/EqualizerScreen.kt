@@ -57,8 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import senada.app.AdaptiveRow
+import senada.app.LocalAppLanguage
 import senada.app.SenadaCard
 import senada.app.SenadaSwitch
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.theme.MonoLabel
 import senada.app.theme.SenadaPalette
@@ -66,6 +68,20 @@ import senada.app.theme.SenadaType
 import senada.audio.AudioEffects
 import senada.audio.AudioEffectsController
 import senada.audio.EqPreset
+import senada.resources.Res
+import senada.resources.action_cancel
+import senada.resources.action_delete
+import senada.resources.action_reset
+import senada.resources.action_save
+import senada.resources.audiolab_eq_label
+import senada.resources.eq_delete_preset_a11y
+import senada.resources.eq_delete_preset_message
+import senada.resources.eq_delete_preset_title
+import senada.resources.eq_preamp
+import senada.resources.eq_preamp_hint
+import senada.resources.eq_preset_custom
+import senada.resources.eq_preset_name_label
+import senada.resources.eq_save_preset
 
 internal fun LazyListScope.equalizerScreen(
     effects: AudioEffects,
@@ -80,12 +96,13 @@ internal fun LazyListScope.equalizerScreen(
         AudioLabTopBar(previousLabel = previousLabel, onBack = onBack)
     }
     item(key = "eq-title") {
+        val eqTitle = appString(Res.string.audiolab_eq_label)
         AdaptiveRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
             minPrimaryWidth = 140.dp,
             primary = {
                 Text(
-                    text = "Equalizer",
+                    text = eqTitle,
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontSize = 34.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -102,7 +119,7 @@ internal fun LazyListScope.equalizerScreen(
                         audioEffects?.update { it.copy(equalizer = it.equalizer.copy(enabled = enabled)) }
                     },
                     enabled = controlsEnabled,
-                    modifier = Modifier.semantics { contentDescription = "Equalizer" },
+                    modifier = Modifier.semantics { contentDescription = eqTitle },
                 )
             },
         )
@@ -119,9 +136,10 @@ internal fun LazyListScope.equalizerScreen(
         )
     }
     item(key = "eq-bands") {
+        val language = LocalAppLanguage.current
         EqualizerBandCard(
             gains = eq.gains,
-            presetLabel = effects.activePresetName(),
+            presetLabel = effects.activePresetName(language),
             eqEnabled = eq.enabled,
             controlsEnabled = controlsEnabled,
             onBandChange = { index, gain ->
@@ -159,6 +177,7 @@ private fun EqualizerPresetChips(
     val activePreset = effects.activePreset()
     val showCustomChip = activePreset == null
 
+    val language = LocalAppLanguage.current
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -166,7 +185,7 @@ private fun EqualizerPresetChips(
     ) {
         for (preset in EqPreset.BuiltIns) {
             AudioLabChip(
-                label = preset.name,
+                label = preset.localizedName(language),
                 selected = activePreset?.id == preset.id,
                 enabled = enabled,
                 onClick = { onSelect(preset) },
@@ -179,12 +198,12 @@ private fun EqualizerPresetChips(
                 enabled = enabled,
                 onClick = { onSelect(preset) },
                 onLongClick = { pendingDelete = preset },
-                onLongClickLabel = "Hapus preset ${preset.name}",
+                onLongClickLabel = appString(Res.string.eq_delete_preset_a11y, preset.name),
             )
         }
         if (showCustomChip) {
             AudioLabChip(
-                label = EqPreset.CustomName,
+                label = appString(Res.string.eq_preset_custom),
                 selected = true,
                 enabled = enabled,
                 onClick = {},
@@ -195,8 +214,8 @@ private fun EqualizerPresetChips(
     val target = pendingDelete ?: return
     AlertDialog(
         onDismissRequest = { pendingDelete = null },
-        title = { Text("Hapus preset?", modifier = Modifier.semantics { heading() }) },
-        text = { Text("Preset \"${target.name}\" akan dihapus.") },
+        title = { Text(appString(Res.string.eq_delete_preset_title), modifier = Modifier.semantics { heading() }) },
+        text = { Text(appString(Res.string.eq_delete_preset_message, target.name)) },
         confirmButton = {
             TextButton(
                 onClick = {
@@ -204,13 +223,13 @@ private fun EqualizerPresetChips(
                     pendingDelete = null
                 },
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Hapus") }
+            ) { Text(appString(Res.string.action_delete)) }
         },
         dismissButton = {
             TextButton(
                 onClick = { pendingDelete = null },
                 modifier = Modifier.minTouchTarget(),
-            ) { Text("Batal") }
+            ) { Text(appString(Res.string.action_cancel)) }
         },
     )
 }
@@ -411,7 +430,9 @@ private fun EqualizerPreampCard(
     onPreampChange: (Float) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val valueText = "${formatDb(preamp)} dB"
+    val language = LocalAppLanguage.current
+    val valueText = "${formatDb(preamp, language)} dB"
+    val preampLabel = appString(Res.string.eq_preamp)
 
     SenadaCard {
         Column(
@@ -424,7 +445,7 @@ private fun EqualizerPreampCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Preamp",
+                    text = preampLabel,
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -445,12 +466,12 @@ private fun EqualizerPreampCard(
                 valueRange = -12f..6f,
                 step = 0.5f,
                 enabled = enabled,
-                contentDescription = "Preamp",
+                contentDescription = preampLabel,
                 stateDescription = valueText,
                 onValueChange = onPreampChange,
             )
             Text(
-                text = "Turunkan sedikit bila suara pecah setelah band dinaikkan.",
+                text = appString(Res.string.eq_preamp_hint),
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = colors.onSurfaceVariant,
             )
@@ -485,7 +506,7 @@ private fun EqualizerActionsRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "Atur ulang",
+                text = appString(Res.string.action_reset),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -509,7 +530,7 @@ private fun EqualizerActionsRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "Simpan preset",
+                text = appString(Res.string.eq_save_preset),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -524,12 +545,12 @@ private fun EqualizerActionsRow(
         val canSave = draftName.trim().isNotEmpty()
         AlertDialog(
             onDismissRequest = { saveDialogOpen = false },
-            title = { Text("Simpan preset", modifier = Modifier.semantics { heading() }) },
+            title = { Text(appString(Res.string.eq_save_preset), modifier = Modifier.semantics { heading() }) },
             text = {
                 OutlinedTextField(
                     value = draftName,
                     onValueChange = { draftName = it },
-                    label = { Text("Nama preset") },
+                    label = { Text(appString(Res.string.eq_preset_name_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -542,13 +563,13 @@ private fun EqualizerActionsRow(
                         saveDialogOpen = false
                     },
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Simpan") }
+                ) { Text(appString(Res.string.action_save)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { saveDialogOpen = false },
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Batal") }
+                ) { Text(appString(Res.string.action_cancel)) }
             },
         )
     }

@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.SenadaSources
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.searchHistoryItems
 import senada.app.shell.SenadaIcons
@@ -52,6 +53,9 @@ import senada.catalog.AlbumSummary
 import senada.catalog.ArtistSummary
 import senada.catalog.CatalogBrowser
 import senada.catalog.PlaylistSummary
+import senada.resources.Res
+import senada.resources.search_clear_a11y
+import senada.resources.search_field_placeholder
 
 /** Kueri, filter, dan hasil tab Cari; hasil terbaru menang, mengetik lagi membatalkan pencarian sebelumnya. */
 internal class SearchTabState(
@@ -83,19 +87,19 @@ internal class SearchTabState(
         moreJob = scope.launch {
             when (currentFilter) {
                 SearchFilter.Songs -> {
-                    search = search.copy(loading = true, error = null)
+                    search = search.copy(loading = true, errorText = null)
                     search = loadSearchPage(search, catalog)
                 }
                 SearchFilter.Artists -> {
-                    artistSearch = artistSearch.copy(loading = true, error = null)
+                    artistSearch = artistSearch.copy(loading = true, errorText = null)
                     artistSearch = loadArtistSearchPage(artistSearch, catalog)
                 }
                 SearchFilter.Albums -> {
-                    albumSearch = albumSearch.copy(loading = true, error = null)
+                    albumSearch = albumSearch.copy(loading = true, errorText = null)
                     albumSearch = loadAlbumSearchPage(albumSearch, catalog)
                 }
                 SearchFilter.Playlists -> {
-                    playlistSearch = playlistSearch.copy(loading = true, error = null)
+                    playlistSearch = playlistSearch.copy(loading = true, errorText = null)
                     playlistSearch = loadPlaylistSearchPage(playlistSearch, catalog)
                 }
             }
@@ -302,7 +306,7 @@ private fun SearchPillField(
                     ) {
                         if (query.isEmpty()) {
                             Text(
-                                "Cari judul atau artis",
+                                appString(Res.string.search_field_placeholder),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = colors.onSurfaceVariant,
                                 maxLines = 1,
@@ -312,10 +316,11 @@ private fun SearchPillField(
                         innerTextField()
                     }
                     if (query.isNotEmpty()) {
+                        val clearSearchDesc = appString(Res.string.search_clear_a11y)
                         IconButton(
                             onClick = { onQueryChange("") },
                             modifier = Modifier.minTouchTarget().semantics {
-                                contentDescription = "Hapus pencarian"
+                                contentDescription = clearSearchDesc
                             },
                         ) {
                             Icon(

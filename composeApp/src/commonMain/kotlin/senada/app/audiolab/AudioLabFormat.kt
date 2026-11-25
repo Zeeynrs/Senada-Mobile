@@ -3,74 +3,122 @@ package senada.app.audiolab
 import androidx.compose.ui.graphics.Matrix
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.nowplaying.statusText
 import senada.audio.AudioEffects
 import senada.audio.EqPreset
 import senada.playback.SleepTimerState
+import senada.resources.Res
+import senada.resources.audiolab_active_preset
+import senada.resources.audiolab_ios_preparing
+import senada.resources.audiolab_pitch_follows
+import senada.resources.audiolab_pitch_locked
+import senada.resources.audiolab_quality_high
+import senada.resources.audiolab_quality_saver
+import senada.resources.audiolab_speed_pitch_status
+import senada.resources.fx_band_a11y
+import senada.resources.fx_bass_boost
+import senada.resources.fx_loudness
+import senada.resources.fx_reverb
+import senada.resources.state_off
 
 internal val EqFrequencyLabels = listOf("31", "62", "125", "250", "500", "1k", "2k", "4k", "8k", "16k")
 
 internal val SpeedChoices = listOf(0.75f, 1.0f, 1.25f, 1.5f)
 
-internal const val AudioLabUnavailableMessage = "Sebagian efek suara di iPhone sedang disiapkan"
+internal fun audioLabUnavailableMessage(language: AppLanguage = AppStrings.currentLanguage): String =
+    AppStrings.get(Res.string.audiolab_ios_preparing, language)
+
+internal val AudioLabUnavailableMessage: String
+    get() = audioLabUnavailableMessage()
 
 internal data class CardStatus(val text: String, val active: Boolean)
 
-internal fun equalizerStatus(effects: AudioEffects): CardStatus = if (effects.equalizer.enabled) {
-    CardStatus(text = "Aktif · ${effects.activePresetName()}", active = true)
+internal fun equalizerStatus(
+    effects: AudioEffects,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CardStatus = if (effects.equalizer.enabled) {
+    CardStatus(text = AppStrings.get(Res.string.audiolab_active_preset, language, effects.activePresetName(language)), active = true)
 } else {
-    CardStatus(text = "Mati", active = false)
+    CardStatus(text = AppStrings.get(Res.string.state_off, language), active = false)
 }
 
-internal fun soundFxStatus(effects: AudioEffects): CardStatus {
+internal fun soundFxStatus(
+    effects: AudioEffects,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CardStatus {
     val activeEffects = buildList {
-        if (effects.reverb.enabled) add("Reverb")
-        if (effects.bassBoost.enabled) add("Bass boost")
-        if (effects.loudnessMatch) add("Samakan volume")
+        if (effects.reverb.enabled) add(AppStrings.get(Res.string.fx_reverb, language))
+        if (effects.bassBoost.enabled) add(AppStrings.get(Res.string.fx_bass_boost, language))
+        if (effects.loudnessMatch) add(AppStrings.get(Res.string.fx_loudness, language))
     }
     return if (activeEffects.isNotEmpty()) {
         CardStatus(text = activeEffects.joinToString(" · "), active = true)
     } else {
-        CardStatus(text = "Mati", active = false)
+        CardStatus(text = AppStrings.get(Res.string.state_off, language), active = false)
     }
 }
 
-internal fun speedStatus(effects: AudioEffects): CardStatus {
-    val pitchText = if (effects.pitchLock) "Nada terkunci" else "Nada ikut"
+internal fun speedStatus(
+    effects: AudioEffects,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CardStatus {
+    val pitchText = AppStrings.get(
+        if (effects.pitchLock) Res.string.audiolab_pitch_locked else Res.string.audiolab_pitch_follows,
+        language,
+    )
     val active = abs(effects.speed - 1f) > 0.005f || !effects.pitchLock
-    return CardStatus(text = "${formatSpeed(effects.speed)} · $pitchText", active = active)
+    return CardStatus(
+        text = AppStrings.get(Res.string.audiolab_speed_pitch_status, language, formatSpeed(effects.speed, language), pitchText),
+        active = active,
+    )
 }
 
-internal fun audioQualityStatus(saveMobileData: Boolean): CardStatus = if (saveMobileData) {
-    CardStatus(text = "Wi-Fi tinggi · seluler hemat", active = true)
+internal fun audioQualityStatus(
+    saveMobileData: Boolean,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CardStatus = if (saveMobileData) {
+    CardStatus(text = AppStrings.get(Res.string.audiolab_quality_saver, language), active = true)
 } else {
-    CardStatus(text = "Wi-Fi & seluler tinggi", active = false)
+    CardStatus(text = AppStrings.get(Res.string.audiolab_quality_high, language), active = false)
 }
 
-internal fun sleepTimerStatus(state: SleepTimerState): CardStatus {
-    val activeText = state.statusText("menit")
+internal fun sleepTimerStatus(
+    state: SleepTimerState,
+    language: AppLanguage = AppStrings.currentLanguage,
+): CardStatus {
+    val activeText = state.statusText(language)
     return if (activeText != null) {
         CardStatus(text = activeText, active = true)
     } else {
-        CardStatus(text = "Mati", active = false)
+        CardStatus(text = AppStrings.get(Res.string.state_off, language), active = false)
     }
 }
 
-internal fun formatSpeed(speed: Float): String {
+internal fun formatSpeed(
+    speed: Float,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
     val hundredths = (speed.coerceIn(0.5f, 2f) * 100f).roundToInt()
     val whole = hundredths / 100
     val frac = (hundredths % 100).toString().padStart(2, '0')
-    return "$whole,$frac×"
+    val separator = if (language == AppLanguage.Indonesian) ',' else '.'
+    return "$whole$separator$frac×"
 }
 
-/** Memformat gain dB dalam langkah 0,5 dB dengan tanda minus tipografi (−) dan koma desimal. */
-internal fun formatDb(db: Float): String {
+/** Memformat gain dB dalam langkah 0,5 dB dengan tanda minus tipografi (−) dan pemisah desimal sesuai bahasa. */
+internal fun formatDb(
+    db: Float,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
     val halfSteps = (db * 2f).roundToInt()
     if (halfSteps == 0) return "0"
     val sign = if (halfSteps > 0) "+" else "−"
     val absHalf = abs(halfSteps)
     val whole = absHalf / 2
-    return if (absHalf % 2 == 0) "$sign$whole" else "$sign$whole,5"
+    val separator = if (language == AppLanguage.Indonesian) ',' else '.'
+    return if (absHalf % 2 == 0) "$sign$whole" else "$sign$whole${separator}5"
 }
 
 internal fun formatPercent(fraction: Float): String = "${(fraction.coerceIn(0f, 1f) * 100f).roundToInt()}%"
@@ -81,9 +129,13 @@ internal fun snapHalfDb(value: Float, min: Float = -12f, max: Float = 12f): Floa
 internal fun snapPercent(value: Float): Float =
     ((value.coerceIn(0f, 1f) * 100f).roundToInt() / 100f).coerceIn(0f, 1f)
 
-internal fun bandContentDescription(index: Int, gainDb: Float): String {
+internal fun bandContentDescription(
+    index: Int,
+    gainDb: Float,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
     val hz = EqFrequencyLabels.getOrElse(index) { EqPreset.FrequenciesHz[index].toString() }
-    return "$hz Hz, ${formatDb(gainDb)} dB"
+    return AppStrings.get(Res.string.fx_band_a11y, language, hz, formatDb(gainDb, language))
 }
 
 internal fun selectPreset(effects: AudioEffects, preset: EqPreset): AudioEffects = effects.copy(

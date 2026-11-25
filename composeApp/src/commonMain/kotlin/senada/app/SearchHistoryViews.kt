@@ -25,6 +25,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import senada.app.shell.SenadaIcons
+import senada.resources.Res
+import senada.resources.search_history_again
+import senada.resources.search_history_clear
+import senada.resources.search_history_remove
+import senada.resources.search_history_title
 
 /** Pencarian terakhir saat kolom cari kosong; dikelompokkan dalam kartu v2 dengan garis pemisah. */
 internal fun LazyListScope.searchHistoryItems(
@@ -39,17 +44,18 @@ internal fun LazyListScope.searchHistoryItems(
             modifier = Modifier.fillMaxWidth(),
             minPrimaryWidth = 140.dp,
             primary = {
-                BrowseMonoHeading("Pencarian terakhir")
+                BrowseMonoHeading(appString(Res.string.search_history_title))
             },
             trailing = {
                 TextButton(onClick = onClear, modifier = Modifier.minTouchTarget()) {
-                    Text("Hapus riwayat")
+                    Text(appString(Res.string.search_history_clear))
                 }
             },
         )
     }
     item(key = "search-history-card") {
         val colors = MaterialTheme.colorScheme
+        val searchAgainLabel = appString(Res.string.search_history_again)
         SenadaCard {
             Column(Modifier.fillMaxWidth().padding(1.dp)) {
                 history.forEachIndexed { index, query ->
@@ -59,11 +65,12 @@ internal fun LazyListScope.searchHistoryItems(
                             color = colors.outline,
                         )
                     }
+                    val removeDesc = appString(Res.string.search_history_remove, query)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp)
-                            .clickable(onClickLabel = "cari lagi") { onPick(query) }
+                            .clickable(onClickLabel = searchAgainLabel) { onPick(query) }
                             .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -92,7 +99,7 @@ internal fun LazyListScope.searchHistoryItems(
                         IconButton(
                             onClick = { onRemove(query) },
                             modifier = Modifier.minTouchTarget().semantics {
-                                contentDescription = "Hapus \"$query\" dari riwayat"
+                                contentDescription = removeDesc
                             },
                         ) {
                             Icon(

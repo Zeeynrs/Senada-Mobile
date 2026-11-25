@@ -30,6 +30,14 @@ import senada.app.shell.AppNavigator
 import senada.catalog.ArtistResolveResult
 import senada.catalog.ArtistResolver
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_open_artist_named
+import senada.resources.action_cancel
+import senada.resources.action_close
+import senada.resources.action_dismiss_notice
+import senada.resources.artist_not_found
+import senada.resources.artist_picker_title
+import senada.resources.artist_searching
 
 private const val NOTICE_DURATION_MS = 3_500L
 
@@ -46,6 +54,9 @@ internal class ArtistOpenController(
     var message by mutableStateOf<String?>(null)
         private set
 
+    var messageText by mutableStateOf<UiText?>(null)
+        private set
+
     private var lookupJob: Job? = null
     private var dismissJob: Job? = null
 
@@ -53,35 +64,40 @@ internal class ArtistOpenController(
         lookupJob?.cancel()
         dismissJob?.cancel()
         resolver.knownArtist(track, artistName)?.let { found ->
-            message = null
+            setMessage(null)
             navigator.openArtist(found.id, found.name, found.artworkUrl)
             return
         }
-        message = "Mencari artis $artistName…"
+        setMessage(UiText.Resource(Res.string.artist_searching, artistName))
         lookupJob = scope.launch {
             when (val result = resolver.resolve(track, artistName)) {
                 is ArtistResolveResult.Found -> {
-                    message = null
+                    setMessage(null)
                     navigator.openArtist(result.id, result.name, result.artworkUrl)
                 }
-                ArtistResolveResult.NotFound -> showNotice("Artis tidak ditemukan")
-                is ArtistResolveResult.Error -> showNotice(result.message)
+                ArtistResolveResult.NotFound -> showNotice(UiText.Resource(Res.string.artist_not_found))
+                is ArtistResolveResult.Error -> showNotice(result.uiText)
             }
         }
     }
 
     fun dismissMessage() {
         dismissJob?.cancel()
-        message = null
+        setMessage(null)
     }
 
-    private fun showNotice(text: String) {
-        message = text
+    private fun setMessage(text: UiText?) {
+        messageText = text
+        message = text?.resolve()
+    }
+
+    private fun showNotice(text: UiText) {
+        setMessage(text)
         dismissJob?.cancel()
         if (noticeDurationMs > 0) {
             dismissJob = scope.launch {
                 delay(noticeDurationMs)
-                if (message == text) message = null
+                if (messageText == text) setMessage(null)
             }
         }
     }
@@ -96,14 +112,15 @@ internal fun ArtistPickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pilih artis", modifier = Modifier.semantics { heading() }) },
+        title = { Text(appString(Res.string.artist_picker_title), modifier = Modifier.semantics { heading() }) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 artists.forEach { name ->
+                    val openArtistLabel = appString(Res.string.a11y_open_artist_named, name)
                     TextButton(
                         onClick = { onPick(name) },
                         modifier = Modifier.fillMaxWidth().minTouchTarget().semantics {
-                            contentDescription = "Buka artis $name"
+                            contentDescription = openArtistLabel
                         },
                     ) {
                         Text(
@@ -118,7 +135,9 @@ internal fun ArtistPickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.minTouchTarget()) { Text("Batal") }
+            TextButton(onClick = onDismiss, modifier = Modifier.minTouchTarget()) {
+                Text(appString(Res.string.action_cancel))
+            }
         },
     )
 }
@@ -130,6 +149,7 @@ internal fun ArtistOpenBanner(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dismissDesc = appString(Res.string.action_dismiss_notice)
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -151,8 +171,8 @@ internal fun ArtistOpenBanner(
             trailing = {
                 TextButton(
                     onClick = onDismiss,
-                    modifier = Modifier.minTouchTarget().semantics { contentDescription = "Tutup pemberitahuan" },
-                ) { Text("Tutup") }
+                    modifier = Modifier.minTouchTarget().semantics { contentDescription = dismissDesc },
+                ) { Text(appString(Res.string.action_close)) }
             },
         )
     }

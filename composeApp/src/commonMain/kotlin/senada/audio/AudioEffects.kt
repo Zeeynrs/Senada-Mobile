@@ -1,5 +1,20 @@
 package senada.audio
 
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.eq_preset_acoustic
+import senada.resources.eq_preset_bass
+import senada.resources.eq_preset_custom
+import senada.resources.eq_preset_electronic
+import senada.resources.eq_preset_flat
+import senada.resources.eq_preset_night
+import senada.resources.eq_preset_vocal
+import senada.resources.reverb_cathedral
+import senada.resources.reverb_hall
+import senada.resources.reverb_room
+import senada.resources.reverb_studio
+
 internal data class AudioEffects(
     val equalizer: EqualizerSettings = EqualizerSettings(),
     val reverb: ReverbSettings = ReverbSettings(),
@@ -21,7 +36,8 @@ internal data class AudioEffects(
 
     internal fun activePreset(): EqPreset? = allPresets().firstOrNull { it.id == equalizer.presetId }
 
-    internal fun activePresetName(): String = activePreset()?.name ?: EqPreset.CustomName
+    internal fun activePresetName(language: AppLanguage = AppStrings.currentLanguage): String =
+        activePreset()?.localizedName(language) ?: AppStrings.get(Res.string.eq_preset_custom, language)
 }
 
 /** The gains are authoritative, including when the user edits a selected preset. */
@@ -43,7 +59,16 @@ internal data class ReverbSettings(
     internal fun bounded() = copy(mix = mix.bounded(0f, 1f, 0.30f), size = size.bounded(0f, 1f, 0.55f))
 }
 
-internal enum class ReverbRoom { Kamar, Studio, Aula, Katedral }
+internal enum class ReverbRoom {
+    Kamar, Studio, Aula, Katedral;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Kamar -> AppStrings.get(Res.string.reverb_room, language)
+        Studio -> AppStrings.get(Res.string.reverb_studio, language)
+        Aula -> AppStrings.get(Res.string.reverb_hall, language)
+        Katedral -> AppStrings.get(Res.string.reverb_cathedral, language)
+    }
+}
 
 internal data class BassBoostSettings(
     val enabled: Boolean = false,
@@ -54,18 +79,28 @@ internal data class BassBoostSettings(
 
 /** User presets use the same band order and a stable, caller-supplied ID. */
 internal data class EqPreset(val id: String, val name: String, val gains: List<Float>) {
+    fun localizedName(language: AppLanguage = AppStrings.currentLanguage): String = when (id) {
+        "flat" -> AppStrings.get(Res.string.eq_preset_flat, language)
+        "bass" -> AppStrings.get(Res.string.eq_preset_bass, language)
+        "vocal" -> AppStrings.get(Res.string.eq_preset_vocal, language)
+        "acoustic" -> AppStrings.get(Res.string.eq_preset_acoustic, language)
+        "electronic" -> AppStrings.get(Res.string.eq_preset_electronic, language)
+        "night" -> AppStrings.get(Res.string.eq_preset_night, language)
+        else -> name
+    }
+
     companion object {
         const val CustomId = "custom"
-        const val CustomName = "Kustom"
+        const val CustomName = "Custom"
         val FrequenciesHz = listOf(31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000)
-        val Flat = EqPreset("flat", "Datar", List(FrequenciesHz.size) { 0f })
+        val Flat = EqPreset("flat", "Flat", List(FrequenciesHz.size) { 0f })
         val BuiltIns = listOf(
             Flat,
             EqPreset("bass", "Bass+", listOf(7f, 6f, 4f, 2f, 0f, 0f, 0f, 0f, 0f, 0f)),
-            EqPreset("vocal", "Vokal", listOf(-2f, -1f, 0f, 2f, 4f, 4f, 3f, 1f, 0f, -1f)),
-            EqPreset("acoustic", "Akustik", listOf(3f, 3f, 2f, 1f, 1f, 1f, 2f, 3f, 2f, 1f)),
-            EqPreset("electronic", "Elektronik", listOf(5f, 4f, 1f, 0f, -2f, 1f, 1f, 3f, 4f, 5f)),
-            EqPreset("night", "Malam", listOf(2f, 2f, 1f, 0f, -1f, -2f, -3f, -4f, -5f, -6f)),
+            EqPreset("vocal", "Vocal", listOf(-2f, -1f, 0f, 2f, 4f, 4f, 3f, 1f, 0f, -1f)),
+            EqPreset("acoustic", "Acoustic", listOf(3f, 3f, 2f, 1f, 1f, 1f, 2f, 3f, 2f, 1f)),
+            EqPreset("electronic", "Electronic", listOf(5f, 4f, 1f, 0f, -2f, 1f, 1f, 3f, 4f, 5f)),
+            EqPreset("night", "Night", listOf(2f, 2f, 1f, 0f, -1f, -2f, -3f, -4f, -5f, -6f)),
         )
     }
 }

@@ -37,8 +37,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import senada.app.AdaptiveRow
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
+import senada.app.UiText
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.shell.AppDestination
 import senada.app.shell.SenadaIcons
@@ -50,6 +55,26 @@ import senada.catalog.youtube.DiscoverSeeds
 import senada.catalog.youtube.DiscoverSource
 import senada.catalog.youtube.buildDiscoverRecommendations
 import senada.epochMillis
+import senada.resources.Res
+import senada.resources.action_load
+import senada.resources.action_loading
+import senada.resources.action_refresh
+import senada.resources.action_retry
+import senada.resources.discover_albums_personal
+import senada.resources.discover_albums_popular
+import senada.resources.discover_artists_personal
+import senada.resources.discover_artists_popular
+import senada.resources.discover_datasaver_banner
+import senada.resources.discover_error_fallback
+import senada.resources.discover_load_now_a11y
+import senada.resources.discover_loading
+import senada.resources.discover_refresh_a11y
+import senada.resources.discover_retry_a11y
+import senada.resources.discover_subtitle_personal
+import senada.resources.discover_subtitle_popular
+import senada.resources.discover_tracks_personal
+import senada.resources.discover_tracks_popular
+import senada.resources.home_discover_title
 
 internal const val DISCOVER_TTL_MS = 10L * 60 * 1_000
 
@@ -74,9 +99,20 @@ internal fun shouldRefreshDiscover(
 internal data class DiscoverUiState(
     val result: DiscoverResult? = null,
     val loading: Boolean = false,
-    val error: String? = null,
+    val errorText: UiText? = null,
     val deferredByDataSaver: Boolean = false,
-)
+) {
+    constructor(
+        result: DiscoverResult?,
+        loading: Boolean,
+        error: String?,
+        deferredByDataSaver: Boolean,
+    ) : this(result, loading, error?.let(UiText::Raw), deferredByDataSaver)
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /**
  * Menyimpan hasil rekomendasi selama sesi, membatasi penyegaran otomatis lewat [ttlMs],
@@ -101,7 +137,7 @@ internal class DiscoverController(
         if (state.loading) return
         val existing = state.result
         if (saveData && !force && existing == null) {
-            state = state.copy(deferredByDataSaver = true, error = null)
+            state = state.copy(deferredByDataSaver = true, errorText = null)
             return
         }
         val fresh = existing != null && !existing.isEmpty && (now() - lastLoadedAtMs) < ttlMs
@@ -112,7 +148,7 @@ internal class DiscoverController(
         }
 
         job?.cancel()
-        state = state.copy(loading = true, error = null, deferredByDataSaver = false)
+        state = state.copy(loading = true, errorText = null, deferredByDataSaver = false)
         job = scope.launch {
             try {
                 // Parsing respons Innertube berjalan di luar thread UI agar guliran dan input tetap mulus.
@@ -122,13 +158,13 @@ internal class DiscoverController(
                 lastLoadedAtMs = now()
                 lastSeeds = seeds
                 lastSaveData = saveData
-                state = DiscoverUiState(result = loaded, loading = false, error = null, deferredByDataSaver = false)
+                state = DiscoverUiState(result = loaded, loading = false, errorText = null, deferredByDataSaver = false)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val message = (e as? CatalogException)?.userMessage
-                    ?: "Rekomendasi sedang tidak tersedia. Periksa koneksi internet."
-                state = state.copy(loading = false, error = message)
+                val errorText = (e as? CatalogException)?.uiText
+                    ?: UiText.Resource(Res.string.discover_error_fallback)
+                state = state.copy(loading = false, errorText = errorText)
             }
         }
     }
@@ -170,23 +206,22 @@ internal fun LazyListScope.discoverSection(
 
     item(key = "discover-header") {
         ShelfTitle(
-            title = "Untuk kamu",
+            title = appString(Res.string.home_discover_title),
             modifier = discoverPaddedModifier(horizontalPadding, sectionTopSpacing),
-            subtitle = if (personal) {
-                "Berdasarkan lagu yang kamu putar dan sukai."
-            } else {
-                "Populer saat ini di YouTube Music."
-            },
+            subtitle = appString(
+                if (personal) Res.string.discover_subtitle_personal else Res.string.discover_subtitle_popular,
+            ),
             trailing = if (!state.deferredByDataSaver) {
                 {
+                    val refreshDesc = appString(Res.string.discover_refresh_a11y)
                     TextButton(
                         onClick = onRefresh,
                         enabled = !state.loading,
                         modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Muat rekomendasi baru"
+                            contentDescription = refreshDesc
                         },
                     ) {
-                        Text(if (state.loading) "Memuat…" else "Segarkan")
+                        Text(appString(if (state.loading) Res.string.action_loading else Res.string.action_refresh))
                     }
                 }
             } else {
@@ -199,9 +234,9 @@ internal fun LazyListScope.discoverSection(
         item(key = "discover-data-saver") {
             Box(modifier = discoverPaddedModifier(horizontalPadding, itemSpacing)) {
                 QuietNoticeCard(
-                    message = "Hemat data aktif. Rekomendasi tidak dimuat otomatis di jaringan seluler.",
-                    actionLabel = "Muat",
-                    actionDescription = "Muat rekomendasi sekarang",
+                    message = appString(Res.string.discover_datasaver_banner),
+                    actionLabel = appString(Res.string.action_load),
+                    actionDescription = appString(Res.string.discover_load_now_a11y),
                     onAction = onRefresh,
                 )
             }
@@ -212,7 +247,7 @@ internal fun LazyListScope.discoverSection(
     if (state.loading && result == null) {
         item(key = "discover-loading") {
             ShelfSkeletonRow(
-                statusLabel = "Memuat rekomendasi…",
+                statusLabel = appString(Res.string.discover_loading),
                 horizontalPadding = horizontalPadding,
                 modifier = if (horizontalPadding > 0.dp) {
                     Modifier
@@ -225,13 +260,14 @@ internal fun LazyListScope.discoverSection(
         }
     }
 
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "discover-error") {
+            val language = LocalAppLanguage.current
             Box(modifier = discoverPaddedModifier(horizontalPadding, itemSpacing)) {
                 QuietNoticeCard(
-                    message = message,
-                    actionLabel = "Coba lagi",
-                    actionDescription = "Coba muat ulang rekomendasi",
+                    message = errorText.resolve(language),
+                    actionLabel = appString(Res.string.action_retry),
+                    actionDescription = appString(Res.string.discover_retry_a11y),
                     onAction = onRefresh,
                 )
             }
@@ -244,7 +280,7 @@ internal fun LazyListScope.discoverSection(
     if (result.tracks.isNotEmpty()) {
         item(key = "discover-tracks-title") {
             ShelfTitle(
-                title = if (personal) "Lagu untuk kamu" else "Lagu populer",
+                title = appString(if (personal) Res.string.discover_tracks_personal else Res.string.discover_tracks_popular),
                 emphasized = false,
                 modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
@@ -263,7 +299,7 @@ internal fun LazyListScope.discoverSection(
     if (result.artists.isNotEmpty()) {
         item(key = "discover-artists-title") {
             ShelfTitle(
-                title = if (personal) "Artis yang mungkin kamu suka" else "Artis populer",
+                title = appString(if (personal) Res.string.discover_artists_personal else Res.string.discover_artists_popular),
                 emphasized = false,
                 modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
@@ -287,7 +323,7 @@ internal fun LazyListScope.discoverSection(
     if (result.albums.isNotEmpty()) {
         item(key = "discover-albums-title") {
             ShelfTitle(
-                title = if (personal) "Album untuk kamu" else "Album populer",
+                title = appString(if (personal) Res.string.discover_albums_personal else Res.string.discover_albums_popular),
                 emphasized = false,
                 modifier = discoverPaddedModifier(horizontalPadding, itemSpacing),
             )
@@ -302,13 +338,14 @@ internal fun LazyListScope.discoverSection(
                     items = result.albums,
                     key = { index, album -> "discover-album-$index-${album.id}" },
                 ) { _, album ->
+                    val language = LocalAppLanguage.current
                     val detail = album.subtitle?.takeIf { it.isNotBlank() } ?: album.year
                     ShelfSquareCard(
                         title = album.title,
                         subtitle = detail,
                         artworkUrl = album.artworkUrl,
                         fallbackIcon = SenadaIcons.Album,
-                        accessibilityLabel = albumCardAccessibilityLabel(album),
+                        accessibilityLabel = albumCardAccessibilityLabel(album, language),
                         onClick = { onOpenAlbum(album) },
                     )
                 }

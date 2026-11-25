@@ -48,22 +48,40 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.LocalAppLanguage
+import senada.app.UiText
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.theme.LocalSenadaLook
 import senada.model.Track
 import senada.playback.PlaybackController
+import senada.resources.Res
+import senada.resources.action_retry
+import senada.resources.lyrics_active_line
+import senada.resources.lyrics_instrumental
+import senada.resources.lyrics_loading
+import senada.resources.lyrics_seek_line
+import senada.resources.lyrics_unavailable
 
 internal sealed interface LyricsPanelResult {
     data object Loading : LyricsPanelResult
     data class Ready(val document: LyricsDocument) : LyricsPanelResult
-    data class Error(val message: String) : LyricsPanelResult
+    data class Error(val uiText: UiText) : LyricsPanelResult {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
 internal suspend fun loadLyrics(track: Track, fetch: suspend (Track) -> LyricsDocument): LyricsPanelResult {
     val result = try {
         LyricsPanelResult.Ready(fetch(track))
     } catch (e: LyricsException) {
-        LyricsPanelResult.Error(e.userMessage)
+        LyricsPanelResult.Error(e.uiText)
     }
     // Balasan yang baru tiba setelah panel ditutup atau lagu diganti harus diabaikan.
     currentCoroutineContext().ensureActive()
@@ -113,11 +131,14 @@ internal fun LyricsPanel(
                 }
             }
         }
+        val language = LocalAppLanguage.current
         when (shown) {
-            LyricsPanelResult.Loading -> LyricsMessage("Memuat lirik…")
+            LyricsPanelResult.Loading -> LyricsMessage(appString(Res.string.lyrics_loading))
             is LyricsPanelResult.Error -> {
-                LyricsMessage(shown.message)
-                TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) { Text("Coba lagi") }
+                LyricsMessage(shown.message(language))
+                TextButton(onClick = onRetry, modifier = Modifier.minTouchTarget()) {
+                    Text(appString(Res.string.action_retry))
+                }
             }
             is LyricsPanelResult.Ready -> key(track?.id) {
                 when (val document = shown.document) {
@@ -133,8 +154,8 @@ internal fun LyricsPanel(
                             LyricsLineText(line, appearance, LyricLineState.Plain, baseSize = 24f)
                         }
                     }
-                    LyricsDocument.Instrumental -> LyricsMessage("Instrumental")
-                    LyricsDocument.Unavailable -> LyricsMessage("Lirik tidak tersedia")
+                    LyricsDocument.Instrumental -> LyricsMessage(appString(Res.string.lyrics_instrumental))
+                    LyricsDocument.Unavailable -> LyricsMessage(appString(Res.string.lyrics_unavailable))
                 }
             }
         }
@@ -211,6 +232,8 @@ private fun SyncedLyrics(
         playback.state.map { it.audio.canSeek }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio.canSeek)
     val look = LocalSenadaLook.current
+    val seekLineLabel = appString(Res.string.lyrics_seek_line)
+    val activeLineLabel = appString(Res.string.lyrics_active_line)
     val list = rememberLazyListState(initialFirstVisibleItemIndex = active.coerceAtLeast(0))
     LazyColumn(
         Modifier.fillMaxSize(), state = list,
@@ -233,12 +256,12 @@ private fun SyncedLyrics(
                     else -> LyricLineState.Upcoming
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
-                    .clickable(enabled = canSeek, role = Role.Button, onClickLabel = "Putar dari baris ini") {
+                    .clickable(enabled = canSeek, role = Role.Button, onClickLabel = seekLineLabel) {
                         playback.seekTo(line.startMs)
                     }
                     .semantics {
                         selected = current
-                        if (current) stateDescription = "Baris aktif"
+                        if (current) stateDescription = activeLineLabel
                     },
                 progress = progress,
             )

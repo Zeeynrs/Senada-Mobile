@@ -20,6 +20,10 @@ import senada.local.LocalAudioException
 import senada.local.newLocalFileName
 import senada.local.notEnoughSpace
 import senada.platform.importedAudioDir
+import senada.resources.Res
+import senada.resources.import_audio_default_name
+import senada.resources.import_audio_failed_copy
+import senada.resources.import_audio_failed_open
 
 @Composable
 internal actual fun rememberAudioImporter(): AudioImporter {
@@ -47,7 +51,7 @@ private class PendingUri {
 /** Menyalin file pilihan pengguna; izin baca URI tidak dijamin bertahan, jadi salinan yang dipakai. */
 private fun copyIntoApp(context: Context, uri: Uri): ImportedAudio {
     val resolver = context.contentResolver
-    var displayName = "File audio"
+    var displayName = AppStrings.get(Res.string.import_audio_default_name)
     var size = -1L
     resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) {
@@ -65,12 +69,17 @@ private fun copyIntoApp(context: Context, uri: Uri): ImportedAudio {
     val target = File(dir, fileName)
     val partial = File(dir, "$fileName.part")
     try {
-        val input = resolver.openInputStream(uri) ?: throw LocalAudioException("File audio tidak dapat dibuka.")
+        val input = resolver.openInputStream(uri)
+            ?: throw LocalAudioException(UiText.Resource(Res.string.import_audio_failed_open))
         input.use { source -> partial.outputStream().use { source.copyTo(it) } }
-        if (!partial.renameTo(target)) throw IOException("Gagal memindahkan salinan")
+        if (!partial.renameTo(target)) throw IOException("Failed to move copied file")
     } catch (e: IOException) {
         partial.delete()
-        throw if (dir.usableSpace < FREE_SPACE_MARGIN_BYTES) notEnoughSpace() else LocalAudioException("File audio gagal disalin.", e)
+        throw if (dir.usableSpace < FREE_SPACE_MARGIN_BYTES) {
+            notEnoughSpace()
+        } else {
+            LocalAudioException(UiText.Resource(Res.string.import_audio_failed_copy), e)
+        }
     }
     return ImportedAudio(fileName, displayName, target.length()).withMetadataFrom(target)
 }

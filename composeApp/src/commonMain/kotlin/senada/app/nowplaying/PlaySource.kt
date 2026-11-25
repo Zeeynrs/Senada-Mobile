@@ -1,6 +1,20 @@
 package senada.app.nowplaying
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.player_playing_from
+import senada.resources.player_playing_from_queue
+import senada.resources.player_source_album
+import senada.resources.player_source_artist
+import senada.resources.player_source_favorites
+import senada.resources.player_source_history
+import senada.resources.player_source_imported
+import senada.resources.player_source_most_played
+import senada.resources.player_source_offline
+import senada.resources.player_source_playlist
+import senada.resources.player_source_search
 
 internal sealed interface PlaySource {
     data object Search : PlaySource
@@ -19,20 +33,23 @@ internal sealed interface PlaySource {
     data class Album(val title: String) : PlaySource
 }
 
-internal fun PlaySource?.label(): String? = when (this) {
-    PlaySource.Search -> "Dari Pencarian"
-    PlaySource.Favorites -> "Dari Favorit"
-    is PlaySource.Playlist -> "Dari playlist $name"
-    PlaySource.History -> "Dari Riwayat"
-    PlaySource.Imported -> "Dari File impor"
-    PlaySource.Offline -> "Dari lagu offline"
-    PlaySource.MostPlayed -> "Dari Paling sering diputar"
-    is PlaySource.Artist -> "Dari artis $name"
-    is PlaySource.Album -> "Dari album $title"
+internal fun PlaySource?.label(language: AppLanguage = AppStrings.currentLanguage): String? = when (this) {
+    PlaySource.Search -> AppStrings.get(Res.string.player_source_search, language)
+    PlaySource.Favorites -> AppStrings.get(Res.string.player_source_favorites, language)
+    is PlaySource.Playlist -> AppStrings.get(Res.string.player_source_playlist, language, name)
+    PlaySource.History -> AppStrings.get(Res.string.player_source_history, language)
+    PlaySource.Imported -> AppStrings.get(Res.string.player_source_imported, language)
+    PlaySource.Offline -> AppStrings.get(Res.string.player_source_offline, language)
+    PlaySource.MostPlayed -> AppStrings.get(Res.string.player_source_most_played, language)
+    is PlaySource.Artist -> AppStrings.get(Res.string.player_source_artist, language, name)
+    is PlaySource.Album -> AppStrings.get(Res.string.player_source_album, language, title)
     null -> null
 }
 
-internal fun PlaySource?.playerLabel(): String = "Diputar " + (label() ?: "Dari Antrean").replaceFirstChar { it.lowercaseChar() }
+internal fun PlaySource?.playerLabel(language: AppLanguage = AppStrings.currentLanguage): String {
+    val raw = label(language) ?: return AppStrings.get(Res.string.player_playing_from_queue, language)
+    return AppStrings.get(Res.string.player_playing_from, language, raw.replaceFirstChar { it.lowercaseChar() })
+}
 
 internal object PlaySourceState {
     val current = MutableStateFlow<PlaySource?>(null)

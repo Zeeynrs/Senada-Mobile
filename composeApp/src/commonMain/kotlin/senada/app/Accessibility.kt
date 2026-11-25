@@ -8,30 +8,42 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_favorite
+import senada.resources.a11y_hours
+import senada.resources.a11y_minutes
+import senada.resources.a11y_seconds
 
 /** Memastikan elemen interaktif memiliki ukuran sentuh dan batas aksesibilitas minimal 48 dp. */
 internal fun Modifier.minTouchTarget(): Modifier = sizeIn(minWidth = 48.dp, minHeight = 48.dp)
 
-/** Memformat durasi atau posisi pemutaran menjadi frasa bahasa Indonesia untuk pembaca layar. */
-internal fun accessibleDuration(positionMs: Long): String {
+/** Memformat durasi atau posisi pemutaran menjadi frasa alami sesuai bahasa aktif untuk pembaca layar. */
+internal fun accessibleDuration(
+    positionMs: Long,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
     val totalSeconds = positionMs.coerceAtLeast(0L) / 1_000
-    val hours = totalSeconds / 3_600
-    val minutes = (totalSeconds % 3_600) / 60
-    val seconds = totalSeconds % 60
+    val hours = (totalSeconds / 3_600).toInt()
+    val minutes = ((totalSeconds % 3_600) / 60).toInt()
+    val seconds = (totalSeconds % 60).toInt()
     val parts = buildList {
-        if (hours > 0) add("$hours jam")
-        if (minutes > 0) add("$minutes menit")
-        if (seconds > 0 || isEmpty()) add("$seconds detik")
+        if (hours > 0) add(AppStrings.plural(Res.plurals.a11y_hours, hours, language, hours))
+        if (minutes > 0) add(AppStrings.plural(Res.plurals.a11y_minutes, minutes, language, minutes))
+        if (seconds > 0 || isEmpty()) add(AppStrings.plural(Res.plurals.a11y_seconds, seconds, language, seconds))
     }
     return parts.joinToString(" ")
 }
 
 /** Ringkasan lagu untuk pembaca layar: judul, status favorit, artis, dan durasi tanpa simbol dekoratif. */
-internal fun trackAccessibilityLabel(track: Track, favorite: Boolean): String = listOfNotNull(
+internal fun trackAccessibilityLabel(
+    track: Track,
+    favorite: Boolean,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String = listOfNotNull(
     track.title.takeIf { it.isNotBlank() },
-    "Favorit".takeIf { favorite },
+    AppStrings.get(Res.string.a11y_favorite, language).takeIf { favorite },
     track.artists.filter { it.isNotBlank() }.joinToString().takeIf { it.isNotEmpty() },
-    track.durationMs?.let(::accessibleDuration),
+    track.durationMs?.let { accessibleDuration(it, language) },
 ).joinToString(", ")
 
 /**

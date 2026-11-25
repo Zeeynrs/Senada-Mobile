@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import senada.app.tabs.CatalogArtwork
 import senada.app.theme.LocalSenadaLook
+import senada.resources.Res
+import senada.resources.a11y_menu_for
 
 /** Panel aksi untuk menu titik tiga. Tutup panel sebelum membuka dialog atau berpindah halaman. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +71,7 @@ internal fun OverflowActionSheet(
         ) {
             artwork?.invoke()
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val menuForTitle = appString(Res.string.a11y_menu_for, title)
                 Text(
                     title,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -76,7 +79,7 @@ internal fun OverflowActionSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clearAndSetSemantics {
                         heading()
-                        contentDescription = "Menu untuk $title"
+                        contentDescription = menuForTitle
                     },
                 )
                 if (!subtitle.isNullOrBlank()) {

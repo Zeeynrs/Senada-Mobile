@@ -358,7 +358,7 @@ class HomeShelvesTest {
         val ytFailed = buildHomeSections(
             recentItems = recent,
             discover = personalLoaded,
-            homeShelves = HomeShelvesUiState(error = "Offline"),
+            homeShelves = HomeShelvesUiState(feed = null, loading = false, error = "Offline", deferredByDataSaver = false),
         )
         assertEquals(4, ytFailed.size)
         assertIs<HomeSection.Hero>(ytFailed[0])
@@ -461,11 +461,15 @@ class HomeShelvesTest {
     @Test
     fun accessibilityLabelsFormatAlbumPlaylistArtistAndMoodClearly() {
         assertEquals(
-            "Album Manusia oleh Tulus",
+            "Album Manusia by Tulus",
             albumCardAccessibilityLabel(AlbumSummary("a1", "Manusia", subtitle = "Tulus")),
         )
         assertEquals(
-            "Album Manusia oleh Tulus, 2022",
+            "Album Manusia oleh Tulus",
+            albumCardAccessibilityLabel(AlbumSummary("a1", "Manusia", subtitle = "Tulus"), senada.app.AppLanguage.Indonesian),
+        )
+        assertEquals(
+            "Album Manusia by Tulus, 2022",
             albumCardAccessibilityLabel(AlbumSummary("a1", "Manusia", subtitle = "Album • Tulus • 2022", year = "2022")),
         )
         assertEquals(
@@ -485,11 +489,15 @@ class HomeShelvesTest {
             playlistCardAccessibilityLabel(HomeItem.Playlist("PL1", "Santai Sore", subtitle = "YouTube Music")),
         )
         assertEquals(
-            "Artis Tulus",
+            "Artist Tulus",
             artistCardAccessibilityLabel(ArtistSummary("UC1", "Tulus")),
         )
         assertEquals(
-            "Artis Tulus, 4,2 jt pendengar",
+            "Artis Tulus",
+            artistCardAccessibilityLabel(ArtistSummary("UC1", "Tulus"), senada.app.AppLanguage.Indonesian),
+        )
+        assertEquals(
+            "Artist Tulus, 4,2 jt pendengar",
             artistCardAccessibilityLabel(ArtistSummary("UC1", "Tulus", subtitle = "4,2 jt pendengar")),
         )
         assertEquals(

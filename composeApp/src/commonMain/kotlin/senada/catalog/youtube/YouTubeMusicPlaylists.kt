@@ -4,12 +4,15 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import senada.app.UiText
 import senada.catalog.CatalogException
 import senada.catalog.CatalogException.Kind
 import senada.catalog.PlaylistDetail
 import senada.catalog.PlaylistImportException
 import senada.catalog.isYouTubeMixPlaylist
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.yt_playlist_unreachable
 
 /** Hasil pembacaan playlist YouTube Music beserta judul lagu yang tidak tersedia. */
 internal data class YouTubeMusicPlaylist(
@@ -81,9 +84,9 @@ internal class YouTubeMusicPlaylists(
         if (firstResponse == null || firstResponse.at("error") != null) {
             if (isMix) {
                 return fetchMixFromNext(cleanId, headerMeta = null, limit = limit)
-                    ?: throw (browseError ?: PlaylistImportException(UNREACHABLE_PLAYLIST))
+                    ?: throw (browseError ?: PlaylistImportException(UiText.Resource(Res.string.yt_playlist_unreachable)))
             }
-            throw (browseError ?: PlaylistImportException(UNREACHABLE_PLAYLIST))
+            throw (browseError ?: PlaylistImportException(UiText.Resource(Res.string.yt_playlist_unreachable)))
         }
 
         val firstPage = parsePlaylistFirstPage(cleanId, firstResponse)
@@ -135,10 +138,10 @@ internal class YouTubeMusicPlaylists(
         if (finalTracks.isEmpty()) {
             if (isMix) {
                 return fetchMixFromNext(cleanId, headerMeta = firstPage, limit = limit)
-                    ?: throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+                    ?: throw PlaylistImportException(UiText.Resource(Res.string.yt_playlist_unreachable))
             }
             if (!allowMixFallback || !firstPage.hasHeader) {
-                throw PlaylistImportException(UNREACHABLE_PLAYLIST)
+                throw PlaylistImportException(UiText.Resource(Res.string.yt_playlist_unreachable))
             }
         }
 
@@ -181,16 +184,16 @@ internal class YouTubeMusicPlaylists(
 
     private fun mapBrowseError(error: CatalogException): PlaylistImportException {
         if (error.kind == Kind.RateLimited) {
-            return PlaylistImportException(error.userMessage, error)
+            return PlaylistImportException(error.uiText, error)
         }
         val msg = error.message.orEmpty()
         if (error.kind == Kind.Network && (
                 "HTTP 400" in msg || "HTTP 403" in msg || "HTTP 404" in msg
             )
         ) {
-            return PlaylistImportException(UNREACHABLE_PLAYLIST, error)
+            return PlaylistImportException(UiText.Resource(Res.string.yt_playlist_unreachable), error)
         }
-        return PlaylistImportException(error.userMessage, error)
+        return PlaylistImportException(error.uiText, error)
     }
 
     companion object {

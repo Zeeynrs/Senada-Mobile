@@ -34,6 +34,9 @@ import senada.playback.QueueStore
 import senada.playback.RepeatMode as QueueRepeatMode
 import senada.playback.SampleAudioOutput
 import senada.playback.SampleAudioStatus
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.playback_audio_failed
 
 /** Pemutar dan controller hidup selama proses aplikasi, terpisah dari Activity. */
 internal object AndroidPlayback {
@@ -60,6 +63,11 @@ internal object AndroidPlayback {
         MainScope().launch {
             audioEffects.effects.collect { effects ->
                 if (output.updateEffects(effects)) sessionPlayer.refresh()
+            }
+        }
+        MainScope().launch {
+            senada.app.AppStrings.languageFlow.collect {
+                sessionPlayer.refresh()
             }
         }
         return Components(controller, sessionPlayer, position, audioEffects)
@@ -212,8 +220,10 @@ internal class SessionPlayer(
         builder.setPlaybackState(if (items.isEmpty()) Player.STATE_IDLE else playbackState)
             .setPlayWhenReady(playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
         if (state.audio.status == SampleAudioStatus.Failed) {
+            val errorText = state.problemText?.resolve()
+                ?: AppStrings.get(Res.string.playback_audio_failed)
             builder.setPlayerError(
-                PlaybackException("Audio gagal diputar", null, PlaybackException.ERROR_CODE_UNSPECIFIED),
+                PlaybackException(errorText, null, PlaybackException.ERROR_CODE_UNSPECIFIED),
             )
         }
         return builder.build()

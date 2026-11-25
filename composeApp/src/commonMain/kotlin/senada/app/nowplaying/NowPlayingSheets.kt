@@ -30,9 +30,15 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.appString
 import senada.app.shell.SenadaIcons
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
+import senada.resources.Res
+import senada.resources.a11y_pause_track
+import senada.resources.a11y_play_track
+import senada.resources.player_lyrics_settings
+import senada.resources.queue_empty_period
 
 @Composable
 internal fun PlayerSheetContent(
@@ -57,7 +63,7 @@ internal fun PlayerSheetContent(
                 color = PlayerWhite, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold,
             )
             if (onOpenSettings != null) {
-                PlayerGlassButton(SenadaIcons.Settings, "Pengaturan lirik", scale = 1f, onClick = onOpenSettings)
+                PlayerGlassButton(SenadaIcons.Settings, appString(Res.string.player_lyrics_settings), scale = 1f, onClick = onOpenSettings)
             }
             PlayerGlassButton(SenadaIcons.Close, closeLabel, scale = 1f, onClick = onClose)
         }
@@ -68,7 +74,7 @@ internal fun PlayerSheetContent(
 @Composable
 internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, library: LibraryState, actions: LibraryActions) {
     if (state.queue.entries.isEmpty()) {
-        Text("Antrean kosong.", color = PlayerWhite)
+        Text(appString(Res.string.queue_empty_period), color = PlayerWhite)
         return
     }
     val shape = RoundedCornerShape(16.dp)
@@ -88,7 +94,10 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
                     favorite = entry.track.id in library.favoriteIds,
                     onClick = { if (playing) playback.pause() else playback.playEntry(entry.id) },
                     playing = playing,
-                    onClickLabel = if (playing) "Jeda ${entry.track.title}" else "Putar ${entry.track.title}",
+                    onClickLabel = appString(
+                        if (playing) Res.string.a11y_pause_track else Res.string.a11y_play_track,
+                        entry.track.title,
+                    ),
                 ) {
                     TrackMenu(
                         entry.track, library, actions,

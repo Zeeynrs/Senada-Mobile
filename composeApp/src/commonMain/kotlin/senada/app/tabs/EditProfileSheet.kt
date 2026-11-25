@@ -40,11 +40,23 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import senada.app.UserProfileController
+import senada.app.UiText
+import senada.app.LocalAppLanguage
+import senada.app.appString
 import senada.app.deleteProfilePhoto
 import senada.app.minTouchTarget
 import senada.app.rememberProfilePhotoPicker
 import senada.app.saveProfilePhoto
 import senada.app.shell.ProfileAvatar
+import senada.resources.Res
+import senada.resources.action_save
+import senada.resources.profile_edit_title
+import senada.resources.profile_name_a11y
+import senada.resources.profile_name_field
+import senada.resources.profile_photo_open_error
+import senada.resources.profile_photo_pick
+import senada.resources.profile_photo_remove
+import senada.resources.profile_save_error
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +69,8 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
     var newPhoto by remember { mutableStateOf<ByteArray?>(null) }
     var removePhoto by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<UiText?>(null) }
+    val language = LocalAppLanguage.current
     val preview = newPhoto ?: currentPhoto.takeUnless { removePhoto }
     val sheet = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -76,7 +89,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                "Ubah profil", Modifier.semantics { heading() },
+                appString(Res.string.profile_edit_title), Modifier.semantics { heading() },
                 style = MaterialTheme.typography.headlineSmall,
             )
             ProfileAvatar(
@@ -84,11 +97,12 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                 modifier = Modifier.align(Alignment.CenterHorizontally),
                 fallbackBackground = MaterialTheme.colorScheme.surfaceContainer.takeIf { name.isBlank() },
             )
+            val profileNameDesc = appString(Res.string.profile_name_a11y)
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Nama profil" },
-                label = { Text("Nama") },
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = profileNameDesc },
+                label = { Text(appString(Res.string.profile_name_field)) },
                 singleLine = true,
                 enabled = !busy,
             )
@@ -106,7 +120,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                             } catch (cancelled: CancellationException) {
                                 throw cancelled
                             } catch (_: Exception) {
-                                error = "Foto tidak dapat dibuka."
+                                error = UiText.Resource(Res.string.profile_photo_open_error)
                             } finally {
                                 busy = false
                             }
@@ -114,7 +128,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                     },
                     enabled = !busy,
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Pilih foto") }
+                ) { Text(appString(Res.string.profile_photo_pick)) }
                 if (preview != null) {
                     TextButton(
                         onClick = {
@@ -124,11 +138,11 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                         },
                         enabled = !busy,
                         modifier = Modifier.minTouchTarget(),
-                    ) { Text("Hapus foto") }
+                    ) { Text(appString(Res.string.profile_photo_remove)) }
                 }
             }
             error?.let {
-                Text(it, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error)
+                Text(it.resolve(language), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = MaterialTheme.colorScheme.error)
             }
             Button(
                 onClick = {
@@ -155,7 +169,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
-                            error = "Profil tidak dapat disimpan."
+                            error = UiText.Resource(Res.string.profile_save_error)
                         } finally {
                             busy = false
                         }
@@ -163,7 +177,7 @@ internal fun EditProfileSheet(controller: UserProfileController, currentPhoto: A
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth().minTouchTarget(),
-            ) { Text("Simpan") }
+            ) { Text(appString(Res.string.action_save)) }
         }
     }
 }

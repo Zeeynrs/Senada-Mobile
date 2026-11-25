@@ -174,7 +174,7 @@ class ArtistMatcherTest {
         advanceUntilIdle()
         assertTrue(navigator.nowPlayingOpen)
         assertNull(navigator.currentCatalogRoute)
-        assertEquals("Artis tidak ditemukan", controller.message)
+        assertEquals("Artist not found", controller.message)
 
         // Cocok: Sedang diputar ditutup dan halaman artis dibuka.
         val known = Track("yt:track:k", "Teh Hijau", listOf("Tulus"), source = YOUTUBE_MUSIC_SOURCE)

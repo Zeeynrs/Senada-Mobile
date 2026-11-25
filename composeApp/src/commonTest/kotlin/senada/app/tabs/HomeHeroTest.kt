@@ -13,8 +13,12 @@ class HomeHeroTest {
         val playlist = PlaylistSummary("local-pagi", "Pagi di Kota", "", 0, 2)
 
         assertEquals(
-            HeroCopy("Playlist yang sering kamu putar", "Pagi di Kota", "Putar", "Lihat", artistName = null),
+            HeroCopy("Playlist you play often", "Pagi di Kota", "Play", "View", artistName = null),
             heroCopy(HomeHero.FromPlaylist(playlist, artworkUrl = null, plays = 3)),
+        )
+        assertEquals(
+            HeroCopy("Playlist yang sering kamu putar", "Pagi di Kota", "Putar", "Lihat", artistName = null),
+            heroCopy(HomeHero.FromPlaylist(playlist, artworkUrl = null, plays = 3), senada.app.AppLanguage.Indonesian),
         )
     }
 
@@ -23,7 +27,7 @@ class HomeHeroTest {
         val track = Track("yt:track:rintik", "Rintik", listOf("Senada", "Nadia"), source = "ytmusic")
 
         assertEquals(
-            HeroCopy("Karena kamu sering memutar", "Rintik", "Putar", "Lihat", artistName = "Senada, Nadia"),
+            HeroCopy("Because you play often", "Rintik", "Play", "View", artistName = "Senada, Nadia"),
             heroCopy(HomeHero.FromTrack(track, plays = 2)),
         )
     }
@@ -33,7 +37,7 @@ class HomeHeroTest {
         val track = Track("yt:track:rintik", "Rintik", emptyList(), source = "ytmusic")
 
         assertEquals(
-            HeroCopy("Karena kamu sering memutar", "Rintik", "Putar", "Lihat", artistName = null),
+            HeroCopy("Because you play often", "Rintik", "Play", "View", artistName = null),
             heroCopy(HomeHero.FromTrack(track, plays = 2)),
         )
     }
@@ -41,7 +45,7 @@ class HomeHeroTest {
     @Test
     fun welcomeCopyOffersSearch() {
         assertEquals(
-            HeroCopy("Selamat datang di Senada", "Mulai dengarkan", "Cari lagu", null, artistName = null),
+            HeroCopy("Welcome to Senada", "Start listening", "Find songs", null, artistName = null),
             heroCopy(HomeHero.Welcome),
         )
     }

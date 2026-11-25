@@ -10,11 +10,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.app.shell.AppDestination
 import senada.catalog.CatalogException
 import senada.catalog.HomeCatalog
 import senada.catalog.HomeFeed
 import senada.epochMillis
+import senada.resources.Res
+import senada.resources.home_ytm_error_fallback
 
 internal const val HOME_SHELVES_TTL_MS = 10L * 60 * 1_000
 
@@ -35,9 +40,20 @@ internal fun shouldRefreshHomeShelves(
 internal data class HomeShelvesUiState(
     val feed: HomeFeed? = null,
     val loading: Boolean = false,
-    val error: String? = null,
+    val errorText: UiText? = null,
     val deferredByDataSaver: Boolean = false,
-)
+) {
+    constructor(
+        feed: HomeFeed?,
+        loading: Boolean,
+        error: String?,
+        deferredByDataSaver: Boolean,
+    ) : this(feed, loading, error?.let(UiText::Raw), deferredByDataSaver)
+
+    fun errorMessage(language: AppLanguage = AppStrings.currentLanguage): String? = errorText?.resolve(language)
+
+    val error: String? get() = errorMessage()
+}
 
 /**
  * Mengelola rak YouTube Music di Beranda: memuat sekali per sesi, membatasi penyegaran otomatis lewat [ttlMs],
@@ -64,7 +80,7 @@ internal class HomeShelvesController(
         val existing = state.feed
         if (saveData && !force) {
             if (existing == null) {
-                state = state.copy(deferredByDataSaver = true, error = null)
+                state = state.copy(deferredByDataSaver = true, errorText = null)
             }
             return
         }
@@ -76,7 +92,7 @@ internal class HomeShelvesController(
         }
 
         job?.cancel()
-        state = state.copy(loading = true, error = null, deferredByDataSaver = false)
+        state = state.copy(loading = true, errorText = null, deferredByDataSaver = false)
         job = scope.launch {
             try {
                 // Pengambilan dan parsing rak berjalan di luar thread UI agar guliran Beranda tetap mulus.
@@ -88,15 +104,15 @@ internal class HomeShelvesController(
                 state = HomeShelvesUiState(
                     feed = loaded,
                     loading = false,
-                    error = null,
+                    errorText = null,
                     deferredByDataSaver = false,
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val message = (e as? CatalogException)?.userMessage
-                    ?: "Rekomendasi YouTube Music sedang tidak tersedia. Periksa koneksi internet."
-                state = state.copy(loading = false, error = message)
+                val errorText = (e as? CatalogException)?.uiText
+                    ?: UiText.Resource(Res.string.home_ytm_error_fallback)
+                state = state.copy(loading = false, errorText = errorText)
             }
         }
     }

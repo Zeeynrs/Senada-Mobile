@@ -9,6 +9,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
 import senada.catalog.CatalogException
 import senada.catalog.PlaylistImportException
 import senada.catalog.PlaylistLink
@@ -19,10 +22,25 @@ import senada.catalog.youtube.CandidateSearcher
 import senada.catalog.youtube.YouTubeMusicPlaylists
 import senada.catalog.youtube.YouTubePlaylistSource
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.error_playlist_no_matches
+import senada.resources.playlist_import_partial_spotify
+import senada.resources.playlist_import_partial_yt
+import senada.resources.playlist_import_reading_spotify
+import senada.resources.playlist_import_reading_yt
+import senada.resources.playlist_import_skip_search_failed
+import senada.resources.playlist_import_skip_unmatched
+import senada.resources.playlist_import_skip_yt_unavailable
 
 /** Tahapan proses impor playlist untuk ditampilkan di dialog progres. */
 internal sealed interface PlaylistImportProgress {
-    data class Reading(val statusText: String) : PlaylistImportProgress
+    data class Reading(val uiText: UiText) : PlaylistImportProgress {
+        constructor(statusText: String) : this(UiText.Raw(statusText))
+
+        fun statusText(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val statusText: String get() = statusText()
+    }
     data class Matching(
         val playlistName: String,
         val completed: Int,
@@ -35,8 +53,14 @@ internal sealed interface PlaylistImportProgress {
 internal data class SkippedImportTrack(
     val title: String,
     val artists: List<String>,
-    val reason: String,
+    val uiReason: UiText,
 ) {
+    constructor(title: String, artists: List<String>, reason: String) : this(title, artists, UiText.Raw(reason))
+
+    fun reason(language: AppLanguage = AppStrings.currentLanguage): String = uiReason.resolve(language)
+
+    val reason: String get() = reason()
+
     val displayLabel: String
         get() = listOfNotNull(
             title.takeIf { it.isNotBlank() },
@@ -50,15 +74,27 @@ internal data class PlaylistImportSummary(
     val playlistName: String,
     val addedCount: Int,
     val skippedTracks: List<SkippedImportTrack>,
-    val partialNote: String? = null,
-)
+    val partialNoteText: UiText? = null,
+) {
+    constructor(
+        playlistId: String,
+        playlistName: String,
+        addedCount: Int,
+        skippedTracks: List<SkippedImportTrack>,
+        partialNote: String? = null,
+    ) : this(playlistId, playlistName, addedCount, skippedTracks, partialNote?.let { UiText.Raw(it) })
+
+    fun partialNote(language: AppLanguage = AppStrings.currentLanguage): String? = partialNoteText?.resolve(language)
+
+    val partialNote: String? get() = partialNote()
+}
 
 /** Semua lagu dari playlist Spotify gagal dicocokkan ke YouTube Music. */
 internal class NoMatchedTracksException(
     val playlistName: String,
     val skippedTracks: List<SkippedImportTrack>,
 ) : PlaylistImportException(
-    "Tidak ada lagu dari \"$playlistName\" yang berhasil dicocokkan di YouTube Music.",
+    UiText.Resource(Res.string.error_playlist_no_matches, playlistName),
 )
 
 /** Ringkasan playlist lokal yang baru disimpan. */
@@ -109,17 +145,17 @@ internal class PlaylistImporter(
         playlistId: String,
         onProgress: (PlaylistImportProgress) -> Unit,
     ): PlaylistImportSummary {
-        onProgress(PlaylistImportProgress.Reading("Membaca playlist YouTube Music…"))
+        onProgress(PlaylistImportProgress.Reading(UiText.Resource(Res.string.playlist_import_reading_yt)))
         val playlist = youTubePlaylists.fetchPlaylist(playlistId)
         val skipped = playlist.skippedTitles.map { title ->
             SkippedImportTrack(
                 title = title,
                 artists = emptyList(),
-                reason = "Lagu tidak tersedia di YouTube Music",
+                uiReason = UiText.Resource(Res.string.playlist_import_skip_yt_unavailable),
             )
         }
         val partialNote = if (playlist.truncated) {
-            "Maksimal ${YouTubeMusicPlaylists.DEFAULT_PLAYLIST_LIMIT} lagu pertama yang diimpor."
+            UiText.Resource(Res.string.playlist_import_partial_yt, YouTubeMusicPlaylists.DEFAULT_PLAYLIST_LIMIT)
         } else {
             null
         }
@@ -127,7 +163,7 @@ internal class PlaylistImporter(
             rawName = playlist.name,
             tracks = playlist.tracks,
             skipped = skipped,
-            partialNote = partialNote,
+            partialNoteText = partialNote,
             onProgress = onProgress,
         )
     }
@@ -136,7 +172,7 @@ internal class PlaylistImporter(
         playlistId: String,
         onProgress: (PlaylistImportProgress) -> Unit,
     ): PlaylistImportSummary {
-        onProgress(PlaylistImportProgress.Reading("Membaca playlist Spotify…"))
+        onProgress(PlaylistImportProgress.Reading(UiText.Resource(Res.string.playlist_import_reading_spotify)))
         val playlist = spotifyPlaylists.fetchPlaylist(playlistId)
         val total = playlist.tracks.size
         onProgress(PlaylistImportProgress.Matching(playlist.name, 0, total))
@@ -181,14 +217,14 @@ internal class PlaylistImporter(
                 is MatchAttempt.Unmatched -> skipped += SkippedImportTrack(
                     title = attempt.source.title,
                     artists = attempt.source.artists,
-                    reason = "Tidak ditemukan padanan yang cocok",
+                    uiReason = UiText.Resource(Res.string.playlist_import_skip_unmatched),
                 )
                 is MatchAttempt.Failed -> {
                     if (firstError == null) firstError = attempt.error
                     skipped += SkippedImportTrack(
                         title = attempt.source.title,
                         artists = attempt.source.artists,
-                        reason = "Gagal mencari di YouTube Music",
+                        uiReason = UiText.Resource(Res.string.playlist_import_skip_search_failed),
                     )
                 }
             }
@@ -196,13 +232,13 @@ internal class PlaylistImporter(
 
         if (matchedTracks.isEmpty()) {
             if (firstError != null) {
-                throw PlaylistImportException(firstError.userMessage, firstError)
+                throw PlaylistImportException(firstError.uiText, firstError)
             }
             throw NoMatchedTracksException(playlist.name, skipped)
         }
 
         val partialNote = if (!playlist.complete) {
-            "Hanya ${playlist.tracks.size} lagu pertama yang dapat dibaca dari Spotify saat ini."
+            UiText.Resource(Res.string.playlist_import_partial_spotify, playlist.tracks.size)
         } else {
             null
         }
@@ -211,7 +247,7 @@ internal class PlaylistImporter(
             rawName = playlist.name,
             tracks = matchedTracks,
             skipped = skipped,
-            partialNote = partialNote,
+            partialNoteText = partialNote,
             onProgress = onProgress,
         )
     }
@@ -220,7 +256,7 @@ internal class PlaylistImporter(
         rawName: String,
         tracks: List<Track>,
         skipped: List<SkippedImportTrack>,
-        partialNote: String?,
+        partialNoteText: UiText?,
         onProgress: (PlaylistImportProgress) -> Unit,
     ): PlaylistImportSummary {
         onProgress(PlaylistImportProgress.Saving)
@@ -230,7 +266,7 @@ internal class PlaylistImporter(
             playlistName = saved.name,
             addedCount = saved.trackCount,
             skippedTracks = skipped,
-            partialNote = partialNote,
+            partialNoteText = partialNoteText,
         )
     }
 

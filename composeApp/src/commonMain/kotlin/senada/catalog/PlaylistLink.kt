@@ -1,5 +1,21 @@
 package senada.catalog
 
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.app.UiText
+import senada.resources.Res
+import senada.resources.playlist_link_empty
+import senada.resources.playlist_link_spotify_invalid_id
+import senada.resources.playlist_link_spotify_only_playlists
+import senada.resources.playlist_link_spotify_short
+import senada.resources.playlist_link_spotify_unsupported
+import senada.resources.playlist_link_unknown
+import senada.resources.playlist_link_yt_account
+import senada.resources.playlist_link_yt_invalid_id
+import senada.resources.playlist_link_yt_missing_id
+import senada.resources.playlist_link_yt_mix
+import senada.resources.playlist_link_yt_not_playlist
+
 /** Tautan playlist yang siap dibaca dari YouTube Music atau Spotify. */
 internal sealed interface PlaylistLink {
     data class YouTubeMusic(val playlistId: String) : PlaylistLink
@@ -9,12 +25,26 @@ internal sealed interface PlaylistLink {
 /** Hasil validasi tautan playlist dari kolom input. */
 internal sealed interface PlaylistLinkParseResult {
     data class Valid(val link: PlaylistLink) : PlaylistLinkParseResult
-    data class Invalid(val message: String) : PlaylistLinkParseResult
+    data class Invalid(val uiText: UiText) : PlaylistLinkParseResult {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
-/** Kegagalan saat membaca playlist atau mencocokkannya dengan pesan Bahasa Indonesia untuk pengguna. */
-internal open class PlaylistImportException(val userMessage: String, cause: Throwable? = null) :
-    Exception(userMessage, cause)
+/** Kegagalan saat membaca playlist atau mencocokkannya dengan pesan sesuai bahasa aktif. */
+internal open class PlaylistImportException(
+    internal val uiText: UiText,
+    cause: Throwable? = null,
+) : Exception(uiText.resolve(), cause) {
+    constructor(userMessage: String, cause: Throwable? = null) : this(UiText.Raw(userMessage), cause)
+
+    open fun userMessage(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+    open val userMessage: String get() = userMessage()
+}
 
 /**
  * Mengurai tautan playlist YouTube Music / YouTube (`list=`) dan Spotify (`open.spotify.com/playlist/...`
@@ -23,7 +53,7 @@ internal open class PlaylistImportException(val userMessage: String, cause: Thro
 internal fun parsePlaylistLink(input: String): PlaylistLinkParseResult {
     val trimmed = input.trim()
     if (trimmed.isEmpty()) {
-        return PlaylistLinkParseResult.Invalid("Tempel tautan playlist YouTube Music atau Spotify terlebih dahulu.")
+        return PlaylistLinkParseResult.Invalid(UiText.Resource(Res.string.playlist_link_empty))
     }
 
     val spotifyUri = SPOTIFY_URI_REGEX.find(trimmed)
@@ -34,12 +64,12 @@ internal fun parsePlaylistLink(input: String): PlaylistLinkParseResult {
         val id = spotifyMatch.groupValues[2]
         if (kind != "playlist") {
             return PlaylistLinkParseResult.Invalid(
-                "Saat ini hanya playlist Spotify yang didukung. Tempel tautan playlist Spotify.",
+                UiText.Resource(Res.string.playlist_link_spotify_only_playlists),
             )
         }
         if (id.length != SPOTIFY_ID_LENGTH) {
             return PlaylistLinkParseResult.Invalid(
-                "ID playlist Spotify tidak valid. Pastikan seluruh tautan disalin.",
+                UiText.Resource(Res.string.playlist_link_spotify_invalid_id),
             )
         }
         return PlaylistLinkParseResult.Valid(PlaylistLink.Spotify(id))
@@ -47,12 +77,12 @@ internal fun parsePlaylistLink(input: String): PlaylistLinkParseResult {
 
     if (SPOTIFY_SHORT_LINK_REGEX.containsMatchIn(trimmed)) {
         return PlaylistLinkParseResult.Invalid(
-            "Tautan singkat Spotify belum didukung. Buka tautan tersebut lalu salin tautan open.spotify.com/playlist/….",
+            UiText.Resource(Res.string.playlist_link_spotify_short),
         )
     }
     if (SPOTIFY_DOMAIN_OR_SCHEME_REGEX.containsMatchIn(trimmed)) {
         return PlaylistLinkParseResult.Invalid(
-            "Tautan Spotify ini bukan playlist yang didukung. Gunakan tautan open.spotify.com/playlist/… atau spotify:playlist:….",
+            UiText.Resource(Res.string.playlist_link_spotify_unsupported),
         )
     }
 
@@ -62,7 +92,7 @@ internal fun parsePlaylistLink(input: String): PlaylistLinkParseResult {
     }
 
     return PlaylistLinkParseResult.Invalid(
-        "Tautan tidak dikenali. Gunakan tautan playlist YouTube Music atau Spotify.",
+        UiText.Resource(Res.string.playlist_link_unknown),
     )
 }
 
@@ -77,7 +107,7 @@ private fun parseYouTubePlaylistUrl(rawUrl: String): PlaylistLinkParseResult {
     if ("list" in queryParams) {
         val rawList = queryParams["list"].orEmpty()
         if (rawList.isBlank()) {
-            return PlaylistLinkParseResult.Invalid("ID playlist YouTube tidak ditemukan pada tautan ini.")
+            return PlaylistLinkParseResult.Invalid(UiText.Resource(Res.string.playlist_link_yt_missing_id))
         }
         return validateYouTubePlaylistId(rawList)
     }
@@ -88,24 +118,23 @@ private fun parseYouTubePlaylistUrl(rawUrl: String): PlaylistLinkParseResult {
     }
 
     return PlaylistLinkParseResult.Invalid(
-        "Tautan YouTube ini bukan playlist. Tempel tautan playlist yang memiliki parameter list=.",
+        UiText.Resource(Res.string.playlist_link_yt_not_playlist),
     )
 }
 
 private fun validateYouTubePlaylistId(rawId: String): PlaylistLinkParseResult {
     val normalized = if (rawId.startsWith("VL") && rawId.length > 2) rawId.substring(2) else rawId
     if (!YOUTUBE_PLAYLIST_ID_REGEX.matches(normalized)) {
-        return PlaylistLinkParseResult.Invalid("ID playlist YouTube tidak valid.")
+        return PlaylistLinkParseResult.Invalid(UiText.Resource(Res.string.playlist_link_yt_invalid_id))
     }
     if (normalized.uppercase() in YT_ACCOUNT_LISTS) {
         return PlaylistLinkParseResult.Invalid(
-            "Daftar akun YouTube (seperti Lagu yang disukai atau Tonton nanti) memerlukan login. " +
-                "Salin lagu ke playlist publik atau tidak terdaftar, lalu impor tautannya.",
+            UiText.Resource(Res.string.playlist_link_yt_account),
         )
     }
     if (isYouTubeMixPlaylist(normalized)) {
         return PlaylistLinkParseResult.Invalid(
-            "Mix YouTube tidak dapat diimpor karena berubah untuk setiap pendengar. Simpan sebagai playlist terlebih dahulu.",
+            UiText.Resource(Res.string.playlist_link_yt_mix),
         )
     }
     return PlaylistLinkParseResult.Valid(PlaylistLink.YouTubeMusic(normalized))

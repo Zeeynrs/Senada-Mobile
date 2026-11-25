@@ -40,6 +40,12 @@ internal object SenadaIcons {
         "M4 7h10", "M18 7h2", "M4 17h4", "M12 17h8",
         "M16 5a2 2 0 1 0 0 4a2 2 0 1 0 0-4Z", "M10 15a2 2 0 1 0 0 4a2 2 0 1 0 0-4Z",
     )
+    val Language = stroke(
+        "Language",
+        "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z",
+        "M3.5 12h17",
+        "M12 3a13 13 0 0 1 3.5 9a13 13 0 0 1-3.5 9a13 13 0 0 1-3.5-9a13 13 0 0 1 3.5-9Z",
+    )
     val Play = fill("Play", "M8 5v14l11-7Z")
     val Pause = fill("Pause", "M6 5h4v14H6Z", "M14 5h4v14h-4Z")
     val Next = fill("Next", "M5 4l10 8-10 8Z", "M17 5h2v14h-2Z")

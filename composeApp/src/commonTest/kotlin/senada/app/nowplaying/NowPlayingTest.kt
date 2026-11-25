@@ -22,17 +22,20 @@ import senada.app.theme.SenadaLook
 class NowPlayingTest {
     @Test
     fun sourceLabels() {
-        assertEquals("Diputar dari Pencarian", PlaySource.Search.playerLabel())
-        assertEquals("Diputar dari playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").playerLabel())
-        assertEquals("Diputar dari Antrean", null.playerLabel())
-        assertEquals("Dari Favorit", PlaySource.Favorites.label())
-        assertEquals("Dari playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").label())
-        assertEquals("Dari Riwayat", PlaySource.History.label())
-        assertEquals("Dari File impor", PlaySource.Imported.label())
-        assertEquals("Dari Paling sering diputar", PlaySource.MostPlayed.label())
-        assertEquals("Dari artis Tulus", PlaySource.Artist("Tulus").label())
-        assertEquals("Dari album Manusia", PlaySource.Album("Manusia").label())
+        assertEquals("Playing from Search", PlaySource.Search.playerLabel())
+        assertEquals("Playing from playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").playerLabel())
+        assertEquals("Playing from queue", null.playerLabel())
+        assertEquals("From Favorites", PlaySource.Favorites.label())
+        assertEquals("From playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").label())
+        assertEquals("From History", PlaySource.History.label())
+        assertEquals("From Imported audio", PlaySource.Imported.label())
+        assertEquals("From Most played", PlaySource.MostPlayed.label())
+        assertEquals("From artist Tulus", PlaySource.Artist("Tulus").label())
+        assertEquals("From album Manusia", PlaySource.Album("Manusia").label())
         assertNull(null.label())
+
+        assertEquals("Diputar dari Pencarian", PlaySource.Search.playerLabel(senada.app.AppLanguage.Indonesian))
+        assertEquals("Dari Favorit", PlaySource.Favorites.label(senada.app.AppLanguage.Indonesian))
     }
 
     @Test

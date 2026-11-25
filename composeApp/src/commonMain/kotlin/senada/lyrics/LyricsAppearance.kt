@@ -6,21 +6,58 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import senada.app.AppLanguage
+import senada.app.AppStrings
+import senada.resources.Res
+import senada.resources.lyrics_align_center
+import senada.resources.lyrics_align_left
+import senada.resources.lyrics_highlight_bright
+import senada.resources.lyrics_highlight_glow
+import senada.resources.lyrics_highlight_karaoke
+import senada.resources.lyrics_size_large
+import senada.resources.lyrics_size_medium
+import senada.resources.lyrics_size_small
 
-internal enum class LyricsSize(val label: String, val scale: Float) {
-    Small("Kecil", .85f), Medium("Sedang", 1f), Large("Besar", 1.2f),
+internal enum class LyricsSize(val scale: Float) {
+    Small(.85f), Medium(1f), Large(1.2f);
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Small -> AppStrings.get(Res.string.lyrics_size_small, language)
+        Medium -> AppStrings.get(Res.string.lyrics_size_medium, language)
+        Large -> AppStrings.get(Res.string.lyrics_size_large, language)
+    }
+
+    val label: String get() = label()
 }
 
 internal enum class LyricsFont(val label: String) {
     Sans("Sans"), Serif("Serif"),
+    ;
+
+    fun label(@Suppress("UNUSED_PARAMETER") language: AppLanguage): String = label
 }
 
-internal enum class LyricsAlignment(val label: String) {
-    Left("Kiri"), Center("Tengah"),
+internal enum class LyricsAlignment {
+    Left, Center;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Left -> AppStrings.get(Res.string.lyrics_align_left, language)
+        Center -> AppStrings.get(Res.string.lyrics_align_center, language)
+    }
+
+    val label: String get() = label()
 }
 
-internal enum class LyricsHighlight(val label: String) {
-    Bright("Terang"), Glow("Pendar"), Karaoke("Karaoke"),
+internal enum class LyricsHighlight {
+    Bright, Glow, Karaoke;
+
+    fun label(language: AppLanguage = AppStrings.currentLanguage): String = when (this) {
+        Bright -> AppStrings.get(Res.string.lyrics_highlight_bright, language)
+        Glow -> AppStrings.get(Res.string.lyrics_highlight_glow, language)
+        Karaoke -> AppStrings.get(Res.string.lyrics_highlight_karaoke, language)
+    }
+
+    val label: String get() = label()
 }
 
 internal data class LyricsAppearance(

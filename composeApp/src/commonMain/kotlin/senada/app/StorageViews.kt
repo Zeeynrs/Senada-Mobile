@@ -44,6 +44,27 @@ import senada.local.importedAudioLock
 import senada.local.summarizeImportedAudio
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
+import senada.resources.Res
+import senada.resources.action_cancel
+import senada.resources.action_delete
+import senada.resources.storage_clear_cache
+import senada.resources.storage_clear_cache_done
+import senada.resources.storage_clear_cache_failed
+import senada.resources.storage_clearing
+import senada.resources.storage_cover_cache_calculating
+import senada.resources.storage_cover_cache_size
+import senada.resources.storage_cover_cache_unavailable
+import senada.resources.storage_delete_unused
+import senada.resources.storage_delete_unused_failed
+import senada.resources.storage_delete_unused_message
+import senada.resources.storage_delete_unused_none
+import senada.resources.storage_delete_unused_title
+import senada.resources.storage_file_count
+import senada.resources.storage_imported_calculating
+import senada.resources.storage_imported_summary
+import senada.resources.storage_imported_unavailable
+import senada.resources.storage_title
+import senada.resources.storage_unused_deleted
 
 internal const val ARTWORK_CACHE_DIRECTORY = "coil3_disk_cache"
 
@@ -59,17 +80,22 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
     var cacheSize by remember(imageLoader) { mutableStateOf<Long?>(null) }
     var readingSize by remember(imageLoader) { mutableStateOf(true) }
     var clearing by remember(imageLoader) { mutableStateOf(false) }
-    var clearMessage by remember(imageLoader) { mutableStateOf<String?>(null) }
+    var clearMessage by remember(imageLoader) { mutableStateOf<UiText?>(null) }
+    val language = LocalAppLanguage.current
 
     LaunchedEffect(imageLoader) {
         cacheSize = imageLoader.readArtworkCacheSize()
         readingSize = false
     }
 
-    SettingsCard("Penyimpanan") {
+    SettingsCard(appString(Res.string.storage_title)) {
         Text(
-            cacheSize?.let { "Cache sampul: ${formatSize(it)}" }
-                ?: if (readingSize) "Menghitung ukuran cache sampul…" else "Ukuran cache sampul tidak tersedia.",
+            cacheSize?.let { appString(Res.string.storage_cover_cache_size, formatSize(it)) }
+                ?: if (readingSize) {
+                    appString(Res.string.storage_cover_cache_calculating)
+                } else {
+                    appString(Res.string.storage_cover_cache_unavailable)
+                },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -98,18 +124,18 @@ internal fun StorageSection(playback: PlaybackController, library: LibraryReposi
                     } finally {
                         cacheSize = imageLoader.readArtworkCacheSize()
                         clearMessage = if (failed) {
-                            "Cache sampul tidak dapat dihapus sepenuhnya."
+                            UiText.Resource(Res.string.storage_clear_cache_failed)
                         } else {
-                            "Cache sampul dan lirik dihapus."
+                            UiText.Resource(Res.string.storage_clear_cache_done)
                         }
                         clearing = false
                     }
                 }
             },
-        ) { Text(if (clearing) "Menghapus…" else "Hapus cache") }
+        ) { Text(if (clearing) appString(Res.string.storage_clearing) else appString(Res.string.storage_clear_cache)) }
         clearMessage?.let {
             Text(
-                it,
+                it.resolve(language),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -133,6 +159,8 @@ private fun ImportedAudioStorageControls(
     var confirmingDelete by remember(storage) { mutableStateOf(false) }
     var deleting by remember(storage) { mutableStateOf(false) }
     var deleteMessage by remember(storage) { mutableStateOf<String?>(null) }
+    var deletedUnusedCount by remember(storage) { mutableStateOf<Int?>(null) }
+    val language = LocalAppLanguage.current
 
     LaunchedEffect(storage) {
         summary = storage.readImportedAudioSummary()
@@ -142,6 +170,7 @@ private fun ImportedAudioStorageControls(
     fun deleteUnusedFiles() {
         deleting = true
         deleteMessage = null
+        deletedUnusedCount = null
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 withContext(NonCancellable) {
@@ -151,16 +180,18 @@ private fun ImportedAudioStorageControls(
                         queueTracks = { playback.state.value.queue.entries.map { it.track } },
                     )
                     summary = result.summary
-                    deleteMessage = when {
-                        result.failedCount > 0 -> "Sebagian file audio impor tidak dapat dihapus."
-                        result.unusedCount == 0 -> "Tidak ada file yang tidak dipakai."
-                        else -> "${result.unusedCount} file yang tidak dipakai dihapus."
+                    when {
+                        result.failedCount > 0 ->
+                            deleteMessage = UiText.Resource(Res.string.storage_delete_unused_failed).resolve(language)
+                        result.unusedCount == 0 ->
+                            deleteMessage = UiText.Resource(Res.string.storage_delete_unused_none).resolve(language)
+                        else -> deletedUnusedCount = result.unusedCount
                     }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                deleteMessage = "Sebagian file audio impor tidak dapat dihapus."
+                deleteMessage = UiText.Resource(Res.string.storage_delete_unused_failed).resolve(language)
                 summary = storage.readImportedAudioSummary()
             } finally {
                 deleting = false
@@ -169,8 +200,17 @@ private fun ImportedAudioStorageControls(
     }
 
     Text(
-        summary?.let { "File audio impor: ${it.count} file, ${formatSize(it.sizeBytes)}" }
-            ?: if (reading) "Menghitung ukuran file audio impor…" else "Ukuran file audio impor tidak tersedia.",
+        summary?.let {
+            appString(
+                Res.string.storage_imported_summary,
+                appPlural(Res.plurals.storage_file_count, it.count, it.count),
+                formatSize(it.sizeBytes),
+            )
+        } ?: if (reading) {
+            appString(Res.string.storage_imported_calculating)
+        } else {
+            appString(Res.string.storage_imported_unavailable)
+        },
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -179,8 +219,10 @@ private fun ImportedAudioStorageControls(
         shape = CircleShape,
         modifier = Modifier.minTouchTarget(),
         onClick = { confirmingDelete = true },
-    ) { Text(if (deleting) "Menghapus…" else "Hapus file yang tidak dipakai") }
-    deleteMessage?.let {
+    ) { Text(if (deleting) appString(Res.string.storage_clearing) else appString(Res.string.storage_delete_unused)) }
+    val displayedDeleteMessage = deletedUnusedCount?.let { appPlural(Res.plurals.storage_unused_deleted, it, it) }
+        ?: deleteMessage
+    displayedDeleteMessage?.let {
         Text(
             it,
             style = MaterialTheme.typography.bodyMedium,
@@ -191,12 +233,10 @@ private fun ImportedAudioStorageControls(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("Hapus file yang tidak dipakai?", modifier = Modifier.semantics { heading() }) },
+            title = { Text(appString(Res.string.storage_delete_unused_title), modifier = Modifier.semantics { heading() }) },
             text = {
                 Text(
-                    "File audio impor yang tidak ada di antrean, favorit, playlist, riwayat, atau hitungan putar " +
-                        "akan dihapus dari ponsel, termasuk file yang belum pernah diputar. File ini juga hilang " +
-                        "dari Library › File impor dan harus diimpor ulang untuk diputar lagi.",
+                    appString(Res.string.storage_delete_unused_message),
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                 )
             },
@@ -207,13 +247,13 @@ private fun ImportedAudioStorageControls(
                         deleteUnusedFiles()
                     },
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Hapus") }
+                ) { Text(appString(Res.string.action_delete)) }
             },
             dismissButton = {
                 TextButton(
                     onClick = { confirmingDelete = false },
                     modifier = Modifier.minTouchTarget(),
-                ) { Text("Batal") }
+                ) { Text(appString(Res.string.action_cancel)) }
             },
         )
     }

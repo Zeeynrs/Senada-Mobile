@@ -56,10 +56,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import senada.app.AdaptiveRow
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
 import senada.app.TrackMenu
 import senada.app.TrackRow
+import senada.app.UiText
+import senada.app.appString
 import senada.app.minTouchTarget
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
@@ -72,6 +77,19 @@ import senada.catalog.HomeShelfLayout
 import senada.catalog.MoodChip
 import senada.library.RecentHomeItem
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_album_by
+import senada.resources.a11y_album_named
+import senada.resources.a11y_artist_named
+import senada.resources.a11y_mood_named
+import senada.resources.a11y_play_track
+import senada.resources.a11y_playlist_named
+import senada.resources.action_loading
+import senada.resources.action_refresh
+import senada.resources.home_datasaver_banner
+import senada.resources.home_datasaver_load_ytm
+import senada.resources.home_refresh_ytm_a11y
+import senada.resources.label_song_singular
 
 internal const val QUICK_PICKS_DEFAULT_ROWS = 4
 internal const val QUICK_PICKS_MEDIUM_FONT_ROWS = 3
@@ -89,7 +107,13 @@ internal sealed interface HomeSection {
     data class Moods(val chips: List<MoodChip>, val showRefresh: Boolean = false) : HomeSection
     data object YouTubeLoading : HomeSection
     data object YouTubeDataSaver : HomeSection
-    data class YouTubeError(val message: String) : HomeSection
+    data class YouTubeError(val messageText: UiText) : HomeSection {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = messageText.resolve(language)
+
+        val message: String get() = message()
+    }
     data class YouTubeShelf(val shelf: HomeShelf, val index: Int, val showRefresh: Boolean) : HomeSection
 }
 
@@ -124,8 +148,8 @@ internal fun buildHomeSections(
         return@buildList
     }
 
-    homeShelves.error?.let { message ->
-        add(HomeSection.YouTubeError(message))
+    homeShelves.errorText?.let { errorText ->
+        add(HomeSection.YouTubeError(errorText))
     }
 
     if (feed == null) return@buildList
@@ -193,7 +217,10 @@ private val ALBUM_TYPE_TOKENS = setOf("album", "ep", "single", "singel")
 private val FOUR_DIGIT_YEAR = Regex("^\\d{4}$")
 
 /** Label pembaca layar untuk kartu album dengan format "Album X oleh Y" bila nama artis tersedia. */
-internal fun albumCardAccessibilityLabel(album: AlbumSummary): String {
+internal fun albumCardAccessibilityLabel(
+    album: AlbumSummary,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
     val title = album.title.trim()
     val rawParts = album.subtitle
         ?.split("•", "·")
@@ -206,29 +233,38 @@ internal fun albumCardAccessibilityLabel(album: AlbumSummary): String {
     val yearPart = album.year?.trim()?.takeIf(String::isNotEmpty)
         ?: rawParts.firstOrNull { FOUR_DIGIT_YEAR.matches(it) }
     val base = if (artistParts.isNotEmpty()) {
-        "Album $title oleh ${artistParts.joinToString(", ")}"
+        AppStrings.get(Res.string.a11y_album_by, language, title, artistParts.joinToString(", "))
     } else {
-        "Album $title"
+        AppStrings.get(Res.string.a11y_album_named, language, title)
     }
     return if (yearPart != null) "$base, $yearPart" else base
 }
 
 /** Label pembaca layar untuk kartu playlist/mix dengan format "Playlist X". */
-internal fun playlistCardAccessibilityLabel(playlist: HomeItem.Playlist): String {
-    val base = "Playlist ${playlist.title.trim()}"
+internal fun playlistCardAccessibilityLabel(
+    playlist: HomeItem.Playlist,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
+    val base = AppStrings.get(Res.string.a11y_playlist_named, language, playlist.title.trim())
     val detail = playlist.subtitle?.trim()?.takeIf(String::isNotEmpty)
     return if (detail != null) "$base, $detail" else base
 }
 
 /** Label pembaca layar untuk kartu artis dengan format "Artis X". */
-internal fun artistCardAccessibilityLabel(artist: ArtistSummary): String {
-    val base = "Artis ${artist.name.trim()}"
+internal fun artistCardAccessibilityLabel(
+    artist: ArtistSummary,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String {
+    val base = AppStrings.get(Res.string.a11y_artist_named, language, artist.name.trim())
     val detail = artist.subtitle?.trim()?.takeIf(String::isNotEmpty)
     return if (detail != null) "$base, $detail" else base
 }
 
 /** Label pembaca layar untuk chip mood & genre. */
-internal fun moodChipAccessibilityLabel(chip: MoodChip): String = "Mood ${chip.title.trim()}"
+internal fun moodChipAccessibilityLabel(
+    chip: MoodChip,
+    language: AppLanguage = AppStrings.currentLanguage,
+): String = AppStrings.get(Res.string.a11y_mood_named, language, chip.title.trim())
 
 /** Gaya judul rak Beranda v2: 18 sp tebal 800, persis mockup Main.dc.html. */
 @Composable
@@ -446,6 +482,7 @@ internal fun ShelfArtistCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val language = LocalAppLanguage.current
     val cardWidth = if (LocalDensity.current.fontScale >= 1.5f) 156.dp else 136.dp
     Surface(
         onClick = onClick,
@@ -455,7 +492,7 @@ internal fun ShelfArtistCard(
             .width(cardWidth)
             .minTouchTarget()
             .semantics {
-                contentDescription = artistCardAccessibilityLabel(artist)
+                contentDescription = artistCardAccessibilityLabel(artist, language)
                 role = Role.Button
             },
     ) {
@@ -515,13 +552,14 @@ internal fun MoodChipsRow(
             items = chips,
             key = { index, chip -> "mood-$index-${chip.browseId}-${chip.params.orEmpty()}" },
         ) { _, chip ->
+            val moodDesc = moodChipAccessibilityLabel(chip, LocalAppLanguage.current)
             Surface(
                 onClick = { onOpenMood(chip) },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.minTouchTarget().semantics {
-                    contentDescription = moodChipAccessibilityLabel(chip)
+                    contentDescription = moodDesc
                     role = Role.Button
                 },
             ) {
@@ -556,7 +594,7 @@ internal fun HomeDataSaverCard(onLoad: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "Hemat data aktif di jaringan ini.",
+                text = appString(Res.string.home_datasaver_banner),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -566,7 +604,7 @@ internal fun HomeDataSaverCard(onLoad: () -> Unit) {
                 shape = CircleShape,
                 modifier = Modifier.minTouchTarget(),
             ) {
-                Text("Muat rekomendasi YouTube Music")
+                Text(appString(Res.string.home_datasaver_load_ytm))
             }
         }
     }
@@ -665,14 +703,15 @@ internal fun LazyListScope.homeShelfItems(
             modifier = titleModifier,
             trailing = if (onRefresh != null) {
                 {
+                    val refreshDesc = appString(Res.string.home_refresh_ytm_a11y)
                     TextButton(
                         onClick = onRefresh,
                         enabled = !refreshing,
                         modifier = Modifier.minTouchTarget().semantics {
-                            contentDescription = "Segarkan rekomendasi YouTube Music"
+                            contentDescription = refreshDesc
                         },
                     ) {
-                        Text(if (refreshing) "Memuat…" else "Segarkan")
+                        Text(appString(if (refreshing) Res.string.action_loading else Res.string.action_refresh))
                     }
                 }
             } else {
@@ -749,6 +788,7 @@ internal fun LazyListScope.homeShelfItems(
                         items = shelf.items,
                         key = { index, item -> "$keyPrefix-card-$index-${item.stableKey()}" },
                     ) { _, item ->
+                        val language = LocalAppLanguage.current
                         when (item) {
                             is HomeItem.Album -> {
                                 val detail = item.album.subtitle?.takeIf { it.isNotBlank() } ?: item.album.year
@@ -757,7 +797,7 @@ internal fun LazyListScope.homeShelfItems(
                                     subtitle = detail,
                                     artworkUrl = item.album.artworkUrl,
                                     fallbackIcon = SenadaIcons.Album,
-                                    accessibilityLabel = albumCardAccessibilityLabel(item.album),
+                                    accessibilityLabel = albumCardAccessibilityLabel(item.album, language),
                                     onClick = { onOpenAlbum(item.album) },
                                 )
                             }
@@ -767,7 +807,7 @@ internal fun LazyListScope.homeShelfItems(
                                     subtitle = item.subtitle,
                                     artworkUrl = item.artworkUrl,
                                     fallbackIcon = SenadaIcons.Library,
-                                    accessibilityLabel = playlistCardAccessibilityLabel(item),
+                                    accessibilityLabel = playlistCardAccessibilityLabel(item, language),
                                     onClick = { onOpenPlaylist(item) },
                                 )
                             }
@@ -777,13 +817,16 @@ internal fun LazyListScope.homeShelfItems(
                                 val subtitle = track.artists
                                     .filter { it.isNotBlank() }
                                     .joinToString()
-                                    .ifEmpty { "Lagu" }
+                                    .ifEmpty { appString(Res.string.label_song_singular) }
                                 ShelfSquareCard(
                                     title = track.title,
                                     subtitle = subtitle,
                                     artworkUrl = track.artworkUrl,
                                     fallbackIcon = SenadaIcons.MusicNote,
-                                    accessibilityLabel = "Putar ${trackAccessibilityLabel(track, favorite)}",
+                                    accessibilityLabel = appString(
+                                        Res.string.a11y_play_track,
+                                        trackAccessibilityLabel(track, favorite, language),
+                                    ),
                                     onClick = { actions.playAll(listOf(track)) },
                                 )
                             }

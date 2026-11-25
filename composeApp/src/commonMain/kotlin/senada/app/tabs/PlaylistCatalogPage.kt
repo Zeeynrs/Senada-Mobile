@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import senada.app.AdaptiveRow
+import senada.app.AppLanguage
+import senada.app.AppStrings
 import senada.app.BrowseLoadMoreButton
 import senada.app.BrowseMonoHeading
 import senada.app.BrowseNoticeCard
@@ -30,6 +32,10 @@ import senada.app.CollectionKind
 import senada.app.CollectionMenuAction
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.LocalAppLanguage
+import senada.app.UiText
+import senada.app.appPlural
+import senada.app.appString
 import senada.app.collectionMenuItems
 import senada.app.minTouchTarget
 import senada.app.nowplaying.PlaySource
@@ -44,21 +50,52 @@ import senada.library.LibraryRepository
 import senada.library.SavedLocalPlaylist
 import senada.library.savePlaylistWithUniqueName
 import senada.model.Track
+import senada.resources.Res
+import senada.resources.a11y_open_playlist_named
+import senada.resources.catalog_mix_save_disabled
+import senada.resources.catalog_open_in_library
+import senada.resources.catalog_playlist_empty
+import senada.resources.catalog_playlist_loading
+import senada.resources.catalog_playlist_save_empty
+import senada.resources.catalog_playlist_saved_note
+import senada.resources.catalog_playlist_truncated
+import senada.resources.catalog_tracklist_heading
+import senada.resources.catalog_type_playlist
+import senada.resources.collection_mix_radio
+import senada.resources.search_empty_eyebrow
+import senada.resources.search_playlists_empty
+import senada.resources.search_playlists_heading
+import senada.resources.search_playlists_loading
+import senada.resources.search_playlists_prompt_desc
+import senada.resources.search_playlists_prompt_title
+import senada.resources.song_count
 
-internal const val MIX_SAVE_DISABLED_MESSAGE =
-    "Mix YouTube tidak dapat disimpan ke Library karena daftar lagunya berubah otomatis."
+internal fun mixSaveDisabledMessage(language: AppLanguage = AppStrings.currentLanguage): String =
+    AppStrings.get(Res.string.catalog_mix_save_disabled, language)
 
 /** Status penyimpanan halaman playlist YouTube Music ke Library lokal. */
 internal sealed interface PlaylistSaveStatus {
     data object Saving : PlaylistSaveStatus
     data class Saved(val playlist: SavedLocalPlaylist) : PlaylistSaveStatus
-    data class Failed(val message: String) : PlaylistSaveStatus
+    data class Failed(val uiText: UiText) : PlaylistSaveStatus {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
 /** Hasil penyimpanan playlist katalog ke Library lokal. */
 internal sealed interface CatalogPlaylistSaveOutcome {
     data class Saved(val playlist: SavedLocalPlaylist) : CatalogPlaylistSaveOutcome
-    data class Rejected(val message: String) : CatalogPlaylistSaveOutcome
+    data class Rejected(val uiText: UiText) : CatalogPlaylistSaveOutcome {
+        constructor(message: String) : this(UiText.Raw(message))
+
+        fun message(language: AppLanguage = AppStrings.currentLanguage): String = uiText.resolve(language)
+
+        val message: String get() = message()
+    }
 }
 
 /**
@@ -72,10 +109,10 @@ internal suspend fun saveCatalogPlaylist(
     tracks: List<Track>,
 ): CatalogPlaylistSaveOutcome {
     if (isYouTubeMixPlaylist(playlistId)) {
-        return CatalogPlaylistSaveOutcome.Rejected(MIX_SAVE_DISABLED_MESSAGE)
+        return CatalogPlaylistSaveOutcome.Rejected(UiText.Resource(Res.string.catalog_mix_save_disabled))
     }
     if (tracks.isEmpty()) {
-        return CatalogPlaylistSaveOutcome.Rejected("Playlist belum memiliki lagu untuk disimpan.")
+        return CatalogPlaylistSaveOutcome.Rejected(UiText.Resource(Res.string.catalog_playlist_save_empty))
     }
     val saved = savePlaylistWithUniqueName(library, title, tracks)
     return CatalogPlaylistSaveOutcome.Saved(saved)
@@ -92,36 +129,38 @@ internal fun LazyListScope.playlistSearchResults(
     if (state.query.isEmpty()) {
         item(key = "playlist-search-prompt") {
             BrowseNoticeCard(
-                eyebrow = "Cari playlist",
-                message = "Ketik nama atau topik playlist untuk mencari di YouTube Music.",
+                eyebrow = appString(Res.string.search_playlists_prompt_title),
+                message = appString(Res.string.search_playlists_prompt_desc),
                 polite = false,
             )
         }
         return
     }
     item(key = "playlist-search-heading") {
-        BrowseMonoHeading("Playlist di YouTube Music")
+        BrowseMonoHeading(appString(Res.string.search_playlists_heading))
     }
     if (state.loading && state.items.isEmpty()) {
         item(key = "playlist-search-loading") {
-            BrowseRowSkeletonCard(statusLabel = "Mencari playlist…", rowCount = 3)
+            BrowseRowSkeletonCard(statusLabel = appString(Res.string.search_playlists_loading), rowCount = 3)
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "playlist-search-error") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
-    if (!state.loading && state.error == null && state.items.isEmpty()) {
+    if (!state.loading && state.errorText == null && state.items.isEmpty()) {
         item(key = "playlist-search-empty") {
             BrowseNoticeCard(
-                eyebrow = "Hasil kosong",
-                message = "Playlist tidak ditemukan.",
+                eyebrow = appString(Res.string.search_empty_eyebrow),
+                message = appString(Res.string.search_playlists_empty),
             )
         }
     }
     items(state.items, key = { "playlist-result-${it.id}" }) { playlist ->
-        val label = listOfNotNull("Buka playlist ${playlist.title}", playlist.subtitle).joinToString(", ")
+        val openPlaylistPrefix = appString(Res.string.a11y_open_playlist_named, playlist.title)
+        val label = listOfNotNull(openPlaylistPrefix, playlist.subtitle).joinToString(", ")
         CatalogSummaryRow(
             title = playlist.title,
             subtitle = playlist.subtitle,
@@ -135,7 +174,7 @@ internal fun LazyListScope.playlistSearchResults(
             },
         )
     }
-    if (state.nextPageToken != null && state.error == null) {
+    if (state.nextPageToken != null && state.errorText == null) {
         item(key = "playlist-search-more") {
             BrowseLoadMoreButton(loading = state.loading, onClick = onLoadMore)
         }
@@ -164,14 +203,16 @@ internal fun LazyListScope.playlistDetailScreen(
     val playlistKey = source.key
 
     item(key = "playlist-header-${route.id}") {
+        val language = LocalAppLanguage.current
         val isPlaying by remember(actions, playlistKey) { actions.playlistPlaying(playlistKey) }.collectAsState(false)
-        val meta = remember(detail, isMix, route.subtitle) {
+        val meta = remember(detail, isMix, route.subtitle, language) {
             youTubePlaylistCollectionMeta(detail, isMix = isMix, fallbackSubtitle = route.subtitle)
         }
-        val menuItems = remember(isMix, saveStatus, tracks.isNotEmpty()) {
+        val menuItems = remember(isMix, saveStatus, tracks.isNotEmpty(), language) {
             collectionMenuItems(
                 kind = CollectionKind.YouTubePlaylist(isMix = isMix, saveStatus = saveStatus),
                 hasTracks = tracks.isNotEmpty(),
+                language = language,
             )
         }
         CollectionHeader(
@@ -191,12 +232,12 @@ internal fun LazyListScope.playlistDetailScreen(
             onShuffle = { actions.playShuffled(tracks, source) },
             backLabel = previousLabel,
             onBack = onBack,
-            eyebrow = if (isMix) "Mix / Radio" else "Playlist",
+            eyebrow = appString(if (isMix) Res.string.collection_mix_radio else Res.string.catalog_type_playlist),
             isPlaying = isPlaying,
             footer = {
                 if (isMix) {
                     Text(
-                        MIX_SAVE_DISABLED_MESSAGE,
+                        appString(Res.string.catalog_mix_save_disabled),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -213,9 +254,13 @@ internal fun LazyListScope.playlistDetailScreen(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                                     minPrimaryWidth = 160.dp,
                                     primary = {
+                                        val countText = appPlural(
+                                            Res.plurals.song_count,
+                                            saveStatus.playlist.trackCount,
+                                            saveStatus.playlist.trackCount,
+                                        )
                                         Text(
-                                            "Tersimpan sebagai \"${saveStatus.playlist.name}\" " +
-                                                "(${saveStatus.playlist.trackCount} lagu).",
+                                            appString(Res.string.catalog_playlist_saved_note, saveStatus.playlist.name, countText),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                                             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -226,7 +271,7 @@ internal fun LazyListScope.playlistDetailScreen(
                                             onClick = { onOpenSavedPlaylist(saveStatus.playlist.id) },
                                             modifier = Modifier.minTouchTarget(),
                                         ) {
-                                            Text("Buka di Library")
+                                            Text(appString(Res.string.catalog_open_in_library))
                                         }
                                     },
                                 )
@@ -234,7 +279,7 @@ internal fun LazyListScope.playlistDetailScreen(
                         }
                         is PlaylistSaveStatus.Failed -> {
                             Text(
-                                saveStatus.message,
+                                saveStatus.message(language),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -244,8 +289,9 @@ internal fun LazyListScope.playlistDetailScreen(
                     }
                 }
                 if (detail?.truncated == true && tracks.isNotEmpty()) {
+                    val countText = appPlural(Res.plurals.song_count, tracks.size, tracks.size)
                     Text(
-                        "Menampilkan ${tracks.size} lagu pertama.",
+                        appString(Res.string.catalog_playlist_truncated, countText),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -256,19 +302,20 @@ internal fun LazyListScope.playlistDetailScreen(
 
     if (state.loading && detail == null) {
         item(key = "playlist-loading-${route.id}") {
-            BrowseRowSkeletonCard(statusLabel = "Memuat halaman playlist…", rowCount = 5)
+            BrowseRowSkeletonCard(statusLabel = appString(Res.string.catalog_playlist_loading), rowCount = 5)
         }
     }
-    state.error?.let { message ->
+    state.errorText?.let { errorText ->
         item(key = "playlist-error-${route.id}") {
-            CatalogErrorCard(message, onRetry)
+            val language = LocalAppLanguage.current
+            CatalogErrorCard(errorText.resolve(language), onRetry)
         }
     }
     if (tracks.isNotEmpty()) {
         item(key = "playlist-tracks-heading-${route.id}") {
             BrowseSectionHeader(
-                title = "Daftar lagu",
-                monoLabel = "${tracks.size} lagu",
+                title = appString(Res.string.catalog_tracklist_heading),
+                monoLabel = appPlural(Res.plurals.song_count, tracks.size, tracks.size),
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
@@ -283,11 +330,11 @@ internal fun LazyListScope.playlistDetailScreen(
             )
         }
     }
-    if (!state.loading && state.error == null && detail != null && tracks.isEmpty()) {
+    if (!state.loading && state.errorText == null && detail != null && tracks.isEmpty()) {
         item(key = "playlist-empty-${route.id}") {
             BrowseNoticeCard(
-                eyebrow = "Daftar lagu",
-                message = "Belum ada lagu di playlist ini.",
+                eyebrow = appString(Res.string.catalog_tracklist_heading),
+                message = appString(Res.string.catalog_playlist_empty),
             )
         }
     }
