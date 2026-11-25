@@ -24,7 +24,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okio.FileSystem
 import okio.Path
-import okio.buffer
 import senada.catalog.CatalogException
 import senada.catalog.StreamResolver
 import senada.catalog.youtube.resizeGoogleArtwork
@@ -201,13 +200,13 @@ internal suspend fun fetchOfflineFile(
         val buffer = ByteArray(64 * 1024)
         var received = 0L
         var lastPercent: Int? = null
-        FileSystem.SYSTEM.sink(target).buffer().use { sink ->
+        FileSystem.SYSTEM.write(target) {
             while (true) {
                 val count = channel.readAvailable(buffer, 0, buffer.size)
                 if (count == -1) break
                 received += count
                 check(received <= limit && (length == null || received <= length))
-                sink.write(buffer, 0, count)
+                write(buffer, 0, count)
                 val percent = length?.let { ((received * 100) / it).toInt() }
                 if (percent != lastPercent) {
                     progress(percent)
