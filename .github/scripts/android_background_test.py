@@ -460,20 +460,21 @@ def screenshot_full_profile() -> None:
     """Perpanjang layar sebentar agar seluruh Profil terlihat seperti kanvas mockup."""
     original_size = re.search(r"Override size: (\d+x\d+)", shell("wm size"))
     density = screen_density() / 160
-    width, height = round(390 * density), round(1320 * density)
+    # Profil kini punya satu baris pengaturan tambahan untuk Lirik.
+    width, height = round(390 * density), round(1440 * density)
     try:
         shell(f"wm size {width}x{height}")
 
         def full_profile_visible():
             root = ui_tree()
-            if root is None or not ui_bounds("Halo lagi, Uji!", root=root):
+            if root is None or not ui_bounds("Halo lagi, Uji!", root=root) or not ui_bounds("Lirik", root=root):
                 return False
             return any(
                 y2 < overlay_top(root, height)
                 for _, _, _, y2 in ui_bounds("Tentang Senada", root=root)
             )
 
-        check(wait_for(full_profile_visible, 10), "Sapaan hingga kartu versi terlihat pada kanvas Profil")
+        check(wait_for(full_profile_visible, 10), "Sapaan, Lirik, dan kartu versi terlihat pada kanvas Profil")
         screenshot("v2-40-profile-full")
     finally:
         shell("wm size " + (original_size.group(1) if original_size else "reset"))
