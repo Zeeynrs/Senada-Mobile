@@ -7,3 +7,5 @@ import androidx.compose.runtime.Composable
 internal actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) {
     BackHandler(enabled = enabled, onBack = onBack)
 }
+
+internal actual val usesInAppBackSwipe: Boolean = false

@@ -80,6 +80,7 @@ import senada.app.minTouchTarget
 import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.PlatformBackHandler
 import senada.app.shell.SenadaIcons
+import senada.app.shell.backSwipe
 import senada.app.shell.nowPlayingSwipe
 import senada.app.theme.LocalSenadaLook
 import senada.app.theme.SenadaLook
@@ -158,9 +159,13 @@ internal fun NowPlayingScreen(
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
 
     if (immersive) NowPlayingSystemBars()
-    PlatformBackHandler(enabled = immersive && sheet != null) { sheet = null }
+    val back: () -> Unit = { if (sheet == null) onClose() else sheet = null }
+    PlatformBackHandler(enabled = immersive && sheet != null, onBack = back)
     MaterialTheme(colorScheme = nowPlayingColorScheme(accent)) {
-        Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(
+            modifier = modifier.fillMaxSize().backSwipe(enabled = immersive, onBack = back),
+            color = MaterialTheme.colorScheme.background,
+        ) {
             BoxWithConstraints(
                 Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
             ) {

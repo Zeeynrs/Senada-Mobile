@@ -401,6 +401,9 @@ internal fun AppShell(
         Box(
             Modifier
                 .fillMaxSize()
+                .backSwipe(enabled = !nowPlayingPanel.visible && (navigator.canGoBack || imeVisible)) {
+                    if (imeVisible) focusManager.clearFocus() else navigator.back()
+                }
                 .onSizeChanged { size ->
                     shellWidthPx = size.width
                     shellHeightPx = size.height
