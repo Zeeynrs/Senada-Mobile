@@ -67,7 +67,7 @@ class AppearanceTest {
             assertEquals(JsonPrimitive(3), updated["version"])
             assertEquals(JsonPrimitive(accent), updated["accent"])
             assertNull(updated["followCover"])
-            assertEquals(JsonPrimitive(20), updated["coverRadius"])
+            assertEquals(JsonPrimitive(16), updated["coverRadius"])
             assertEquals(JsonPrimitive(true), updated["playerBackdropFromCover"])
             assertEquals(JsonPrimitive(true), updated["glass"])
             assertEquals(JsonPrimitive("normal"), updated["animation"])

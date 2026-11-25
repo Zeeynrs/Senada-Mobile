@@ -15,6 +15,15 @@ import senada.app.shell.shellTransitionKind
 
 class SenadaLookTest {
     @Test
+    fun default_artwork_corners_are_smaller_for_large_and_list_covers() {
+        val look = senadaLook(Appearance(), systemReduceMotion = false)
+
+        assertEquals(16.dp, look.coverRadius)
+        assertEquals(9.6f.dp, look.listCoverRadius)
+        assertEquals(look, SenadaLook())
+    }
+
+    @Test
     fun list_cover_radius_scales_proportionally_and_clamps_non_negative() {
         assertEquals(0f, listCoverRadiusDp(-10))
         assertEquals(0f, listCoverRadiusDp(0))

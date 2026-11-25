@@ -1222,9 +1222,15 @@ def check_appearance_v2() -> None:
             "Bulatan warna aksen dan sakelar Warna mengikuti sampul bekerja serta memulihkan warna terakhir",
         )
 
-        radius_default = bool(ui_bounds("20dp")) or tap_profile_item("20dp")
-        radius_inc = radius_default and tap_desc("Tambah sudut sampul") and bool(wait_for(lambda: ui_bounds("22dp"), 5))
-        radius_dec = radius_inc and tap_desc("Kurangi sudut sampul") and bool(wait_for(lambda: ui_bounds("20dp"), 5))
+        default_radius = 16
+        default_radius_label = f"{default_radius}dp"
+        radius_default = bool(ui_bounds(default_radius_label)) or tap_profile_item(default_radius_label)
+        radius_inc = radius_default and tap_desc("Tambah sudut sampul") and bool(
+            wait_for(lambda: ui_bounds(f"{default_radius + 2}dp"), 5)
+        )
+        radius_dec = radius_inc and tap_desc("Kurangi sudut sampul") and bool(
+            wait_for(lambda: ui_bounds(default_radius_label), 5)
+        )
         check(radius_dec, "Kartu Sudut sampul dapat ditambah dan dikurangi dengan langkah 2 dp")
 
         glass_off = tap_profile_item("Efek kaca") and bool(wait_for(
@@ -1265,11 +1271,11 @@ def check_appearance_v2() -> None:
             "Sedang diputar dapat dibuka dengan latar polos dan sudut sampul 0dp",
         )
 
-        radius_restored = set_cover_radius(20)
+        radius_restored = set_cover_radius(default_radius)
         backdrop_restored = set_appearance_switch("Latar pemutar dari sampul", True)
         check(
             radius_restored and backdrop_restored,
-            "Latar pemutar dari sampul dan sudut sampul 20dp dikembalikan ke bawaan",
+            f"Latar pemutar dari sampul dan sudut sampul {default_radius_label} dikembalikan ke bawaan",
             f"radius={radius_restored}, backdrop={backdrop_restored}",
         )
         back_to_profile()

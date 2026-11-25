@@ -18,7 +18,7 @@ import senada.app.theme.AccentChoice
 
 internal const val MIN_COVER_RADIUS_DP = 0
 internal const val MAX_COVER_RADIUS_DP = 28
-internal const val DEFAULT_COVER_RADIUS_DP = 20
+internal const val DEFAULT_COVER_RADIUS_DP = 16
 internal const val COVER_RADIUS_STEP_DP = 2
 
 internal fun clampCoverRadius(radiusDp: Int): Int =
