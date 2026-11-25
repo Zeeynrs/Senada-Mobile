@@ -16,6 +16,7 @@ import senada.app.UiText
 import senada.catalog.CatalogException
 import senada.local.LocalAudioException
 import senada.epochMillis
+import senada.monotonicMillis
 import senada.model.Track
 import senada.resources.Res
 import senada.resources.error_playback_prepare_failed
@@ -48,13 +49,14 @@ internal data class PlaybackState(
 internal class PlaybackController(
     private val output: SampleAudioOutput,
     private val scope: CoroutineScope,
-    private val tickMs: Long = 250,
+    private val tickMs: Long = 100,
     private val now: () -> Long = ::epochMillis,
+    private val monotonicNow: () -> Long = ::monotonicMillis,
     private val isDownloaded: (Track) -> Boolean = { false },
     private val offlineSelectionFor: suspend (QueueItem) -> SampleAudioSelection? = { null },
     private val selectionFor: suspend (QueueItem) -> SampleAudioSelection,
 ) {
-    private val player = SampleAudioPlayer(output)
+    private val player = SampleAudioPlayer(output, monotonicNow)
     private var queue = Queue()
     private val mutableState = MutableStateFlow(PlaybackState())
     val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
@@ -236,9 +238,16 @@ internal class PlaybackController(
         pause()
     }
 
+    /** Posisi pemutaran terkini (ms) menurut jam monotonik yang tertambat pada posisi native. */
+    fun currentPositionMs(): Long = mutableState.value.audio.positionAt(monotonicNow())
+
+    internal fun monotonicTimeMs(): Long = monotonicNow()
+
     fun seekTo(positionMs: Long) {
         if (player.state.canSeek) resumeAfterTrackEnd = false
         player.seekTo(positionMs)
+        ticker?.cancel()
+        ticker = null
         announceNextPublish = true
         publish()
     }
@@ -370,7 +379,9 @@ internal class PlaybackController(
 
     private fun sync() {
         if (sleepTimer.expireIfDue()) return
-        player.refresh()
+        val nativeDiscontinuity = output.consumeDiscontinuity()
+        if (nativeDiscontinuity) announceNextPublish = true
+        player.refresh(discontinuity = nativeDiscontinuity)
         val audio = player.state
         val entryId = audio.selection?.queueEntryId
         if (preparing?.isActive != true) {
@@ -404,7 +415,9 @@ internal class PlaybackController(
         )
         mutableState.value = current
 
-        val announced = current.copy(audio = current.audio.copy(positionMs = 0))
+        val announced = current.copy(
+            audio = current.audio.copy(positionMs = 0, sampledAtMs = null, discontinuityVersion = 0L),
+        )
         if (announceNextPublish || announced != lastAnnounced) {
             announceNextPublish = false
             lastAnnounced = announced

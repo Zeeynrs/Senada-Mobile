@@ -16,6 +16,8 @@ import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
 import okio.FileSystem
 import senada.catalog.ResolvedAudio
+import senada.lyrics.LyricLine
+import senada.lyrics.LyricWord
 import senada.lyrics.LyricsDocument
 import senada.model.Track
 
@@ -80,6 +82,35 @@ class OfflineStoreTest {
             reopened.remove(track)
             assertNull(reopened.find(track))
             assertEquals(emptyList(), reopened.list())
+        } finally {
+            files.deleteRecursively(root, mustExist = false)
+        }
+    }
+
+    @Test
+    fun wordTimedSyncedLyricsSurviveOfflineSaveAndReopen() = runTest {
+        val root = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "senada-offline-words-${Random.nextLong()}"
+        try {
+            val store = OfflineStore(root, files) { "file://$it" }
+            val lyrics = LyricsDocument.Synced(
+                listOf(
+                    LyricLine(
+                        startMs = 1_000L,
+                        text = "Halo dunia",
+                        words = listOf(
+                            LyricWord(1_000L, 400L, "Halo "),
+                            LyricWord(1_400L, 600L, "dunia"),
+                        ),
+                        endMs = 2_000L,
+                    ),
+                ),
+            )
+            store.save(
+                track, audio, writeAudio = { files.write(it) { writeUtf8("complete") } },
+                readLyrics = { lyrics },
+            )
+            val reopened = OfflineStore(root, files) { "file://$it" }
+            assertEquals(lyrics, reopened.lyrics(track))
         } finally {
             files.deleteRecursively(root, mustExist = false)
         }

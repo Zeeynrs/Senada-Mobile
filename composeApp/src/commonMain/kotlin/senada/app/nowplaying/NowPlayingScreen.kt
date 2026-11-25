@@ -66,8 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import senada.app.AppearancePreferences
 import senada.app.FullViewTheme
 import senada.app.ArtistPickerDialog
@@ -114,7 +112,7 @@ import senada.lyrics.LyricsDocument
 import senada.lyrics.LyricsPanel
 import senada.lyrics.LyricsPanelResult
 import senada.lyrics.LyricsSettingsSheet
-import senada.lyrics.activeLineIndex
+import senada.lyrics.rememberActiveLyricIndex
 import senada.lyrics.rememberLyrics
 import senada.model.Track
 import senada.playback.PlaybackController
@@ -507,9 +505,7 @@ private fun PlayerActiveLyric(
     onClick: () -> Unit,
 ) {
     val line = if (synced != null) {
-        val index by remember(synced, playback) {
-            playback.state.map { activeLineIndex(synced.lines, it.audio.positionMs) }.distinctUntilChanged()
-        }.collectAsState(activeLineIndex(synced.lines, playback.state.value.audio.positionMs))
+        val index = rememberActiveLyricIndex(synced.lines, playback)
         synced.lines.getOrNull(index)?.text?.takeIf { it.isNotBlank() }
     } else {
         null

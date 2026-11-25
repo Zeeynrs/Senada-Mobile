@@ -97,9 +97,45 @@ internal fun lyricProgress(positionMs: Long, startMs: Long, nextStartMs: Long?):
 
 internal fun sungTextEnd(text: String, progress: Float): Int {
     val end = (text.length * progress.coerceIn(0f, 1f)).roundToInt()
-    return if (end in 1 until text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) {
+    return clampSurrogateBoundary(text, end)
+}
+
+/**
+ * Menghitung indeks akhir karakter yang sudah dinyanyikan pada baris [line].
+ * Memakai timing per kata nyata jika tersedia, dan jatuh ke interpolasi baris untuk LRC standar.
+ */
+internal fun karaokeSungEnd(
+    line: LyricLine,
+    displayText: String,
+    positionMs: Long,
+    nextStartMs: Long?,
+): Int {
+    if (positionMs <= line.startMs) return 0
+    if (line.words.isEmpty() || displayText != line.text) {
+        val endMs = line.endMs?.takeIf { it > line.startMs } ?: nextStartMs
+        return sungTextEnd(displayText, lyricProgress(positionMs, line.startMs, endMs))
+    }
+    var sungChars = 0
+    for (word in line.words) {
+        val wordEnd = word.endMs
+        if (positionMs >= wordEnd) {
+            sungChars += word.text.length
+            continue
+        }
+        if (positionMs > word.startMs && word.durationMs > 0L) {
+            val activeLen = word.text.trimEnd().length
+            val fraction = ((positionMs - word.startMs).toDouble() / word.durationMs.toDouble())
+                .coerceIn(0.0, 1.0)
+            sungChars += (activeLen * fraction).roundToInt()
+        }
+        break
+    }
+    return clampSurrogateBoundary(displayText, sungChars.coerceIn(0, displayText.length))
+}
+
+private fun clampSurrogateBoundary(text: String, end: Int): Int =
+    if (end in 1 until text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) {
         end - 1
     } else {
         end
     }
-}

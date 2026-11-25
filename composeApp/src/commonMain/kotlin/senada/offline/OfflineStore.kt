@@ -21,6 +21,7 @@ import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.catalog.youtube.videoIdOf
 import senada.epochMillis
 import senada.lyrics.LyricLine
+import senada.lyrics.LyricWord
 import senada.lyrics.LyricsDocument
 import senada.model.Track
 
@@ -161,6 +162,18 @@ private fun LyricsDocument.encodeLyrics() = buildJsonObject {
                     add(buildJsonObject {
                         put("time", line.startMs)
                         put("text", line.text)
+                        line.endMs?.let { put("end", it) }
+                        if (line.words.isNotEmpty()) {
+                            put("words", buildJsonArray {
+                                line.words.forEach { word ->
+                                    add(buildJsonObject {
+                                        put("t", word.startMs)
+                                        put("d", word.durationMs)
+                                        put("text", word.text)
+                                    })
+                                }
+                            })
+                        }
                     })
                 }
             })
@@ -175,7 +188,14 @@ private fun JsonObject.decodeLyrics(): LyricsDocument? = when (string("type")) {
     "synced" -> LyricsDocument.Synced((get("lines") as? JsonArray).orEmpty().mapNotNull { value ->
         val line = value as? JsonObject ?: return@mapNotNull null
         val time = line.primitive("time")?.longOrNull ?: return@mapNotNull null
-        LyricLine(time, line.string("text").orEmpty())
+        val words = (line["words"] as? JsonArray).orEmpty().mapNotNull { w ->
+            val obj = w as? JsonObject ?: return@mapNotNull null
+            val t = obj.primitive("t")?.longOrNull ?: return@mapNotNull null
+            val d = obj.primitive("d")?.longOrNull ?: return@mapNotNull null
+            val text = obj.string("text") ?: return@mapNotNull null
+            LyricWord(t, d, text)
+        }
+        LyricLine(time, line.string("text").orEmpty(), words, line.primitive("end")?.longOrNull)
     })
     "instrumental" -> LyricsDocument.Instrumental
     "unavailable" -> LyricsDocument.Unavailable

@@ -8,6 +8,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlin.math.abs
 import kotlin.math.roundToLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import senada.app.AppLanguage
 import senada.app.AppStrings
 import senada.app.UiText
@@ -67,36 +69,65 @@ internal class LyricsRepository(private val http: HttpClient) {
     }
 
     private suspend fun fetch(track: Track): LyricsDocument {
-        val original = fetchByTitle(track)
+        val original = fetchByTitle(queryTrack = track, referenceTrack = track)
         if (original != LyricsDocument.Unavailable) return original
 
         val cleanedTitle = cleanTitle(track.title)
-        return if (cleanedTitle == track.title) original else fetchByTitle(track.copy(title = cleanedTitle))
+        return if (cleanedTitle == track.title) {
+            original
+        } else {
+            fetchByTitle(queryTrack = track.copy(title = cleanedTitle), referenceTrack = track)
+        }
     }
 
-    private suspend fun fetchByTitle(track: Track): LyricsDocument {
-        if (track.artists.firstOrNull()?.isNotBlank() == true) {
-            when (val exact = request("get", track)) {
-                is JsonObject -> exact.document()?.let { return it }
+    private suspend fun fetchByTitle(queryTrack: Track, referenceTrack: Track): LyricsDocument {
+        var mismatchedPlainFallback: LyricsDocument.Plain? = null
+        if (queryTrack.artists.firstOrNull()?.isNotBlank() == true) {
+            when (val exact = request("get", queryTrack)) {
+                is JsonObject -> {
+                    when (val candidate = exact.evaluateCandidate(referenceTrack)) {
+                        is CandidateEvaluation.CompatibleSynced -> return candidate.document
+                        is CandidateEvaluation.IncompatibleSynced -> mismatchedPlainFallback = candidate.plainFallback
+                        is CandidateEvaluation.Other -> return candidate.document
+                        null -> Unit
+                    }
+                }
                 JsonNull -> Unit
                 else -> throw LyricsException(UiText.Resource(Res.string.error_lyrics_unreadable))
             }
         }
-        val matches = when (val result = request("search", track)) {
+        val matches = when (val result = request("search", queryTrack)) {
             is JsonArray -> result
-            JsonNull -> return LyricsDocument.Unavailable
+            JsonNull -> return mismatchedPlainFallback ?: LyricsDocument.Unavailable
             else -> throw LyricsException(UiText.Resource(Res.string.error_lyrics_unreadable))
         }
-        var fallback: LyricsDocument = LyricsDocument.Unavailable
+        var bestSynced: Pair<Int, LyricsDocument.Synced>? = null
+        var plainFallback: LyricsDocument.Plain? = mismatchedPlainFallback
+        var instrumentalFallback = false
+
         for (match in matches) {
-            when (val doc = (match as? JsonObject)?.document()) {
-                is LyricsDocument.Synced -> return doc
-                is LyricsDocument.Plain -> if (fallback !is LyricsDocument.Plain) fallback = doc
-                LyricsDocument.Instrumental -> if (fallback == LyricsDocument.Unavailable) fallback = doc
-                else -> Unit
+            val obj = match as? JsonObject ?: continue
+            when (val candidate = obj.evaluateCandidate(referenceTrack)) {
+                is CandidateEvaluation.CompatibleSynced -> {
+                    val current = bestSynced
+                    if (current == null || candidate.score > current.first) {
+                        bestSynced = candidate.score to candidate.document
+                    }
+                }
+                is CandidateEvaluation.IncompatibleSynced -> {
+                    if (plainFallback == null) plainFallback = candidate.plainFallback
+                }
+                is CandidateEvaluation.Other -> when (val doc = candidate.document) {
+                    is LyricsDocument.Plain -> if (plainFallback == null) plainFallback = doc
+                    LyricsDocument.Instrumental -> instrumentalFallback = true
+                    else -> Unit
+                }
+                null -> Unit
             }
         }
-        return fallback
+        return bestSynced?.second
+            ?: plainFallback
+            ?: if (instrumentalFallback) LyricsDocument.Instrumental else LyricsDocument.Unavailable
     }
 
     private suspend fun request(endpoint: String, track: Track): JsonElement {
@@ -131,6 +162,12 @@ internal class LyricsRepository(private val http: HttpClient) {
     }
 }
 
+private sealed interface CandidateEvaluation {
+    data class CompatibleSynced(val document: LyricsDocument.Synced, val score: Int) : CandidateEvaluation
+    data class IncompatibleSynced(val plainFallback: LyricsDocument.Plain?) : CandidateEvaluation
+    data class Other(val document: LyricsDocument) : CandidateEvaluation
+}
+
 private const val TITLE_CREDIT = """(?:feat|ft)\.\s+[^\s()\[\]][^()\[\]]*"""
 private const val TITLE_VERSION = """official (?:audio|(?:music )?video)|lyric video|remaster(?:ed)?(?:\s+[0-9]{4})?|live"""
 
@@ -139,6 +176,30 @@ private val titleSuffix = Regex(
         """|\s+-\s+(?:$TITLE_VERSION)|\s+$TITLE_CREDIT)\s*$""",
     RegexOption.IGNORE_CASE,
 )
+
+private val TIMING_VERSION_REGEXES = mapOf(
+    "live" to Regex("""\blive\b|\bkonser\b|\bconcert\b|\bunplugged\b""", RegexOption.IGNORE_CASE),
+    "remix" to Regex("""\bremix(?:ed)?\b|\brmx\b|\bbootleg\b|\bmash ?up\b|\bvip mix\b""", RegexOption.IGNORE_CASE),
+    "acoustic" to Regex("""\bacoustic\b|\bakustik\b|\bunplugged\b""", RegexOption.IGNORE_CASE),
+    "cover" to Regex("""\bcover(?:ed)?\b|\btribute\b""", RegexOption.IGNORE_CASE),
+    "karaoke" to Regex("""\bkaraoke\b|\bminus one\b|\bbacking track\b""", RegexOption.IGNORE_CASE),
+    "slowed" to Regex("""\bslowed\b""", RegexOption.IGNORE_CASE),
+    "sped" to Regex("""\bsped ?up\b|\bspeed ?up\b|\bnightcore\b""", RegexOption.IGNORE_CASE),
+    "extended" to Regex("""\bextended\b""", RegexOption.IGNORE_CASE),
+    "radio" to Regex("""\bradio edit\b""", RegexOption.IGNORE_CASE),
+    "demo" to Regex("""\bdemo\b""", RegexOption.IGNORE_CASE),
+)
+
+private val NON_ALNUM = Regex("""[^\p{L}\p{N}]+""")
+
+private fun recordingVersionTags(title: String): Set<String> = buildSet {
+    for ((tag, regex) in TIMING_VERSION_REGEXES) {
+        if (regex.containsMatchIn(title)) add(tag)
+    }
+}
+
+private fun normalizeMatchText(text: String): String =
+    NON_ALNUM.replace(text.lowercase(), " ").trim()
 
 private fun cleanTitle(title: String): String {
     var cleaned = title
@@ -149,12 +210,88 @@ private fun cleanTitle(title: String): String {
     }
 }
 
-private fun JsonObject.document(): LyricsDocument? {
-    fun lyrics(key: String) = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
-    lyrics("syncedLyrics")?.let { raw ->
+private fun JsonObject.evaluateCandidate(track: Track): CandidateEvaluation? {
+    fun str(key: String) = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    val candidateTitle = str("trackName")
+    val candidateArtist = str("artistName")
+    val candidateDurationMs = (this["duration"] as? JsonPrimitive)?.doubleOrNull
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?.let { (it * 1_000.0).roundToLong() }
+    val plainDoc = str("plainLyrics")?.trim()?.takeIf { it.isNotEmpty() }?.let { LyricsDocument.Plain(it.lines()) }
+
+    str("syncedLyrics")?.let { raw ->
         val lines = LrcParser.parse(raw)
-        if (lines.any { it.text.isNotEmpty() }) return LyricsDocument.Synced(lines)
+        if (lines.any { it.text.isNotEmpty() }) {
+            val compatible = isTimingCompatible(track, candidateTitle, candidateDurationMs, lines)
+            if (!compatible) {
+                val fallback = plainDoc ?: lines.map { it.text }.filter { it.isNotEmpty() }
+                    .takeIf { it.isNotEmpty() }
+                    ?.let(LyricsDocument::Plain)
+                return CandidateEvaluation.IncompatibleSynced(fallback)
+            }
+            val score = scoreCandidate(track, candidateTitle, candidateArtist, candidateDurationMs, lines)
+            return CandidateEvaluation.CompatibleSynced(LyricsDocument.Synced(lines), score)
+        }
     }
-    lyrics("plainLyrics")?.trim()?.takeIf { it.isNotEmpty() }?.let { return LyricsDocument.Plain(it.lines()) }
-    return if ((this["instrumental"] as? JsonPrimitive)?.booleanOrNull == true) LyricsDocument.Instrumental else null
+    plainDoc?.let { return CandidateEvaluation.Other(it) }
+    return if ((this["instrumental"] as? JsonPrimitive)?.booleanOrNull == true) {
+        CandidateEvaluation.Other(LyricsDocument.Instrumental)
+    } else {
+        null
+    }
+}
+
+private fun isTimingCompatible(
+    track: Track,
+    candidateTitle: String?,
+    candidateDurationMs: Long?,
+    lines: List<LyricLine>,
+): Boolean {
+    if (candidateTitle != null) {
+        val trackVersions = recordingVersionTags(track.title)
+        val candidateVersions = recordingVersionTags(candidateTitle)
+        if (trackVersions != candidateVersions) return false
+    }
+    val trackDuration = track.durationMs?.takeIf { it > 0L } ?: return true
+    if (candidateDurationMs != null && candidateDurationMs > 0L) {
+        val tolerance = maxOf(15_000L, (trackDuration * 0.12).roundToLong())
+        if (abs(candidateDurationMs - trackDuration) > tolerance) return false
+    }
+    val nonEmpty = lines.filter { it.text.isNotEmpty() }
+    if (nonEmpty.isNotEmpty()) {
+        if (nonEmpty.first().startMs >= trackDuration) return false
+        val overEndCount = nonEmpty.count { it.startMs > trackDuration + 10_000L }
+        if (overEndCount * 2 > nonEmpty.size) return false
+    }
+    return true
+}
+
+private fun scoreCandidate(
+    track: Track,
+    candidateTitle: String?,
+    candidateArtist: String?,
+    candidateDurationMs: Long?,
+    lines: List<LyricLine>,
+): Int {
+    var score = 0
+    if (lines.any { it.words.isNotEmpty() }) score += 20
+    if (candidateTitle != null) {
+        if (recordingVersionTags(track.title) == recordingVersionTags(candidateTitle)) score += 40
+        if (normalizeMatchText(cleanTitle(track.title)) == normalizeMatchText(cleanTitle(candidateTitle))) score += 20
+    }
+    val primaryArtist = track.artists.firstOrNull()?.let(::normalizeMatchText)?.takeIf { it.isNotEmpty() }
+    val normalizedCandidateArtist = candidateArtist?.let(::normalizeMatchText)?.takeIf { it.isNotEmpty() }
+    if (primaryArtist != null && normalizedCandidateArtist != null) {
+        score += when {
+            normalizedCandidateArtist == primaryArtist -> 30
+            primaryArtist in normalizedCandidateArtist || normalizedCandidateArtist in primaryArtist -> 15
+            else -> -25
+        }
+    }
+    val trackDuration = track.durationMs?.takeIf { it > 0L }
+    if (trackDuration != null && candidateDurationMs != null && candidateDurationMs > 0L) {
+        val diffSeconds = (abs(trackDuration - candidateDurationMs) / 1_000L).toInt()
+        score -= diffSeconds * 2
+    }
+    return score
 }

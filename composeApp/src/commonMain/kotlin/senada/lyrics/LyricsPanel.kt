@@ -1,6 +1,5 @@
 package senada.lyrics
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -177,8 +176,9 @@ internal fun LyricsLineText(
     modifier: Modifier = Modifier,
     baseSize: Float = 28f,
     progress: Float? = null,
+    sungEnd: Int? = null,
 ) {
-    val highlighting = progress != null && state == LyricLineState.Active &&
+    val highlighting = (progress != null || sungEnd != null) && state == LyricLineState.Active &&
         appearance.highlight == LyricsHighlight.Karaoke
     val color = Color.White.copy(
         alpha = when (state) {
@@ -188,7 +188,7 @@ internal fun LyricsLineText(
             LyricLineState.Active -> if (highlighting) .45f else 1f
         },
     )
-    val highlightEnd = if (highlighting) sungTextEnd(text, progress ?: 0f) else 0
+    val highlightEnd = if (highlighting) sungEnd ?: sungTextEnd(text, progress ?: 0f) else 0
     val annotated = remember(text, highlightEnd) {
         buildAnnotatedString {
             append(text)
@@ -225,9 +225,10 @@ private fun SyncedLyrics(
     topPadding: Dp,
     bottomPadding: Dp,
 ) {
-    val active by remember(lines, playback) {
-        playback.state.map { activeLineIndex(lines, it.audio.positionMs) }.distinctUntilChanged()
-    }.collectAsState(activeLineIndex(lines, playback.state.value.audio.positionMs))
+    val active = rememberActiveLyricIndex(lines, playback)
+    val discontinuityVersion by remember(playback) {
+        playback.state.map { it.audio.discontinuityVersion }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.audio.discontinuityVersion)
     val canSeek by remember(playback) {
         playback.state.map { it.audio.canSeek }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio.canSeek)
@@ -242,13 +243,14 @@ private fun SyncedLyrics(
     ) {
         itemsIndexed(lines) { index, line ->
             val current = index == active
-            val progress = if (current && appearance.highlight == LyricsHighlight.Karaoke) {
-                KaraokeLineProgress(playback, line.startMs, lines.getOrNull(index + 1)?.startMs)
+            val displayText = line.text.ifBlank { "♪" }
+            val sungEnd = if (current && appearance.highlight == LyricsHighlight.Karaoke) {
+                rememberKaraokeSungEnd(playback, line, displayText, lines.getOrNull(index + 1)?.startMs)
             } else {
                 null
             }
             LyricsLineText(
-                text = line.text.ifBlank { "♪" },
+                text = displayText,
                 appearance = appearance,
                 state = when {
                     current -> LyricLineState.Active
@@ -263,26 +265,31 @@ private fun SyncedLyrics(
                         selected = current
                         if (current) stateDescription = activeLineLabel
                     },
-                progress = progress,
+                sungEnd = sungEnd,
             )
         }
     }
-    LaunchedEffect(active) {
-        if (!list.isScrollInProgress) {
-            if (look.durationMillis(220) == 0) list.scrollToItem(active.coerceAtLeast(0))
-            else list.animateScrollToItem(active.coerceAtLeast(0))
+    var lastScrollDiscontinuity by remember(lines, playback) { mutableStateOf(discontinuityVersion) }
+    LaunchedEffect(active, discontinuityVersion) {
+        val jumped = discontinuityVersion != lastScrollDiscontinuity
+        lastScrollDiscontinuity = discontinuityVersion
+        val target = active.coerceAtLeast(0)
+        if (jumped) {
+            list.scrollToItem(target)
+        } else if (!list.isScrollInProgress) {
+            if (look.durationMillis(220) == 0) list.scrollToItem(target)
+            else list.animateScrollToItem(target)
         }
     }
 }
 
 @Composable
-private fun KaraokeLineProgress(playback: PlaybackController, startMs: Long, nextStartMs: Long?): Float {
-    val position by remember(playback) {
-        playback.state.map { it.audio.positionMs }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.audio.positionMs)
-    val progress by animateFloatAsState(
-        lyricProgress(position, startMs, nextStartMs),
-        animationSpec = LocalSenadaLook.current.tweenOrSnap(280),
-    )
-    return progress
+private fun rememberKaraokeSungEnd(
+    playback: PlaybackController,
+    line: LyricLine,
+    displayText: String,
+    nextStartMs: Long?,
+): Int {
+    val position by rememberSyncedPlaybackPositionMs(playback)
+    return karaokeSungEnd(line, displayText, position, nextStartMs)
 }
