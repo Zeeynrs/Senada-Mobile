@@ -21,6 +21,7 @@ FIRST = "Selepas Hujan"
 SECOND = "Sebelum Pagi"
 QUEUE_ACTION = "Tambahkan ke antrean"
 OPEN_NOW_PLAYING = "Buka pemutar"
+HOME_RECENT_HEADING = "Baru saja diputar"
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "build/android-e2e")
 STATES = {"0": "NONE", "1": "STOPPED", "2": "PAUSED", "3": "PLAYING", "6": "BUFFERING", "7": "ERROR"}
 
@@ -840,10 +841,10 @@ def check_audio_lab_effects() -> bool:
         wait_for(lambda: desc_point("Kembali ke Profil"), 5)
 
     restored_lab = bool(wait_for(
-        lambda: ui_bounds("MATI") and ui_bounds("1,00× · NADA TERKUNCI"),
+        lambda: ui_bounds("NONAKTIF") and ui_bounds("1,00× · NADA TERKUNCI"),
         5,
     ))
-    check(restored_lab, "Audio Lab kembali menampilkan status MATI dan 1,00× · NADA TERKUNCI")
+    check(restored_lab, "Audio Lab kembali menampilkan status NONAKTIF dan 1,00× · NADA TERKUNCI")
 
     if not check(return_to_profile_tab() and tap_profile_item("Pengembang"),
                  "Pengembang dibuka kembali untuk verifikasi 1,0×"):
@@ -964,7 +965,7 @@ def check_home_shelves() -> None:
         return
     scroll_to_top(2)
     shelf_titles = {
-        "Baru diputar",
+        HOME_RECENT_HEADING,
         "Mood & genre",
         "Lagu untuk kamu",
         "Lagu populer",
@@ -1013,7 +1014,7 @@ def check_home_shelves() -> None:
     hero_play = hero_play_target(top_tree)
     hero_view = find_interactive("Lihat lagu yang paling sering diputar", attribute="content-desc", root=top_tree) if top_tree is not None else []
     has_brand = top_tree is not None and bool(ui_bounds("Senada", root=top_tree))
-    has_recent = top_tree is not None and bool(ui_bounds("Baru diputar", root=top_tree))
+    has_recent = top_tree is not None and bool(ui_bounds(HOME_RECENT_HEADING, root=top_tree))
     has_favorites = top_tree is not None and bool(ui_bounds("Favorit", root=top_tree)) and bool(ui_bounds("Daftar favoritmu", root=top_tree))
     shortcuts_removed = top_tree is not None and not ui_bounds("Statistik dengar", root=top_tree) and not ui_bounds("Paling sering diputar", root=top_tree)
     touch_targets = [
@@ -1028,7 +1029,7 @@ def check_home_shelves() -> None:
     ]
     check(
         has_brand and has_recent and has_favorites and shortcuts_removed and not undersized,
-        "Beranda v2 menampilkan bar atas Senada, hero dengan tombol kaca minimal 48 dp, Baru diputar dengan Favorit, tanpa pintasan Statistik/Teratas",
+        f"Beranda v2 menampilkan bar atas Senada, hero dengan tombol kaca minimal 48 dp, {HOME_RECENT_HEADING} dengan Favorit, tanpa pintasan Statistik/Teratas",
         f"brand={has_brand}, recent={has_recent}, fav={has_favorites}, no_shortcuts={shortcuts_removed}, targets={undersized}",
     )
 
@@ -1046,7 +1047,7 @@ def check_home_shelves() -> None:
         x1, y1, x2, y2 = fav_matches[0][0]
         tap(((x1 + x2) // 2, (y1 + y2) // 2))
         fav_opened = bool(wait_for(lambda: ui_bounds("Putar Favorit", attribute="content-desc"), 5))
-        check(fav_opened, "Kartu Favorit pada Baru diputar membuka halaman Favorit di Library")
+        check(fav_opened, f"Kartu Favorit pada {HOME_RECENT_HEADING} membuka halaman Favorit di Library")
         open_tab("Beranda")
         scroll_to_top(2)
 
@@ -1288,7 +1289,7 @@ def check_appearance_v2() -> None:
 
         if glass_off and back_to_profile() and open_tab("Beranda"):
             scroll_to_top(2)
-            wait_for(lambda: ui_bounds("Baru diputar"), 5)
+            wait_for(lambda: ui_bounds(HOME_RECENT_HEADING), 5)
             screenshot("v2-71-glass-off")
 
         glass_restored = (
