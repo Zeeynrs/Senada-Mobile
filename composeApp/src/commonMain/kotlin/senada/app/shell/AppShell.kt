@@ -53,6 +53,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import senada.app.AboutSection
 import senada.app.AppearanceSection
 import senada.app.BackupSection
 import senada.app.DataSection
@@ -122,6 +123,7 @@ import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.SleepTimerState
+import senada.updater.updateController
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
@@ -172,6 +174,8 @@ internal fun AppShell(
         ArtistOpenController(SenadaSources.artistResolver, navigator, uiScope)
     }
     val platformContext = LocalPlatformContext.current
+    val updater = remember(platformContext) { updateController(platformContext) }
+    val updateState by updater.state.collectAsState()
     val downloads = remember(platformContext) { offlineDownloads(platformContext) }
     val actions = remember(library, playback, uiScope, artistOpener, downloads) {
         LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open, downloads = downloads)
@@ -244,6 +248,9 @@ internal fun AppShell(
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
+    LaunchedEffect(updater, saveData, screenVisible) {
+        if (screenVisible) updater.checkIfDue(saveDataActive = saveData)
+    }
     val profileRoot = navigator.destination == AppDestination.Profile && profileRoute == null && currentCatalogRoute == null
     val profileSummary = if (profileRoot) {
         remember(library, screenVisible) { library.listeningStats(ListenPeriod.Month) }.collectAsState(null).value
@@ -512,15 +519,7 @@ internal fun AppShell(
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
                         ProfileRoute.Developer -> item { DeveloperSection(playback, fullAudioEffects) }
-                        ProfileRoute.About -> item {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                SenadaMark(Modifier.size(48.dp))
-                                Text("Senada " + versionName())
-                            }
-                        }
+                        ProfileRoute.About -> item { AboutSection(updater) }
                         ProfileRoute.AudioLab -> audioLabScreen(
                             effects = effectsState,
                             effectsAvailable = fullAudioEffectsAvailable,
@@ -654,6 +653,9 @@ internal fun AppShell(
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
                     AppDestination.Profile -> item(key = "profile") {
+                        val badge = updateState.availableCandidate
+                            ?.takeIf { updateState.hasUndismissedUpdate }
+                            ?.let { "Pembaruan ${it.release.tagName} tersedia" }
                         ProfileTab(
                             controller = profileController,
                             photo = profilePhoto,
@@ -664,6 +666,7 @@ internal fun AppShell(
                             onOpenArtist = { navigator.openArtist(it.id, it.name, it.artworkUrl) },
                             developerUnlocked = versionTaps == 7,
                             onVersionTap = { if (versionTaps < 7) versionTaps++ },
+                            updateBadge = badge,
                         )
                     }
                 }

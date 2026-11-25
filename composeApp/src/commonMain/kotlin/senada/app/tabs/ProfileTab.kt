@@ -51,7 +51,7 @@ private val groups = listOf(
 )
 
 private val developerSetting = ProfileSetting(ProfileRoute.Developer, "Uji audio", SenadaIcons.Settings)
-private val aboutSetting = ProfileSetting(ProfileRoute.About, "Versi & tentang", SenadaIcons.Person)
+private val aboutSetting = ProfileSetting(ProfileRoute.About, "Versi, pembaruan & tentang", SenadaIcons.Person)
 
 @Composable
 internal fun ProfileTab(
@@ -64,6 +64,7 @@ internal fun ProfileTab(
     onOpenArtist: (ArtistResolveResult.Found) -> Unit,
     developerUnlocked: Boolean,
     onVersionTap: () -> Unit,
+    updateBadge: String? = null,
 ) {
     val profile by controller.state.collectAsState()
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -138,6 +139,13 @@ internal fun ProfileTab(
                         MonoLabel("Versi & tentang")
                         Text(versionName(), style = MaterialTheme.typography.displaySmall.copy(
                             fontSize = 36.sp, lineHeight = TextUnit.Unspecified, letterSpacing = (-0.04).em))
+                        if (updateBadge != null) {
+                            Text(
+                                updateBadge,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.primary,
+                            )
+                        }
                     }
                     TextButton(onClick = { onOpen(ProfileRoute.About) },
                         colors = ButtonDefaults.textButtonColors(containerColor = colors.surfaceContainerHighest,
