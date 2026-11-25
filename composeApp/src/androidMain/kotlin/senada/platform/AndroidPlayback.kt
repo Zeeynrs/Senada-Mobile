@@ -111,17 +111,28 @@ private class ExoAudioOutput(context: Context, initialEffects: AudioEffects) : S
         .build()
 
     override var onEvent: (() -> Unit)? = null
+    private var discontinuityPending = false
 
     init {
         updateEffects(initialEffects)
         player.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
+                if (events.containsAny(Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                    discontinuityPending = true
+                }
                 onEvent?.invoke()
             }
         })
     }
 
     val playbackParameters: PlaybackParameters get() = player.playbackParameters
+    override val playbackRate: Float get() = player.playbackParameters.speed
+
+    override fun consumeDiscontinuity(): Boolean {
+        val had = discontinuityPending
+        discontinuityPending = false
+        return had
+    }
 
     fun updateEffects(effects: AudioEffects): Boolean {
         effectsProcessor.update(effects)
@@ -136,7 +147,8 @@ private class ExoAudioOutput(context: Context, initialEffects: AudioEffects) : S
             player.playerError != null -> SampleAudioStatus.Failed
             player.playbackState == Player.STATE_ENDED -> SampleAudioStatus.Ended
             player.isPlaying -> SampleAudioStatus.Playing
-            !player.playWhenReady && player.playbackState == Player.STATE_READY -> SampleAudioStatus.Paused
+            !player.playWhenReady && (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING) ->
+                SampleAudioStatus.Paused
             else -> SampleAudioStatus.Loading
         }
 

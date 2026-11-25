@@ -204,4 +204,77 @@ class LyricsRepositoryTest {
         val error = assertFailsWith<LyricsException> { repo.get(track) }
         assertEquals("Balasan LRCLIB tidak dapat dibaca.", error.userMessage)
     }
+
+    @Test
+    fun searchPrefersVersionAndDurationMatchedSyncedCandidateOverEarlierMismatch() = runTest {
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") {
+                respond("{}", HttpStatusCode.NotFound)
+            } else {
+                respond(
+                    """
+                    [
+                      {
+                        "trackName": "Jendela & Awan (Live)",
+                        "artistName": "Rintik",
+                        "duration": 140.0,
+                        "syncedLyrics": "[00:35.00]Versi live terlambat"
+                      },
+                      {
+                        "trackName": "Jendela & Awan",
+                        "artistName": "Rintik",
+                        "duration": 92.0,
+                        "syncedLyrics": "[00:05.00]Versi studio cocok"
+                      }
+                    ]
+                    """.trimIndent(),
+                )
+            }
+        }
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(5_000L, "Versi studio cocok"))), repo.get(track))
+    }
+
+    @Test
+    fun mismatchedRecordingDurationFallsBackToPlainInsteadOfDesyncedTiming() = runTest {
+        val liveTrack = track.copy(id = "yt:track:live", title = "Jendela & Awan (Live)", durationMs = 240_000L)
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") {
+                respond(
+                    """
+                    {
+                      "trackName": "Jendela & Awan",
+                      "artistName": "Rintik",
+                      "duration": 160.0,
+                      "syncedLyrics": "[00:10.00]Baris satu\n[00:20.00]Baris dua",
+                      "plainLyrics": "Baris satu\nBaris dua"
+                    }
+                    """.trimIndent(),
+                )
+            } else {
+                respond("[]")
+            }
+        }
+        assertEquals(LyricsDocument.Plain(listOf("Baris satu", "Baris dua")), repo.get(liveTrack))
+    }
+
+    @Test
+    fun timestampsBeyondTrackDurationRejectBadSyncAndUsePlainFallback() = runTest {
+        val shortTrack = track.copy(id = "yt:track:short", durationMs = 20_000L)
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") {
+                respond(
+                    """
+                    {
+                      "trackName": "Jendela & Awan",
+                      "artistName": "Rintik",
+                      "syncedLyrics": "[00:40.00]Di luar durasi\n[01:10.00]Jauh lewat"
+                    }
+                    """.trimIndent(),
+                )
+            } else {
+                respond("[]")
+            }
+        }
+        assertEquals(LyricsDocument.Plain(listOf("Di luar durasi", "Jauh lewat")), repo.get(shortTrack))
+    }
 }

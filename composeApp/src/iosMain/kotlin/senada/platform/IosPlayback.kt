@@ -20,6 +20,8 @@ import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerItemStatusFailed
+import platform.AVFoundation.AVPlayerItemTimeJumpedNotification
+import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerTimeControlStatusPaused
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
 import platform.AVFoundation.addPeriodicTimeObserverForInterval
@@ -281,11 +283,23 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
     private var reachedEnd = false
     /** Akhir audio yang sebenarnya dari sumber; AVPlayer bisa menebak durasi MP4 terfragmen terlalu panjang. */
     private var knownEndMs: Long? = null
+    private var discontinuityPending = false
     private val observers = mutableListOf<Any>()
 
     override var onEvent: (() -> Unit)? = null
 
-    val playbackRate: Float get() = currentEffects.speed
+    override val playbackRate: Float
+        get() = if (player.timeControlStatus() == AVPlayerTimeControlStatusPlaying) {
+            player.rate().takeIf { it > 0f } ?: currentEffects.speed
+        } else {
+            currentEffects.speed
+        }
+
+    override fun consumeDiscontinuity(): Boolean {
+        val had = discontinuityPending
+        discontinuityPending = false
+        return had
+    }
 
     init {
         player.setDefaultRate(currentEffects.speed)
@@ -298,8 +312,17 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
                 }
             }
         }
+        observers += center.addObserverForName(AVPlayerItemTimeJumpedNotification, null, NSOperationQueue.mainQueue) { notification ->
+            if (notification?.`object` == player.currentItem()) {
+                discontinuityPending = true
+                onEvent?.invoke()
+            }
+        }
+        observers += center.addObserverForName(AVPlayerRateDidChangeNotification, player, NSOperationQueue.mainQueue) { _ ->
+            onEvent?.invoke()
+        }
         // AVPlayer juga memanggil blok ini saat audio mulai atau berhenti, misalnya saat headset dilepas.
-        observers += player.addPeriodicTimeObserverForInterval(CMTimeMake(5, 1), dispatch_get_main_queue()) { _ ->
+        observers += player.addPeriodicTimeObserverForInterval(CMTimeMake(1, 2), dispatch_get_main_queue()) { _ ->
             onEvent?.invoke()
         }
     }
@@ -316,6 +339,9 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
         }
         if (pitchChanged) {
             player.currentItem()?.let { applyPitchAlgorithm(it, bounded.pitchLock) }
+        }
+        if (speedChanged) {
+            onEvent?.invoke()
         }
         return speedChanged
     }
@@ -342,7 +368,7 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
     override val positionMs: Long
         get() = pendingSeek?.positionMs ?: run {
             val seconds = CMTimeGetSeconds(player.currentTime())
-            if (seconds.isFinite()) (seconds * 1_000).roundToLong() else 0
+            if (seconds.isFinite()) (seconds * 1_000).roundToLong().coerceAtLeast(0L) else 0L
         }
 
     override val durationMs: Long?
@@ -398,7 +424,10 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
         val zeroTolerance = CMTimeMake(0, 1_000)
         player.seekToTime(CMTimeMake(positionMs, 1_000), zeroTolerance, zeroTolerance) { _ ->
             dispatch_async(dispatch_get_main_queue()) {
-                if (pendingSeek === request) pendingSeek = null
+                if (pendingSeek === request) {
+                    pendingSeek = null
+                    discontinuityPending = true
+                }
                 onEvent?.invoke()
             }
         }

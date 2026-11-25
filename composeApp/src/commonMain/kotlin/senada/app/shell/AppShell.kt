@@ -126,7 +126,8 @@ import senada.playback.SleepTimerState
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
 
-private fun PlaybackState.withoutPosition(): PlaybackState = copy(audio = audio.copy(positionMs = 0L))
+private fun PlaybackState.withoutPosition(): PlaybackState =
+    copy(audio = audio.copy(positionMs = 0L, sampledAtMs = null, discontinuityVersion = 0L))
 
 internal data class BottomOverlayVisibility(
     val showNavBar: Boolean,

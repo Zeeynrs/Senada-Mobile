@@ -1,5 +1,8 @@
 package senada.playback
 
+import kotlin.math.abs
+import kotlin.math.roundToLong
+
 internal enum class SampleAudioSource {
     Local,
     Offline,
@@ -47,21 +50,48 @@ internal data class SampleAudioState(
     val status: SampleAudioStatus = SampleAudioStatus.Idle,
     val positionMs: Long = 0,
     val durationMs: Long? = null,
+    /** Kecepatan pemutaran aktual saat audio diputar (1.0f = normal). */
+    val playbackSpeed: Float = 1f,
+    /** Waktu jam monotonik (ms) saat [positionMs] dijangkarkan dari pemutar. */
+    val sampledAtMs: Long? = null,
+    /** Naik pada seek, pergantian lagu, atau lompatan posisi agar tampilan langsung sinkron ulang. */
+    val discontinuityVersion: Long = 0L,
 ) {
     val isActive get() = status == SampleAudioStatus.Loading || status == SampleAudioStatus.Playing
     val canSeek get() = durationMs != null && (isActive || status == SampleAudioStatus.Paused)
     val canStopAfterTrack get() = selection != null && status != SampleAudioStatus.Ended
+
+    /**
+     * Menghitung posisi pemutaran saat [monotonicMs] berdasarkan sampel terakhir [positionMs],
+     * [sampledAtMs], dan [playbackSpeed]. Hanya maju saat status [SampleAudioStatus.Playing].
+     */
+    fun positionAt(monotonicMs: Long): Long {
+        val base = positionMs.coerceAtLeast(0L)
+        if (status != SampleAudioStatus.Playing || selection?.isPending == true) {
+            return durationMs?.let { base.coerceAtMost(it) } ?: base
+        }
+        val anchor = sampledAtMs ?: return durationMs?.let { base.coerceAtMost(it) } ?: base
+        val elapsed = (monotonicMs - anchor).coerceAtLeast(0L)
+        val rate = playbackSpeed.sanitizedPlaybackRate()
+        val estimated = base + (elapsed.toDouble() * rate.toDouble()).roundToLong()
+        return durationMs?.let { estimated.coerceIn(0L, it) } ?: estimated.coerceAtLeast(0L)
+    }
 }
 
 internal interface SampleAudioOutput {
     val status: SampleAudioStatus
     val positionMs: Long
     val durationMs: Long?
+    /** Kecepatan pemutaran aktual pemutar native (1.0f = normal). */
+    val playbackRate: Float get() = 1f
     /** Gain pemutar dari 0 hingga 1, terpisah dari volume perangkat. */
     var volume: Float
 
     /** Dipanggil pemutar native saat status berubah, termasuk saat aplikasi di latar belakang. */
     var onEvent: (() -> Unit)?
+
+    /** Mengembalikan true sekali bila pemutar native melaporkan lompatan posisi sejak refresh terakhir. */
+    fun consumeDiscontinuity(): Boolean = false
 
     /**
      * Saat [restart], audio baru dimuat dan dimulai dari [startAtMs]; selain itu melanjutkan audio yang ada.
@@ -78,7 +108,10 @@ internal interface SampleAudioOutput {
     fun release()
 }
 
-internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
+internal class SampleAudioPlayer(
+    private val output: SampleAudioOutput,
+    private val monotonicNow: () -> Long = { 0L },
+) {
     var state = SampleAudioState()
         private set
 
@@ -91,6 +124,9 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
             status = SampleAudioStatus.Paused,
             positionMs = positionMs,
             durationMs = entry.track.durationMs?.takeIf { it > 0 }?.coerceAtLeast(positionMs),
+            playbackSpeed = output.playbackRate.sanitizedPlaybackRate(),
+            sampledAtMs = monotonicNow(),
+            discontinuityVersion = state.discontinuityVersion + 1L,
         )
     }
 
@@ -101,14 +137,22 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
     fun prepare(selection: SampleAudioSelection, positionMs: Long = 0) {
         if (state.isActive && !awaitingSource) output.pause()
         output.clearSelection()
+        output.consumeDiscontinuity()
         awaitingSource = true
-        state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = positionMs)
+        state = SampleAudioState(
+            selection = selection,
+            status = SampleAudioStatus.Loading,
+            positionMs = positionMs,
+            playbackSpeed = output.playbackRate.sanitizedPlaybackRate(),
+            sampledAtMs = null,
+            discontinuityVersion = state.discontinuityVersion + 1L,
+        )
     }
 
     /** Alamat audio tidak dapat disiapkan; pilihan tetap ada agar bisa dicoba lagi. */
     fun failPreparing() {
         awaitingSource = false
-        state = state.copy(status = SampleAudioStatus.Failed)
+        state = state.copy(status = SampleAudioStatus.Failed, sampledAtMs = monotonicNow())
     }
 
     /** Lagu baru dimulai dari [startAtMs]; lagu yang sama dan sedang dijeda dilanjutkan dari posisinya. */
@@ -119,36 +163,81 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         if (sameSelection && state.isActive) return
 
         val resume = sameSelection && state.status == SampleAudioStatus.Paused
+        val nowMono = monotonicNow()
+        val rate = output.playbackRate.sanitizedPlaybackRate()
         if (resume) {
             output.play(selection.uri, restart = false)
-            state = state.copy(status = SampleAudioStatus.Loading)
+            state = state.copy(
+                status = SampleAudioStatus.Loading,
+                playbackSpeed = rate,
+                sampledAtMs = nowMono,
+            )
         } else {
+            output.consumeDiscontinuity()
             output.play(selection, startAtMs)
-            state = SampleAudioState(selection, SampleAudioStatus.Loading, positionMs = startAtMs)
+            state = SampleAudioState(
+                selection = selection,
+                status = SampleAudioStatus.Loading,
+                positionMs = startAtMs,
+                playbackSpeed = rate,
+                sampledAtMs = nowMono,
+                discontinuityVersion = state.discontinuityVersion + 1L,
+            )
         }
         refresh()
     }
 
     fun pause() {
+        val nowMono = monotonicNow()
+        val rate = output.playbackRate.sanitizedPlaybackRate()
         if (awaitingSource) {
             awaitingSource = false
-            state = state.copy(status = SampleAudioStatus.Paused)
+            state = state.copy(status = SampleAudioStatus.Paused, playbackSpeed = rate, sampledAtMs = nowMono)
             return
         }
         refresh()
         if (!state.isActive) return
 
         output.pause()
-        state = state.copy(status = SampleAudioStatus.Paused)
+        val pausedPosition = output.positionMs.coerceIn(0, state.durationMs ?: Long.MAX_VALUE)
+        state = state.copy(
+            status = SampleAudioStatus.Paused,
+            positionMs = pausedPosition,
+            playbackSpeed = rate,
+            sampledAtMs = nowMono,
+        )
     }
 
     fun pauseAtEnd() {
         output.pause()
-        state = state.copy(status = SampleAudioStatus.Paused)
+        state = state.copy(
+            status = SampleAudioStatus.Paused,
+            playbackSpeed = output.playbackRate.sanitizedPlaybackRate(),
+            sampledAtMs = monotonicNow(),
+        )
     }
 
-    fun refresh() {
-        if (awaitingSource || !state.isActive) return
+    fun refresh(discontinuity: Boolean = false) {
+        val nativeDiscontinuity = output.consumeDiscontinuity() || discontinuity
+        if (awaitingSource) return
+        val nowMono = monotonicNow()
+        val rate = output.playbackRate.sanitizedPlaybackRate()
+        if (!state.isActive) {
+            if (rate != state.playbackSpeed || nativeDiscontinuity) {
+                val position = if (nativeDiscontinuity && state.selection?.isPending == false) {
+                    output.positionMs.coerceIn(0, state.durationMs ?: Long.MAX_VALUE)
+                } else {
+                    state.positionMs
+                }
+                state = state.copy(
+                    positionMs = position,
+                    playbackSpeed = rate,
+                    sampledAtMs = nowMono,
+                    discontinuityVersion = state.discontinuityVersion + if (nativeDiscontinuity) 1L else 0L,
+                )
+            }
+            return
+        }
 
         var status = output.status
         val known = state.selection?.knownDurationMs
@@ -165,7 +254,22 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         } else {
             output.positionMs.coerceIn(0, duration ?: Long.MAX_VALUE)
         }
-        state = state.copy(status = status, positionMs = position, durationMs = duration)
+        val jumped = nativeDiscontinuity || (
+            state.status == SampleAudioStatus.Playing &&
+                status == SampleAudioStatus.Playing &&
+                (
+                    abs(position - state.positionAt(nowMono)) > DISCONTINUITY_JUMP_MS ||
+                        position < state.positionMs - BACKWARD_JUMP_MS
+                    )
+            )
+        state = state.copy(
+            status = status,
+            positionMs = position,
+            durationMs = duration,
+            playbackSpeed = rate,
+            sampledAtMs = nowMono,
+            discontinuityVersion = state.discontinuityVersion + if (jumped) 1L else 0L,
+        )
     }
 
     fun seekTo(positionMs: Long) {
@@ -174,7 +278,12 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         val target = positionMs.coerceIn(0, duration)
         // Entri yang dipulihkan belum punya audio di pemutar native.
         if (state.selection?.isPending == false) output.seekTo(target)
-        state = state.copy(positionMs = target)
+        state = state.copy(
+            positionMs = target,
+            playbackSpeed = output.playbackRate.sanitizedPlaybackRate(),
+            sampledAtMs = monotonicNow(),
+            discontinuityVersion = state.discontinuityVersion + 1L,
+        )
     }
 
     fun onQueueEntryRemoved(entryId: Long) {
@@ -182,9 +291,18 @@ internal class SampleAudioPlayer(private val output: SampleAudioOutput) {
         awaitingSource = false
         output.pause()
         output.clearSelection()
+        output.consumeDiscontinuity()
         state = SampleAudioState()
     }
+
+    private companion object {
+        const val DISCONTINUITY_JUMP_MS = 350L
+        const val BACKWARD_JUMP_MS = 50L
+    }
 }
+
+private fun Float.sanitizedPlaybackRate(): Float =
+    if (isFinite() && this > 0f) coerceIn(0.25f, 4f) else 1f
 
 /** Toleransi sebelum posisi yang melewati akhir audio dianggap lagu sudah selesai. */
 internal const val END_GRACE_MS = 1_500L

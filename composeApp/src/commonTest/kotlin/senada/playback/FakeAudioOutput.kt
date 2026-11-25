@@ -11,10 +11,18 @@ internal class FakeAudioOutput : SampleAudioOutput {
     override var volume = 1f
     val volumesAtPause = mutableListOf<Float>()
     var emitEventOnPlay = false
+    var discontinuityPending = false
+    override var playbackRate = 1f
     override var status = SampleAudioStatus.Playing
     override var positionMs = 0L
     override var durationMs: Long? = null
     override var onEvent: (() -> Unit)? = null
+
+    override fun consumeDiscontinuity(): Boolean {
+        val had = discontinuityPending
+        discontinuityPending = false
+        return had
+    }
 
     override fun play(uri: String, restart: Boolean, startAtMs: Long, endAtMs: Long?) {
         restarts += restart
