@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -19,6 +20,8 @@ import senada.library.testLibraryDriver
 import senada.model.Track
 import senada.playback.FakeAudioOutput
 import senada.playback.PlaybackController
+import senada.playback.QueueJson
+import senada.playback.QueueSnapshot
 import senada.playback.SampleAudioSelection
 import senada.playback.SampleAudioSource
 
@@ -96,12 +99,64 @@ class LibraryActionsTest {
 
         // Memutar ulang secara berurutan harus mematikan mode acak agar urutan lagu tetap terjaga.
         val nextCollection = (10..12).map(::track)
-        actions.playAll(nextCollection, PlaySource.Playlist("Pagi"), resetShuffle = true)
+        val playlist = PlaySource.Playlist.fromLibrary("pagi", "Pagi")
+        actions.playAll(nextCollection, playlist, resetShuffle = true)
 
         val afterOrdered = playback.state.value
         assertFalse(afterOrdered.queue.shuffleEnabled)
         assertEquals(nextCollection.first(), afterOrdered.currentEntry?.track)
-        assertEquals(PlaySource.Playlist("Pagi"), PlaySourceState.current.value)
+        assertEquals(playlist, PlaySourceState.current.value)
+    }
+
+    @Test
+    fun startingALargePlaylistPublishesTheFullQueueWithoutIntermediateQueues() = runTest {
+        val (_, playback, actions) = harness()
+        val queueSizes = mutableListOf<Int>()
+        playback.addListener { state ->
+            val size = state.queue.entries.size
+            if (queueSizes.lastOrNull() != size) queueSizes += size
+        }
+        val songs = (1..131).map(::track)
+
+        actions.playAll(songs, startIndex = 3)
+
+        assertEquals(listOf(0, 131), queueSizes)
+        assertEquals(songs[3], playback.state.value.currentEntry?.track)
+    }
+
+    @Test
+    fun playlistButtonPausesAndResumesTheSelectedSongWithoutRebuildingTheQueue() = runTest {
+        val (_, playback, actions) = harness()
+        val songs = (1..3).map(::track)
+        val playlist = PlaySource.Playlist.fromLibrary("a", "Santai")
+        val sameName = PlaySource.Playlist.fromLibrary("b", "Santai")
+        val catalogPlaylist = PlaySource.Playlist.fromCatalog("a", "Santai")
+
+        actions.playAll(songs, playlist, startIndex = 1)
+        val entry = playback.state.value.currentEntry
+        assertTrue(actions.playlistPlaying(playlist.key).first())
+        assertFalse(actions.playlistPlaying(sameName.key).first())
+        assertFalse(actions.playlistPlaying(catalogPlaylist.key).first())
+
+        actions.togglePlaylistPlayback(playlist.key) { error("Playlist should pause") }
+        assertFalse(actions.playlistPlaying(playlist.key).first())
+        actions.togglePlaylistPlayback(playlist.key) { error("Playlist should resume") }
+        assertTrue(actions.playlistPlaying(playlist.key).first())
+        assertEquals(entry, playback.state.value.currentEntry)
+        assertEquals(songs, playback.state.value.queue.entries.map { it.track })
+
+        playback.next()
+        assertTrue(actions.playlistPlaying(playlist.key).first())
+        assertEquals(songs.last(), playback.state.value.currentEntry?.track)
+        val state = playback.state.value
+        val restored = checkNotNull(QueueJson.decode(QueueJson.encode(QueueSnapshot(state.queue, state.currentEntry?.id, 0))))
+        playback.restore(restored)
+        actions.togglePlaylistPlayback(playlist.key) { error("Restored playlist should resume") }
+        assertEquals(songs.last(), playback.state.value.currentEntry?.track)
+
+        playback.add(songs.last())
+        playback.next()
+        assertFalse(actions.playlistPlaying(playlist.key).first())
     }
 
     @Test
@@ -150,7 +205,7 @@ class LibraryActionsTest {
 
         val state = playback.state.value
         assertTrue(state.queue.shuffleEnabled)
-        assertEquals(PlaySource.Playlist("Santai"), PlaySourceState.current.value)
+        assertEquals(PlaySource.Playlist.fromLibrary(playlistId, "Santai"), PlaySourceState.current.value)
         assertTrue(state.currentEntry?.track in songs)
     }
 

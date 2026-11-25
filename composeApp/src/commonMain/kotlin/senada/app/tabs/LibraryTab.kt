@@ -1,20 +1,24 @@
 package senada.app.tabs
 
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.LocalPlatformContext
 import senada.app.CollectionPlayButtons
@@ -30,27 +34,38 @@ import senada.app.TrackRow
 import senada.app.collectionMeta
 import senada.app.favoritesTab
 import senada.app.historyTab
+import senada.app.offlineSongsTab
 import senada.app.playlistsTab
 import senada.app.rememberAudioImportController
 import senada.app.sumKnownDurationMs
 import senada.library.Playlist
+import senada.library.LibraryArtist
 import senada.model.Track
+import senada.offline.OfflineState
 import senada.platform.importedAudioStorage
 
 /** Pilihan filter di dalam satu tab Library. */
 internal enum class LibraryFilter(val label: String) {
-    Favorites("Favorit"),
+    All("Semua"),
     Playlists("Playlist"),
+    Artists("Artis"),
+    Favorites("Favorit"),
+    Offline("Offline"),
     History("Riwayat"),
     Imported("File impor"),
 }
 
-/** Tab Library: satu halaman dengan chip filter Favorit, Playlist, Riwayat, dan File impor. */
+@OptIn(ExperimentalFoundationApi::class)
 internal fun LazyListScope.libraryTab(
     section: LibraryFilter,
     onSection: (LibraryFilter) -> Unit,
     library: LibraryState,
     openedPlaylist: Playlist?,
+    artists: List<LibraryArtist>?,
+    downloadState: OfflineState?,
+    profileName: String,
+    profilePhoto: String?,
+    onOpenProfile: () -> Unit,
     actions: LibraryActions,
     onOpenPlaylist: (String?) -> Unit,
     onLoadMoreFavorites: () -> Unit,
@@ -59,18 +74,33 @@ internal fun LazyListScope.libraryTab(
     reorderingPlaylist: Boolean = false,
     onToggleReorderPlaylist: () -> Unit = {},
 ) {
-    if (openedPlaylist == null) {
-        item(key = "library-filters") {
-            LibraryFilterChips(
-                selected = section,
-                onSelect = { next ->
-                    onSection(next)
-                },
-            )
-        }
+    if (openedPlaylist != null) {
+        playlistsTab(
+            library, openedPlaylist, actions, onOpenPlaylist, onLoadMorePlaylist, onOpenSearch,
+            reordering = reorderingPlaylist, onToggleReorder = onToggleReorderPlaylist,
+        )
+        return
+    }
+
+    item(key = "library-toolbar") {
+        LibraryToolbar(profileName, profilePhoto, onOpenProfile, actions) { onOpenPlaylist(it) }
+    }
+    stickyHeader(key = "library-filters") {
+        LibraryFilterChips(section, onSection)
     }
     when (section) {
+        LibraryFilter.All -> libraryOverviewRows(library, artists.orEmpty(), actions, onSection) { onOpenPlaylist(it) }
         LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites, onOpenSearch)
+        LibraryFilter.Offline -> offlineSongsTab(downloadState ?: OfflineState(), library, actions, onOpenSearch)
+        LibraryFilter.Artists -> when {
+            artists == null -> item(key = "library-artists-loading") {
+                Text("Memuat artis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            artists.isEmpty() -> item(key = "library-artists-empty") {
+                LibraryEmptyState("Simpan lagu ke favorit atau playlist untuk melihat artisnya.", "Cari lagu", onAction = onOpenSearch)
+            }
+            else -> libraryArtistRows(artists, actions)
+        }
         LibraryFilter.Playlists -> playlistsTab(
             library = library,
             opened = openedPlaylist,
@@ -86,22 +116,22 @@ internal fun LazyListScope.libraryTab(
     }
 }
 
-/** Deret chip filter pil v2 yang dapat digeser mendatar agar tetap rapi pada skala font besar. */
 @Composable
 private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter) -> Unit) {
-    Row(
+    FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            .background(MaterialTheme.colorScheme.background)
+            .padding(vertical = 2.dp)
             .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         for (filter in LibraryFilter.entries) {
             SenadaFilterPill(
                 label = filter.label,
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
+                modifier = Modifier.semantics { contentDescription = "Filter Library ${filter.label}" },
             )
         }
     }

@@ -2,6 +2,7 @@ package senada.playback
 
 internal enum class SampleAudioSource {
     Local,
+    Offline,
     Https,
     YouTubeMusic,
 }

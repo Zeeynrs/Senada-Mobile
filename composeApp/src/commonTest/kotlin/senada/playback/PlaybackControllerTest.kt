@@ -38,6 +38,41 @@ class PlaybackControllerTest {
     private fun address(entry: QueueItem) = addresses.getOrPut(entry.id) { CompletableDeferred() }
 
     @Test
+    fun anOfflineCopyWinsOverThePrefetchedStreamAndFallsBackAfterRemoval() = runTest {
+        val resolved = mutableListOf<Track>()
+        var downloaded = false
+        val playback = PlaybackController(
+            output, backgroundScope,
+            isDownloaded = { it == second && downloaded },
+            offlineSelectionFor = { entry ->
+                if (entry.track == second && downloaded) {
+                    SampleAudioSelection(second.title, SampleAudioSource.Offline, "file:///offline.m4a", entry.id)
+                } else null
+            },
+        ) { entry ->
+            resolved.add(entry.track)
+            selection(entry)
+        }
+        playback.add(first)
+        playback.add(second)
+        playback.resume()
+        runCurrent()
+        assertEquals(listOf(first, second), resolved)
+
+        downloaded = true
+        playback.next()
+        assertEquals("file:///offline.m4a", playback.state.value.audio.selection?.uri)
+        assertEquals(listOf(first, second), resolved)
+
+        output.positionMs = 2_000L
+        playback.pause()
+        downloaded = false
+        playback.resume()
+        assertEquals(SampleAudioSource.YouTubeMusic, playback.state.value.audio.selection?.source)
+        assertEquals(2_000L, output.startPositions.last())
+    }
+
+    @Test
     fun shuffle_preserves_active_entry() = runTest {
         val playback = controller()
         repeat(6) { playback.add(first) }

@@ -23,10 +23,10 @@ class NowPlayingTest {
     @Test
     fun sourceLabels() {
         assertEquals("Diputar dari Pencarian", PlaySource.Search.playerLabel())
-        assertEquals("Diputar dari playlist Senja", PlaySource.Playlist("Senja").playerLabel())
+        assertEquals("Diputar dari playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").playerLabel())
         assertEquals("Diputar dari Antrean", null.playerLabel())
         assertEquals("Dari Favorit", PlaySource.Favorites.label())
-        assertEquals("Dari playlist Senja", PlaySource.Playlist("Senja").label())
+        assertEquals("Dari playlist Senja", PlaySource.Playlist.fromLibrary("senja", "Senja").label())
         assertEquals("Dari Riwayat", PlaySource.History.label())
         assertEquals("Dari File impor", PlaySource.Imported.label())
         assertEquals("Dari Paling sering diputar", PlaySource.MostPlayed.label())

@@ -39,6 +39,7 @@ internal fun PlayerSheetContent(
     title: String,
     closeLabel: String,
     onClose: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -55,6 +56,9 @@ internal fun PlayerSheetContent(
                 title, modifier = Modifier.weight(1f).semantics { heading() },
                 color = PlayerWhite, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold,
             )
+            if (onOpenSettings != null) {
+                PlayerGlassButton(SenadaIcons.Settings, "Pengaturan lirik", scale = 1f, onClick = onOpenSettings)
+            }
             PlayerGlassButton(SenadaIcons.Close, closeLabel, scale = 1f, onClick = onClose)
         }
         content()

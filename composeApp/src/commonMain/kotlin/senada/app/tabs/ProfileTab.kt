@@ -41,6 +41,7 @@ private val groups = listOf(
     listOf(
         ProfileSetting(ProfileRoute.AudioLab, "Equalizer, efek suara, kecepatan & nada", SenadaIcons.AudioLab),
         ProfileSetting(ProfileRoute.Appearance, "Tema, aksen, sudut sampul, efek kaca", SenadaIcons.Appearance),
+        ProfileSetting(ProfileRoute.Lyrics, "Ukuran teks, font, perataan, dan sorotan", SenadaIcons.Lyrics),
         ProfileSetting(ProfileRoute.Playback, "Kualitas audio, hemat data, timer tidur", SenadaIcons.PlayOutline),
     ),
     listOf(

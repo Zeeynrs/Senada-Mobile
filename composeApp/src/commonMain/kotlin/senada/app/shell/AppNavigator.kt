@@ -24,6 +24,7 @@ internal enum class ProfileRoute(val label: String) {
     Equalizer("Equalizer"),
     SoundFx("Efek suara"),
     Appearance("Tampilan"),
+    Lyrics("Lirik"),
     Playback("Pemutaran"),
     Backup("Backup library"),
     Storage("Penyimpanan"),

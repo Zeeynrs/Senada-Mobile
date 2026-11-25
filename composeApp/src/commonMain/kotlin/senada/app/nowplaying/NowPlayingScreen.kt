@@ -68,11 +68,14 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import senada.app.AppearancePreferences
+import senada.app.FullViewTheme
 import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.OverflowActionItem
 import senada.app.OverflowActionSheet
+import senada.app.rememberOfflineArtwork
 import senada.app.LocalArtworkAccent
 import senada.app.SenadaSources
 import senada.app.TrackMenu
@@ -87,9 +90,11 @@ import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
 import senada.catalog.youtube.resizeGoogleArtwork
+import senada.lyrics.LyricsAppearance
 import senada.lyrics.LyricsDocument
 import senada.lyrics.LyricsPanel
 import senada.lyrics.LyricsPanelResult
+import senada.lyrics.LyricsSettingsSheet
 import senada.lyrics.activeLineIndex
 import senada.lyrics.rememberLyrics
 import senada.model.Track
@@ -141,6 +146,7 @@ internal fun NowPlayingScreen(
     playback: PlaybackController,
     library: LibraryState,
     actions: LibraryActions,
+    appearance: AppearancePreferences,
     screenVisible: Boolean,
     onClose: () -> Unit,
     onOpenAudioLab: () -> Unit,
@@ -153,9 +159,17 @@ internal fun NowPlayingScreen(
     val track = if (state.audio.selection == null) state.queue.entries.firstOrNull()?.track else state.currentEntry?.track
     val accent = LocalArtworkAccent.current
     var sheet by rememberSaveable { mutableStateOf<PlayerSheet?>(null) }
+    var themePickerOpen by rememberSaveable { mutableStateOf(false) }
+    var vinylLyricsSettingsOpen by rememberSaveable { mutableStateOf(false) }
     var lyricsAttempt by remember(track?.id) { mutableStateOf(0) }
-    val lyrics = rememberLyrics(track, SenadaSources.lyrics, screenVisible && immersive, lyricsAttempt)
+    val downloads = actions.downloads
+    val localLyrics = remember(downloads) { downloads?.let { it::lyrics } }
+    val lyrics = rememberLyrics(track, SenadaSources.lyrics, screenVisible && immersive, lyricsAttempt, localLyrics)
+    val coverUrl = rememberOfflineArtwork(track?.id, downloads) ?: track?.artworkUrl
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
+    val lyricsAppearance = appearance.settings?.lyricsAppearance ?: LyricsAppearance()
+    val fullViewTheme = appearance.settings?.fullViewTheme ?: FullViewTheme.Standard
+    val showThemePicker = { if (appearance.settings != null) themePickerOpen = true }
 
     if (immersive) NowPlayingSystemBars()
     val back: () -> Unit = { if (sheet == null) onClose() else sheet = null }
@@ -182,29 +196,60 @@ internal fun NowPlayingScreen(
                         transitionSpec = { playerSheetTransitionSpec(opening = targetState != null, look = look) },
                         modifier = Modifier.fillMaxSize(),
                     ) { currentSheet ->
-                        if (currentSheet == null) {
+                        if (currentSheet == null && fullViewTheme == FullViewTheme.Vinyl) {
+                            VinylNowPlaying(
+                                state = state, playback = playback, artwork = coverUrl,
+                                visible = screenVisible && immersive && sheet == null,
+                                safeTop = safeTop, safeBottom = safeBottom, panel = panel,
+                                onClose = onClose, onTheme = showThemePicker,
+                                onLyricsSettings = { vinylLyricsSettingsOpen = true },
+                                onQueue = { sheet = PlayerSheet.Queue },
+                                lyrics = {
+                                    LyricsPanel(track, lyrics, playback, lyricsAppearance, showTrackHeader = false) {
+                                        lyricsAttempt++
+                                    }
+                                },
+                                trackInfo = { trackScale ->
+                                    PlayerTrack(state, playback, track, library, actions, onOpenAudioLab, trackScale, Modifier)
+                                },
+                            )
+                        } else if (currentSheet == null) {
                             PlayerMainContent(
                                 state = state, playback = playback, track = track, library = library, actions = actions,
+                                coverUrl = coverUrl,
                                 sourceLabel = source.playerLabel().takeIf { track != null },
                                 synced = synced, accent = accent, panel = panel, onClose = onClose,
+                                onTheme = showThemePicker,
                                 onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
                                 onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
+                                lyricTextScale = lyricsAppearance.size.scale,
                                 safeTop = safeTop, safeBottom = safeBottom,
                             )
                         } else {
                             val isLyrics = currentSheet == PlayerSheet.Lyrics
+                            var settingsOpen by rememberSaveable { mutableStateOf(false) }
                             PlayerSheetContent(
                                 title = if (isLyrics) "Lirik" else "Antrean",
                                 closeLabel = if (isLyrics) "Tutup lirik" else "Tutup antrean",
                                 onClose = { sheet = null },
+                                onOpenSettings = if (isLyrics) ({ settingsOpen = true }) else null,
                             ) {
                                 if (isLyrics) {
-                                    PlayerLyricsSheet(track, lyrics, playback) { lyricsAttempt++ }
+                                    LyricsPanel(track, lyrics, playback, lyricsAppearance) { lyricsAttempt++ }
                                 } else {
                                     PlayerQueue(state, playback, library, actions)
                                 }
                             }
+                            if (immersive && isLyrics && settingsOpen) {
+                                LyricsSettingsSheet(appearance) { settingsOpen = false }
+                            }
                         }
+                    }
+                    if (immersive && themePickerOpen) {
+                        FullViewThemeSheet(fullViewTheme, appearance::selectFullViewTheme) { themePickerOpen = false }
+                    }
+                    if (immersive && fullViewTheme == FullViewTheme.Vinyl && vinylLyricsSettingsOpen) {
+                        LyricsSettingsSheet(appearance) { vinylLyricsSettingsOpen = false }
                     }
                 }
             }
@@ -217,6 +262,7 @@ private fun PlayerMainContent(
     state: PlaybackState,
     playback: PlaybackController,
     track: Track?,
+    coverUrl: String?,
     library: LibraryState,
     actions: LibraryActions,
     sourceLabel: String?,
@@ -224,10 +270,12 @@ private fun PlayerMainContent(
     accent: Color?,
     panel: NowPlayingPanelState,
     onClose: () -> Unit,
+    onTheme: () -> Unit,
     onLyrics: () -> Unit,
     onQueue: () -> Unit,
     onOpenAudioLab: () -> Unit,
     scale: Float,
+    lyricTextScale: Float,
     viewportHeight: Dp,
     safeTop: Dp,
     safeBottom: Dp,
@@ -245,8 +293,8 @@ private fun PlayerMainContent(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(Modifier.fillMaxWidth()) {
-            PlayerHeader(sourceLabel ?: "Sedang diputar", scale, safeTop, onClose)
-            Cover(track?.artworkUrl, accent, coverSize)
+            PlayerHeader(sourceLabel ?: "Sedang diputar", scale, safeTop, onClose, onTheme)
+            Cover(coverUrl, accent, coverSize)
             Spacer(Modifier.height(372.dp * scale - coverSize))
             PlayerTrack(
                 state, playback, track, library, actions, onOpenAudioLab, scale,
@@ -254,7 +302,7 @@ private fun PlayerMainContent(
             )
             Spacer(Modifier.height(4.dp * scale))
             Column(Modifier.padding(horizontal = inset)) {
-                PlayerActiveLyric(synced, playback, scale, onLyrics)
+                PlayerActiveLyric(synced, playback, scale, lyricTextScale, onLyrics)
                 NowPlayingPosition(state.audio, playback, scale)
                 Spacer(Modifier.height((70.dp * scale - (48.dp * scale).coerceAtLeast(48.dp)).coerceAtLeast(0.dp)))
                 NowPlayingControls(state, playback, scale)
@@ -276,7 +324,7 @@ private fun PlayerMainContent(
 }
 
 @Composable
-private fun PlayerHeader(sourceLabel: String, scale: Float, safeTop: Dp, onClose: () -> Unit) {
+private fun PlayerHeader(sourceLabel: String, scale: Float, safeTop: Dp, onClose: () -> Unit, onTheme: () -> Unit) {
     val touch = (48.dp * scale).coerceAtLeast(48.dp)
     val gripHeight = 5.dp * scale
     val gripInset = (touch - gripHeight) / 2
@@ -304,6 +352,9 @@ private fun PlayerHeader(sourceLabel: String, scale: Float, safeTop: Dp, onClose
                 Modifier.size(40.dp * scale, gripHeight)
                     .background(Color.White.copy(alpha = .45f), RoundedCornerShape(3.dp * scale)),
             )
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(end = 14.dp)) {
+            PlayerGlassButton(SenadaIcons.Appearance, "Tema Full View", scale = .85f, onClick = onTheme)
         }
     }
 }
@@ -426,6 +477,7 @@ private fun PlayerActiveLyric(
     synced: LyricsDocument.Synced?,
     playback: PlaybackController,
     scale: Float,
+    textScale: Float,
     onClick: () -> Unit,
 ) {
     val line = if (synced != null) {
@@ -436,36 +488,11 @@ private fun PlayerActiveLyric(
     } else {
         null
     }
-    ActiveLyric(line, scale, onClick)
+    ActiveLyric(line, scale, textScale, onClick)
 }
 
 @Composable
-private fun PlayerLyricsSheet(
-    track: Track?,
-    lyrics: LyricsPanelResult,
-    playback: PlaybackController,
-    onRetry: () -> Unit,
-) {
-    val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
-    val positionMs = if (synced != null) {
-        val activeStartMs by remember(synced, playback) {
-            playback.state.map {
-                val index = activeLineIndex(synced.lines, it.audio.positionMs)
-                if (index >= 0) synced.lines[index].startMs else 0L
-            }.distinctUntilChanged()
-        }.collectAsState(
-            activeLineIndex(synced.lines, playback.state.value.audio.positionMs)
-                .let { if (it >= 0) synced.lines[it].startMs else 0L },
-        )
-        activeStartMs
-    } else {
-        0L
-    }
-    LyricsPanel(track, lyrics, positionMs, onRetry)
-}
-
-@Composable
-private fun ActiveLyric(line: String?, scale: Float, onClick: () -> Unit) {
+private fun ActiveLyric(line: String?, scale: Float, textScale: Float, onClick: () -> Unit) {
     val target = (48.dp * scale).coerceAtLeast(48.dp)
     if (line == null) {
         Spacer(Modifier.height(target))
@@ -477,7 +504,8 @@ private fun ActiveLyric(line: String?, scale: Float, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(6.dp * scale),
         ) {
             Text(
-                line, fontSize = playerSp(15, scale), lineHeight = playerSp(20, scale), fontWeight = FontWeight.Bold,
+                line, fontSize = (15f * scale * textScale).sp, lineHeight = (20f * scale * textScale).sp,
+                fontWeight = FontWeight.Bold,
                 color = PlayerWhite.copy(alpha = .90f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )

@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import senada.app.nowplaying.FullViewThemeCard
 import senada.app.theme.AccentChoice
 import senada.app.theme.LocalSenadaLook
 import senada.app.theme.MonoLabel
@@ -126,6 +127,7 @@ internal fun AppearanceSection(preferences: AppearancePreferences) {
             onGlassChange = preferences::setGlass,
             onSelectAnimation = preferences::selectAnimationSpeed,
         )
+        FullViewThemeCard(settings.fullViewTheme, ready, preferences::selectFullViewTheme)
     }
 }
 

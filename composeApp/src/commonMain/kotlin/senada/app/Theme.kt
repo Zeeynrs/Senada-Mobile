@@ -21,6 +21,7 @@ import senada.app.theme.rememberSystemReduceMotion
 import senada.app.theme.senadaColorScheme
 import senada.app.theme.senadaLook
 import senada.app.theme.senadaTypography
+import senada.lyrics.LyricsAppearance
 
 private val artworkColors = ArtworkAccentCache()
 
@@ -72,6 +73,11 @@ internal class AppearancePreferences(private val store: AppearanceStore) {
     fun setGlass(enabled: Boolean) = update { it.copy(glass = enabled) }
 
     fun selectAnimationSpeed(speed: AnimationSpeed) = update { it.copy(animation = speed) }
+
+    fun selectFullViewTheme(theme: FullViewTheme) = update { it.copy(fullViewTheme = theme) }
+
+    fun updateLyricsAppearance(change: (LyricsAppearance) -> LyricsAppearance) =
+        update { it.copy(lyricsAppearance = change(it.lyricsAppearance)) }
 
     private fun update(change: (Appearance) -> Appearance) {
         val previous = settings ?: return

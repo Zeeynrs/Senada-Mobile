@@ -14,6 +14,7 @@ import senada.local.LocalAudioException
 import senada.local.LocalAudioFiles
 import senada.local.localFileNameOf
 import senada.model.Track
+import senada.offline.canDownloadOffline
 import senada.playback.LoudnessMatchingOutput
 import senada.playback.PlaybackController
 import senada.playback.QueueItem
@@ -30,7 +31,7 @@ private const val HTTPS_SAMPLE = "https://raw.githubusercontent.com/Zeeynrs/Sena
 internal fun sampleAudioSelection(source: SampleAudioSource): SampleAudioSelection {
     val track = DemoCatalog.tracks.first()
     return when (source) {
-        SampleAudioSource.Local -> localAudioSelection(track)
+        SampleAudioSource.Local, SampleAudioSource.Offline -> localAudioSelection(track)
         // Tombol uji hanya memakai file lokal dan satu URL HTTPS tetap.
         SampleAudioSource.Https, SampleAudioSource.YouTubeMusic ->
             SampleAudioSelection(track.title, SampleAudioSource.Https, HTTPS_SAMPLE)
@@ -87,7 +88,23 @@ internal fun createPlayback(
     }
     val scope = MainScope()
     val normalizedOutput = LoudnessMatchingOutput(output, audioEffects.effects, scope)
-    val controller = PlaybackController(normalizedOutput, scope) { entry -> queueAudioSelection(entry, saveData, localFiles) }
+    val offline = offlineDownloads(context)
+    val controller = PlaybackController(
+        normalizedOutput, scope,
+        isDownloaded = { track -> offline.state.value.song(track.id) != null },
+        offlineSelectionFor = { entry ->
+            val snapshot = offline.state.value
+            val song = if (canDownloadOffline(entry.track) && (!snapshot.ready || snapshot.song(entry.track.id) != null)) {
+                offline.song(entry.track)
+            } else null
+            song?.let {
+                SampleAudioSelection(
+                    entry.track.title, SampleAudioSource.Offline, it.audioUri, entry.id,
+                    durationMs = it.durationMs ?: entry.track.durationMs, loudnessDb = it.loudnessDb,
+                )
+            }
+        },
+    ) { entry -> queueAudioSelection(entry, saveData, localFiles) }
         .apply { persistQueue(queueStore) }
     return PlaybackComponents(controller, audioEffects)
 }

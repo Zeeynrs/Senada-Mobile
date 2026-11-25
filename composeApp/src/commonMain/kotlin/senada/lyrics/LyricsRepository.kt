@@ -85,7 +85,7 @@ internal class LyricsRepository(private val http: HttpClient) {
     private suspend fun request(endpoint: String, track: Track): JsonElement {
         val body = try {
             val response = http.get("https://lrclib.net/api/$endpoint") {
-                header(HttpHeaders.UserAgent, "Senada Mobile/0.1.0 (https://github.com/Zeeynrs/Senada-Mobile)")
+                header(HttpHeaders.UserAgent, "Senada Mobile/1.0.0 (https://github.com/Zeeynrs/Senada-Mobile)")
                 parameter("track_name", track.title)
                 track.artists.firstOrNull()?.takeIf { it.isNotBlank() }?.let { parameter("artist_name", it) }
                 if (endpoint == "get") {

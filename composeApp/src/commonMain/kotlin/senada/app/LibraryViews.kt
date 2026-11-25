@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -54,7 +56,9 @@ import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import senada.app.nowplaying.PlaySource
 import senada.app.nowplaying.PlaySourceState
@@ -74,7 +78,9 @@ import senada.library.recordPlaylistPlay
 import senada.local.ImportedAudioStorage
 import senada.local.syncImportedAudio
 import senada.model.Track
+import senada.offline.OfflineDownloads
 import senada.playback.PlaybackController
+import senada.playback.SampleAudioStatus
 
 /** Ukuran halaman daftar library; daftar bertambah sebanyak ini saat ujungnya terlihat. */
 internal const val LIBRARY_PAGE_SIZE = 50
@@ -120,6 +126,7 @@ internal class LibraryActions(
     private val playback: PlaybackController,
     private val scope: CoroutineScope,
     private val onOpenArtist: ((Track, String) -> Unit)? = null,
+    val downloads: OfflineDownloads? = null,
 ) {
     val canOpenArtists: Boolean get() = onOpenArtist != null
 
@@ -164,7 +171,7 @@ internal class LibraryActions(
     fun enqueue(track: Track) = playback.add(track)
 
     fun enqueueAll(tracks: List<Track>) {
-        tracks.forEach(playback::add)
+        playback.addAll(tracks)
     }
 
     /** Menambahkan semua favorit ke antrean tanpa memutarnya. */
@@ -197,7 +204,7 @@ internal class LibraryActions(
             val playlist = library.playlist(playlistId).first() ?: return@launch
             val tracks = playlist.entries.map { it.track }
             if (tracks.isEmpty()) return@launch
-            playAll(tracks, PlaySource.Playlist(playlist.name), resetShuffle = true)
+            playAll(tracks, PlaySource.Playlist.fromLibrary(playlist.id, playlist.name), resetShuffle = true)
             runCatching { library.recordPlaylistPlay(playlistId) }
         }
     }
@@ -208,8 +215,22 @@ internal class LibraryActions(
             val playlist = library.playlist(playlistId).first() ?: return@launch
             val tracks = playlist.entries.map { it.track }
             if (tracks.isEmpty()) return@launch
-            playShuffled(tracks, PlaySource.Playlist(playlist.name))
+            playShuffled(tracks, PlaySource.Playlist.fromLibrary(playlist.id, playlist.name))
             runCatching { library.recordPlaylistPlay(playlistId) }
+        }
+    }
+
+    fun playlistPlaying(playlistKey: String): Flow<Boolean> = playback.state
+        .map { state -> state.audio.isActive && state.currentEntry?.playlistKey == playlistKey }
+        .distinctUntilChanged()
+
+    fun togglePlaylistPlayback(playlistKey: String, onStart: () -> Unit) {
+        val state = playback.state.value
+        when {
+            state.currentEntry?.playlistKey != playlistKey -> onStart()
+            state.audio.isActive -> playback.pause()
+            state.audio.status == SampleAudioStatus.Paused -> playback.resume()
+            else -> onStart()
         }
     }
 
@@ -257,7 +278,7 @@ internal class LibraryActions(
         if (tracks.isEmpty()) return
         if (resetShuffle) playback.setShuffleEnabled(false)
         val firstNew = playback.state.value.queue.entries.size
-        tracks.forEach(playback::add)
+        playback.addAll(tracks, (source as? PlaySource.Playlist)?.key)
         PlaySourceState.current.value = source
         val target = firstNew + startIndex.coerceIn(0, tracks.lastIndex)
         playback.state.value.queue.entries.getOrNull(target)?.let { playback.playEntry(it.id) }
@@ -270,16 +291,17 @@ internal class LibraryActions(
     fun playShuffled(tracks: List<Track>, source: PlaySource? = null, random: Random = Random.Default) {
         if (tracks.isEmpty()) return
         val queueBefore = playback.state.value.queue
+        val playlistKey = (source as? PlaySource.Playlist)?.key
         if (queueBefore.entries.isEmpty()) {
             playback.setShuffleEnabled(true)
-            tracks.forEach(playback::add)
+            playback.addAll(tracks, playlistKey)
             val first = playback.state.value.queue.playOrder.firstOrNull() ?: return
             PlaySourceState.current.value = source
             playback.playEntry(first.id)
             return
         }
         val firstNew = queueBefore.entries.size
-        tracks.forEach(playback::add)
+        playback.addAll(tracks, playlistKey)
         val newEntries = playback.state.value.queue.entries.drop(firstNew)
         val picked = newEntries.randomOrNull(random) ?: return
         PlaySourceState.current.value = source
@@ -352,6 +374,7 @@ internal fun TrackMenu(
                 onDismiss = { open = false },
             ) { select ->
                 leadingItems(select)
+                OfflineTrackMenuItem(track, actions.downloads, select)
                 if (onRemoveFromQueue != null) {
                     OverflowActionItem(
                         label = "Hapus dari antrean",
@@ -606,14 +629,7 @@ internal fun LazyListScope.playlistsTab(
                 }
             }
         }
-        items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
-            PlaylistRow(
-                playlist = playlist,
-                cover = selectPlaylistCover(library.playlistCovers[playlist.id].orEmpty()),
-                actions = actions,
-                onOpen = { onOpen(playlist.id) },
-            )
-        }
+        libraryPlaylistRows(library, actions) { id -> onOpen(id) }
         return
     }
 
@@ -640,7 +656,11 @@ internal fun LazyListScope.playlistsTab(
             track = entry.track,
             favorite = entry.track.id in library.favoriteIds,
             onClick = {
-                actions.playAll(opened.entries.map { it.track }, PlaySource.Playlist(opened.name), startIndex = index)
+                actions.playAll(
+                    opened.entries.map { it.track },
+                    PlaySource.Playlist.fromLibrary(opened.id, opened.name),
+                    startIndex = index,
+                )
             },
         ) {
             if (reordering) {
@@ -685,6 +705,17 @@ internal fun LazyListScope.playlistsTab(
     loadMoreItem("playlist-more-${opened.id}", loaded = opened.entries.size, total = opened.entryCount, onLoadMore)
 }
 
+internal fun LazyListScope.libraryPlaylistRows(library: LibraryState, actions: LibraryActions, onOpen: (String) -> Unit) {
+    items(library.playlists, key = { "playlist-${it.id}" }) { playlist ->
+        PlaylistRow(
+            playlist = playlist,
+            cover = selectPlaylistCover(library.playlistCovers[playlist.id].orEmpty()),
+            actions = actions,
+            onOpen = { onOpen(playlist.id) },
+        )
+    }
+}
+
 @Composable
 private fun PlaylistRow(
     playlist: PlaylistSummary,
@@ -695,13 +726,12 @@ private fun PlaylistRow(
     var menuOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    SenadaCard {
+    Surface(color = Color.Transparent) {
         AdaptiveRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 68.dp)
-                .padding(1.dp)
-                .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 4.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
             minPrimaryWidth = 180.dp,
             horizontalSpacing = 12.dp,
             primary = {
@@ -881,30 +911,51 @@ private fun CompactActionChip(
 
 @Composable
 private fun PlaylistListHeader(playlistCount: Int, actions: LibraryActions, onOpen: (String) -> Unit) {
-    var naming by remember { mutableStateOf(false) }
-    var importing by remember { mutableStateOf(false) }
-    CompactCollectionHeader(
-        title = "Playlist",
-        meta = playlistListMeta(playlistCount),
-        eyebrow = "Daftar putar",
-    ) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+    WithPlaylistCreation(actions, onOpen) { onNew, onImport ->
+        CompactCollectionHeader(
+            title = "Playlist",
+            meta = playlistListMeta(playlistCount),
+            eyebrow = "Daftar putar",
         ) {
-            CompactActionChip(
-                label = "Playlist baru",
-                icon = SenadaIcons.Add,
-                onClick = { naming = true },
-                emphasized = true,
-            )
-            CompactActionChip(
-                label = "Impor playlist",
-                icon = SenadaIcons.Import,
-                onClick = { importing = true },
-            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CompactActionChip("Playlist baru", SenadaIcons.Add, onNew, emphasized = true)
+                CompactActionChip("Impor playlist", SenadaIcons.Import, onImport)
+            }
         }
     }
+}
+
+@Composable
+internal fun LibraryAddPlaylistButton(actions: LibraryActions, onOpen: (String) -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+    WithPlaylistCreation(actions, onOpen) { onNew, onImport ->
+        Box {
+            IconButton(
+                onClick = { menuOpen = true },
+                modifier = Modifier.minTouchTarget(),
+            ) { Icon(SenadaIcons.Add, contentDescription = "Tambah ke Library") }
+            if (menuOpen) {
+                OverflowActionSheet(title = "Tambah ke Library", onDismiss = { menuOpen = false }) { select ->
+                    OverflowActionItem("Playlist baru", SenadaIcons.Add) { select(onNew) }
+                    OverflowActionItem("Impor playlist", SenadaIcons.Import) { select(onImport) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WithPlaylistCreation(
+    actions: LibraryActions,
+    onOpen: (String) -> Unit,
+    content: @Composable (onNew: () -> Unit, onImport: () -> Unit) -> Unit,
+) {
+    var naming by remember { mutableStateOf(false) }
+    var importing by remember { mutableStateOf(false) }
+    content({ naming = true }, { importing = true })
     if (naming) {
         NewPlaylistDialog(actions = actions, onDismiss = { naming = false })
     }
@@ -982,6 +1033,8 @@ private fun PlaylistHeader(
         collectionMenuItems(CollectionKind.LibraryPlaylist, hasTracks = playlist.entryCount > 0)
     }
     val coverArtwork = playlist.entries.firstOrNull()?.track?.artworkUrl?.takeIf { it.isNotBlank() }
+    val playlistKey = PlaySource.Playlist.fromLibrary(playlist.id, playlist.name).key
+    val isPlaying by remember(actions, playlistKey) { actions.playlistPlaying(playlistKey) }.collectAsState(false)
     CollectionHeader(
         title = playlist.name,
         meta = playlistCollectionMeta(trackCount = playlist.entryCount, totalDurationMs = playlist.totalDurationMs),
@@ -1000,7 +1053,7 @@ private fun PlaylistHeader(
             }
         },
         canPlay = playlist.entryCount > 0,
-        onPlay = { actions.playAllOf(playlist.id) },
+        onPlay = { actions.togglePlaylistPlayback(playlistKey) { actions.playAllOf(playlist.id) } },
         onShuffle = { actions.shufflePlaylist(playlist.id) },
         backLabel = "semua playlist",
         onBack = onClose,
@@ -1015,6 +1068,7 @@ private fun PlaylistHeader(
             )
         },
         eyebrow = "Playlist",
+        isPlaying = isPlaying,
     )
     if (renaming) {
         RenamePlaylistDialog(

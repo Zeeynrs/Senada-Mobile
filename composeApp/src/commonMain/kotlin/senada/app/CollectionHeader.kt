@@ -355,6 +355,7 @@ internal fun CollectionHeader(
     chips: (@Composable () -> Unit)? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
     eyebrow: String? = null,
+    isPlaying: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
@@ -425,6 +426,7 @@ internal fun CollectionHeader(
                     canPlay = canPlay,
                     onPlay = onPlay,
                     onShuffle = onShuffle,
+                    isPlaying = isPlaying,
                 )
                 if (chips != null) {
                     FlowRow(
@@ -538,6 +540,7 @@ private fun CollectionActionRow(
     canPlay: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    isPlaying: Boolean,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
@@ -607,6 +610,7 @@ private fun CollectionActionRow(
             canPlay = canPlay,
             onPlay = onPlay,
             onShuffle = onShuffle,
+            isPlaying = isPlaying,
         )
     }
 }
@@ -618,6 +622,7 @@ internal fun CollectionPlayButtons(
     canPlay: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    isPlaying: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val playContainer = if (canPlay) colors.primary else colors.surfaceContainerHighest
@@ -654,12 +659,12 @@ internal fun CollectionPlayButtons(
             contentColor = playContent,
             modifier = Modifier.size(56.dp).semantics {
                 role = Role.Button
-                contentDescription = "Putar $title"
+                contentDescription = if (isPlaying) "Jeda $title" else "Putar $title"
             },
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = SenadaIcons.Play,
+                    imageVector = if (isPlaying) SenadaIcons.Pause else SenadaIcons.Play,
                     contentDescription = null,
                     modifier = Modifier.size(26.dp),
                 )

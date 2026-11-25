@@ -30,7 +30,9 @@ internal class LoudnessMatchingOutput(
     }
 
     override fun play(selection: SampleAudioSelection, startAtMs: Long) {
-        loudnessDb = selection.loudnessDb?.takeIf { selection.source == SampleAudioSource.YouTubeMusic }
+        loudnessDb = selection.loudnessDb?.takeIf {
+            selection.source == SampleAudioSource.YouTubeMusic || selection.source == SampleAudioSource.Offline
+        }
         updateGain()
         output.play(selection, startAtMs)
     }

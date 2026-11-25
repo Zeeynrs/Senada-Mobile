@@ -38,7 +38,7 @@ class LyricsRepositoryTest {
         assertEquals(decoratedTrack.title, request.url.parameters["track_name"])
         assertEquals("Rintik", request.url.parameters["artist_name"])
         assertEquals("92", request.url.parameters["duration"])
-        assertEquals("Senada Mobile/0.1.0 (https://github.com/Zeeynrs/Senada-Mobile)", request.headers[HttpHeaders.UserAgent])
+        assertEquals("Senada Mobile/1.0.0 (https://github.com/Zeeynrs/Senada-Mobile)", request.headers[HttpHeaders.UserAgent])
     }
 
     @Test

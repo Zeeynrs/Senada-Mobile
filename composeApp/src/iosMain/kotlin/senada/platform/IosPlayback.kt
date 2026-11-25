@@ -73,6 +73,8 @@ import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import platform.UIKit.UIApplicationWillTerminateNotification
 import platform.UIKit.UIImage
 import platform.darwin.dispatch_async
+import platform.darwin.dispatch_queue_create
+import platform.darwin.dispatch_sync
 import platform.darwin.dispatch_get_main_queue
 import senada.app.createPlayback
 import senada.audio.AudioEffects
@@ -246,6 +248,13 @@ internal object IosPlayback {
 }
 
 private class IosQueueStore : QueueStore {
+    private val writeQueue = dispatch_queue_create("senada.playback.queue", null)
+
+    override fun scheduleSave(flush: Boolean, write: () -> Unit) {
+        if (flush) dispatch_sync(writeQueue) { write() }
+        else dispatch_async(writeQueue) { write() }
+    }
+
     private fun filePath(): String? = NSFileManager.defaultManager.URLForDirectory(
         NSApplicationSupportDirectory,
         NSUserDomainMask,

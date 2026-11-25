@@ -3,7 +3,7 @@ package senada.playback
 import kotlin.random.Random
 import senada.model.Track
 
-data class QueueItem(val id: Long, val track: Track)
+data class QueueItem(val id: Long, val track: Track, internal val playlistKey: String? = null)
 
 internal enum class RepeatMode { Off, All, One }
 
@@ -19,12 +19,22 @@ class Queue private constructor(
     internal val playOrder get() = shuffledEntries ?: entries
 
     fun append(track: Track, activeEntryId: Long? = null, random: Random = Random.Default): Queue {
-        val item = QueueItem(nextId, track)
+        return appendAll(listOf(track), activeEntryId = activeEntryId, random = random)
+    }
+
+    internal fun appendAll(
+        tracks: List<Track>,
+        activeEntryId: Long?,
+        playlistKey: String? = null,
+        random: Random = Random.Default,
+    ): Queue {
+        if (tracks.isEmpty()) return this
+        val added = tracks.mapIndexed { index, track -> QueueItem(nextId + index, track, playlistKey) }
         val shuffled = shuffledEntries?.toMutableList()?.apply {
             val firstFree = indexOfFirst { it.id == activeEntryId } + 1
-            add(random.nextInt(firstFree, size + 1), item)
+            for (item in added) add(random.nextInt(firstFree, size + 1), item)
         }
-        return Queue(entries + item, nextId + 1, repeatMode, shuffled)
+        return Queue(entries + added, nextId + added.size, repeatMode, shuffled)
     }
 
     fun remove(entryId: Long): Queue =

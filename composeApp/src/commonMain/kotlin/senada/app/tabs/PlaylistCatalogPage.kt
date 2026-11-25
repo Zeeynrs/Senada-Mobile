@@ -10,6 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -158,8 +160,11 @@ internal fun LazyListScope.playlistDetailScreen(
     val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
     val tracks = detail?.tracks.orEmpty()
     val isMix = isYouTubeMixPlaylist(route.id)
+    val source = PlaySource.Playlist.fromCatalog(route.id, displayTitle)
+    val playlistKey = source.key
 
     item(key = "playlist-header-${route.id}") {
+        val isPlaying by remember(actions, playlistKey) { actions.playlistPlaying(playlistKey) }.collectAsState(false)
         val meta = remember(detail, isMix, route.subtitle) {
             youTubePlaylistCollectionMeta(detail, isMix = isMix, fallbackSubtitle = route.subtitle)
         }
@@ -182,11 +187,12 @@ internal fun LazyListScope.playlistDetailScreen(
                 }
             },
             canPlay = tracks.isNotEmpty(),
-            onPlay = { actions.playAll(tracks, PlaySource.Playlist(displayTitle), resetShuffle = true) },
-            onShuffle = { actions.playShuffled(tracks, PlaySource.Playlist(displayTitle)) },
+            onPlay = { actions.togglePlaylistPlayback(playlistKey) { actions.playAll(tracks, source, resetShuffle = true) } },
+            onShuffle = { actions.playShuffled(tracks, source) },
             backLabel = previousLabel,
             onBack = onBack,
             eyebrow = if (isMix) "Mix / Radio" else "Playlist",
+            isPlaying = isPlaying,
             footer = {
                 if (isMix) {
                     Text(
@@ -273,7 +279,7 @@ internal fun LazyListScope.playlistDetailScreen(
                 trackNumber = index + 1,
                 library = library,
                 actions = actions,
-                onPlay = { actions.playAll(tracks, PlaySource.Playlist(displayTitle), startIndex = index) },
+                onPlay = { actions.playAll(tracks, source, startIndex = index) },
             )
         }
     }

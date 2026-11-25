@@ -15,6 +15,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import senada.app.theme.AccentChoice
+import senada.lyrics.LyricsAppearance
+import senada.lyrics.lyricsAppearanceFromJson
+import senada.lyrics.toJson
 
 internal const val MIN_COVER_RADIUS_DP = 0
 internal const val MAX_COVER_RADIUS_DP = 28
@@ -26,6 +29,10 @@ internal fun clampCoverRadius(radiusDp: Int): Int =
 
 internal enum class ThemeMode(val label: String) {
     System("Ikuti sistem"), Light("Terang"), Dark("Gelap"),
+}
+
+internal enum class FullViewTheme(val key: String, val label: String) {
+    Standard("standard", "Standar"), Vinyl("vinyl", "Vinyl"),
 }
 
 internal enum class AnimationSpeed(
@@ -47,6 +54,8 @@ internal data class Appearance(
     val playerBackdropFromCover: Boolean = true,
     val glass: Boolean = true,
     val animation: AnimationSpeed = AnimationSpeed.Normal,
+    val lyricsAppearance: LyricsAppearance = LyricsAppearance(),
+    val fullViewTheme: FullViewTheme = FullViewTheme.Standard,
 )
 
 /** Satu nilai berversi agar tema, aksen, penghemat data, dan tampilan visual disimpan bersama. */
@@ -76,6 +85,7 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
                 val glass = value.optionalBoolean("glass", default = true)
                 val animationKey = (value["animation"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 val animation = AnimationSpeed.entries.firstOrNull { it.key == animationKey } ?: AnimationSpeed.Normal
+                val fullViewKey = (value["fullViewTheme"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 Appearance(
                     mode = mode,
                     accent = accent,
@@ -84,6 +94,8 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
                     playerBackdropFromCover = playerBackdrop,
                     glass = glass,
                     animation = animation,
+                    lyricsAppearance = lyricsAppearanceFromJson(value["lyricsAppearance"]),
+                    fullViewTheme = FullViewTheme.entries.firstOrNull { it.key == fullViewKey } ?: FullViewTheme.Standard,
                 )
             } else {
                 Appearance(mode = mode, accent = accent, saveMobileData = saveData)
@@ -102,6 +114,8 @@ internal class AppearanceStore(private val read: () -> String?, private val writ
         put("playerBackdropFromCover", settings.playerBackdropFromCover)
         put("glass", settings.glass)
         put("animation", settings.animation.key)
+        put("lyricsAppearance", settings.lyricsAppearance.toJson())
+        put("fullViewTheme", settings.fullViewTheme.key)
     }.toString())
 }
 

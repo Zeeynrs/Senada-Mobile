@@ -46,6 +46,8 @@ internal class PlaybackController(
     private val scope: CoroutineScope,
     private val tickMs: Long = 250,
     private val now: () -> Long = ::epochMillis,
+    private val isDownloaded: (Track) -> Boolean = { false },
+    private val offlineSelectionFor: suspend (QueueItem) -> SampleAudioSelection? = { null },
     private val selectionFor: suspend (QueueItem) -> SampleAudioSelection,
 ) {
     private val player = SampleAudioPlayer(output)
@@ -112,8 +114,11 @@ internal class PlaybackController(
         return QueueSnapshot(state.queue, entryId, position)
     }
 
-    fun add(track: Track) {
-        queue = queue.append(track, player.state.selection?.queueEntryId)
+    fun add(track: Track) = addAll(listOf(track))
+
+    fun addAll(tracks: List<Track>, playlistKey: String? = null) {
+        if (tracks.isEmpty()) return
+        queue = queue.appendAll(tracks, player.state.selection?.queueEntryId, playlistKey)
         prefetchNext()
         publish()
     }
@@ -186,6 +191,11 @@ internal class PlaybackController(
             // Alamat belum ada, gagal, atau kedaluwarsa setelah jeda lama: minta alamat baru, lanjut dari posisi terakhir.
             entry != null && (selection.isPending || audio.status == SampleAudioStatus.Failed || selection.isExpired(now())) ->
                 start(entry, resumeAtMs = if (audio.status == SampleAudioStatus.Ended) 0 else audio.positionMs)
+            entry != null && audio.status == SampleAudioStatus.Paused && when (selection.source) {
+                SampleAudioSource.Offline -> !isDownloaded(entry.track)
+                SampleAudioSource.YouTubeMusic -> isDownloaded(entry.track)
+                else -> false
+            } -> start(entry, resumeAtMs = audio.positionMs)
             else -> {
                 play(selection)
                 // Alamat masih berlaku tapi jaringan bisa sudah berganti selama jeda.
@@ -286,9 +296,16 @@ internal class PlaybackController(
             publish()
 
             val selection = try {
-                // Riwayat mengenali tiap putaran dari objek pilihan baru, meski alamatnya sama.
-                val available = replay?.copy() ?: early?.await()
-                available?.takeUnless { it.isExpired(now()) } ?: selectionFor(entry)
+                val offline = offlineSelectionFor(entry)
+                if (offline != null) {
+                    early?.cancel()
+                    offline
+                } else {
+                    // Riwayat mengenali tiap putaran dari objek pilihan baru, meski alamatnya sama.
+                    val available = replay?.copy() ?: early?.await()
+                    available?.takeUnless { it.source == SampleAudioSource.Offline || it.isExpired(now()) }
+                        ?: selectionFor(entry)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -311,7 +328,7 @@ internal class PlaybackController(
     private fun prefetchNext() {
         val currentId = player.state.selection?.queueEntryId
         val next = queue.afterEnd(currentId)
-        if (next == null || next.id == currentId) {
+        if (next == null || next.id == currentId || isDownloaded(next.track)) {
             dropPrefetch()
             return
         }

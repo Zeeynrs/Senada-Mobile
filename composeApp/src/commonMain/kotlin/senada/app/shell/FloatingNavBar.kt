@@ -80,14 +80,14 @@ internal fun FloatingNavBar(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (destination == AppDestination.Profile) {
-                            ProfileAvatar(profileName, selected, photoModel = profilePhoto)
+                            ProfileAvatar(profileName, selected, size = 32.dp, photoModel = profilePhoto)
                         } else {
                             val icon = when (destination) {
                                 AppDestination.Home -> if (selected) SenadaIcons.HomeFilled else SenadaIcons.Home
                                 AppDestination.Search -> SenadaIcons.Search
                                 else -> SenadaIcons.NavLibrary
                             }
-                            Icon(icon, null, Modifier.size(22.dp), tint = tint)
+                            Icon(icon, null, Modifier.size(26.dp), tint = tint)
                         }
                     }
                 }

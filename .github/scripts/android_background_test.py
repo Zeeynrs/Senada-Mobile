@@ -1315,6 +1315,19 @@ def check_collection_header() -> None:
     if not check(open_tab("Library"), "Tab Library dapat dibuka untuk memeriksa header koleksi Favorit"):
         return
     scroll_to_top(2)
+    overview = tap_desc("Filter Library Semua") and bool(wait_for(
+        lambda: find_interactive("Buka Favorit", attribute="content-desc"), 5,
+    ))
+    check(overview, "Filter Semua menampilkan koleksi Favorit sebagai baris di Library")
+    screenshot("v2-library-overview")
+    artists = tap_desc("Filter Library Artis") and bool(wait_for(
+        lambda: find_interactive_prefix("Buka artis ") or ui_bounds(
+            "Simpan lagu ke favorit atau playlist untuk melihat artisnya.",
+        ), 5,
+    ))
+    check(artists and not ui_bounds("Buka Favorit", attribute="content-desc"), "Filter Artis menampilkan bagian artis")
+    if not check(tap_desc("Filter Library Favorit"), "Filter Favorit dapat dipilih"):
+        return
     min_px = min_touch_px()
     play_matches = wait_for(lambda: find_interactive("Putar Favorit", attribute="content-desc"), 5) or []
     play_ok = bool(play_matches) and all(
@@ -1332,7 +1345,7 @@ def check_collection_header() -> None:
 
 
 def check_library_chips(min_px: int) -> None:
-    if tap_text("Playlist", scrolls=0) and wait_for(lambda: find_interactive("Playlist baru"), 5):
+    if tap_desc("Filter Library Playlist") and wait_for(lambda: find_interactive("Playlist baru"), 5):
         if tap_text("Playlist baru", scrolls=0) and tap_text("Nama playlist", scrolls=0):
             shell("input text Pagi")
             time.sleep(0.5)
@@ -1391,7 +1404,7 @@ def check_library_chips(min_px: int) -> None:
             shell("input keyevent KEYCODE_BACK")
             wait_for(lambda: find_interactive("Playlist baru"), 5)
 
-    if tap_text("Riwayat", scrolls=0):
+    if tap_desc("Filter Library Riwayat"):
         history_play = wait_for(lambda: find_interactive("Putar Riwayat", attribute="content-desc"), 5) or []
         history_shuffle = find_interactive("Putar acak Riwayat", attribute="content-desc")
         history_ok = bool(history_play) and bool(history_shuffle) and all(
@@ -1406,7 +1419,7 @@ def check_library_chips(min_px: int) -> None:
         screenshot("09c-library-history")
         screenshot("v2-99-library-history")
 
-    if tap_text("File impor", scrolls=0):
+    if tap_desc("Filter Library File impor"):
         imported_action = wait_for(lambda: find_interactive("Impor file audio"), 5) or []
         imported_play = ui_bounds("Putar File impor", attribute="content-desc")
         imported_ok = bool(imported_action) and bool(imported_play) and all(
@@ -1421,7 +1434,7 @@ def check_library_chips(min_px: int) -> None:
         screenshot("09d-library-imported")
         screenshot("v2-99b-library-imported")
 
-    tap_text("Favorit", scrolls=0)
+    tap_desc("Filter Library Favorit")
 
 
 def find_interactive_prefix(
@@ -1648,7 +1661,7 @@ def check_browse_light_theme() -> None:
             screenshot("v2-99c-search-light")
         if open_tab("Library"):
             scroll_to_top(2)
-            tap_text("Favorit", scrolls=0)
+            tap_desc("Filter Library Favorit")
             wait_for(lambda: ui_bounds("Putar Favorit", attribute="content-desc"), 5)
             screenshot("v2-99d-library-light")
     finally:
@@ -2012,6 +2025,7 @@ def check_large_font_accessibility() -> None:
 
     if open_tab("Library"):
         scroll_to_top(3)
+        tap_desc("Filter Library Favorit")
         screenshot("10-favorites-large-font")
         fav_targets = [
             ("Putar Favorit", "content-desc"),
@@ -2032,17 +2046,7 @@ def check_large_font_accessibility() -> None:
         )
 
         scroll_to_top(3)
-        chip_boxes = ui_bounds("Favorit")
-        chip_y = (chip_boxes[0][1] + chip_boxes[0][3]) // 2 if chip_boxes else None
-
-        def select_chip(label: str) -> bool:
-            boxes = ui_bounds(label)
-            if (not boxes or boxes[0][2] >= width - 4) and chip_y is not None:
-                shell(f"input swipe {width * 4 // 5} {chip_y} {width // 5} {chip_y} 300")
-                time.sleep(0.5)
-            return tap_text(label, scrolls=0)
-
-        if select_chip("Playlist"):
+        if tap_desc("Filter Library Playlist"):
             playlist_targets = [
                 ("Playlist baru", "text"),
                 ("Impor playlist", "text"),
@@ -2065,7 +2069,7 @@ def check_large_font_accessibility() -> None:
             )
 
         scroll_to_top(3)
-        if select_chip("Riwayat"):
+        if tap_desc("Filter Library Riwayat"):
             history_targets = [
                 ("Putar Riwayat", "content-desc"),
                 ("Putar acak Riwayat", "content-desc"),
@@ -2084,7 +2088,7 @@ def check_large_font_accessibility() -> None:
             )
 
         scroll_to_top(3)
-        if select_chip("File impor"):
+        if tap_desc("Filter Library File impor"):
             imported_targets = [("Impor file audio", "text")]
             imported_found = collect_while_scrolling(imported_targets, scrolls=3)
             imported_play = ui_bounds("Putar File impor", attribute="content-desc")

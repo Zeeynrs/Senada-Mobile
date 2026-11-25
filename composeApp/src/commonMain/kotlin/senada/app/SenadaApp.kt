@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import coil3.ImageLoader
+import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
@@ -40,9 +41,12 @@ internal fun SenadaApp(
             }
             .build()
     }
-    val artworkUrl by remember(playback) {
-        playback.state.map { it.currentEntry?.track?.artworkUrl }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.currentEntry?.track?.artworkUrl)
+    val track by remember(playback) {
+        playback.state.map { it.currentEntry?.track }.distinctUntilChanged()
+    }.collectAsState(playback.state.value.currentEntry?.track)
+    val context = LocalPlatformContext.current
+    val downloads = remember(context) { offlineDownloads(context) }
+    val artworkUrl = rememberOfflineArtwork(track?.id, downloads) ?: track?.artworkUrl
     var screenVisible by remember { mutableStateOf(false) }
 
     // Audio tetap berjalan di latar belakang; layar hanya mengatur kapan posisi perlu dibaca berkala.

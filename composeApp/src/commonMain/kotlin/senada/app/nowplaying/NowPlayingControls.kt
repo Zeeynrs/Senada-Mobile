@@ -296,6 +296,7 @@ internal fun playbackStatus(state: PlaybackState): String? = when (state.audio.s
     SampleAudioStatus.Loading -> "Memuat audio…"
     SampleAudioStatus.Playing -> when (state.audio.selection?.source) {
         SampleAudioSource.Local -> "Memutar file lokal"
+        SampleAudioSource.Offline -> "Memutar offline"
         SampleAudioSource.Https -> "Memutar dari HTTPS"
         SampleAudioSource.YouTubeMusic -> "Memutar dari YouTube Music"
         null -> null

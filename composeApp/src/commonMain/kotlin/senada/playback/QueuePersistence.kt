@@ -23,6 +23,9 @@ import senada.model.Track
 internal interface QueueStore {
     fun load(): String?
     fun save(text: String)
+
+    /** Menjalankan penulisan berurutan. Flush menunggu pekerjaan yang sudah dijadwalkan selesai. */
+    fun scheduleSave(flush: Boolean, write: () -> Unit) = write()
 }
 
 internal data class QueueSnapshot(val queue: Queue, val selectedEntryId: Long?, val positionMs: Long)
@@ -42,7 +45,7 @@ internal class QueuePersistence(
     private var timer: Job? = null
 
     fun onPlaybackChanged(state: PlaybackState) {
-        saveNow()
+        save(flush = false)
         if (state.audio.status != SampleAudioStatus.Playing || state.currentEntry == null) {
             timer?.cancel()
             timer = null
@@ -50,20 +53,24 @@ internal class QueuePersistence(
             timer = scope.launch {
                 while (isActive) {
                     delay(15_000L)
-                    saveNow()
+                    save(flush = false)
                 }
             }
         }
     }
 
-    fun saveNow() {
+    fun saveNow() = save(flush = true)
+
+    private fun save(flush: Boolean) {
         val current = snapshot()
-        if (current == lastSaved) return
-        try {
-            store.save(QueueJson.encode(current))
-            lastSaved = current
-        } catch (_: Exception) {
-            // Antrean tetap bisa dipakai. Coba lagi saat penyimpanan berikutnya.
+        store.scheduleSave(flush) {
+            if (current == lastSaved) return@scheduleSave
+            try {
+                store.save(QueueJson.encode(current))
+                lastSaved = current
+            } catch (_: Exception) {
+                // Antrean tetap bisa dipakai. Coba lagi saat penyimpanan berikutnya.
+            }
         }
     }
 }
@@ -90,6 +97,7 @@ internal object QueueJson {
                 add(buildJsonObject {
                     put("id", entry.id)
                     put("track", entry.track.toJson())
+                    entry.playlistKey?.let { put("playlistKey", it) }
                 })
             }
         })
@@ -102,7 +110,11 @@ internal object QueueJson {
             if (root["version"] != JsonPrimitive(VERSION)) return null
             val entries = root.getValue("entries").jsonArray.map { element ->
                 val item = element.jsonObject
-                QueueItem(item.getValue("id").readLong(), item.getValue("track").jsonObject.readTrack())
+                QueueItem(
+                    id = item.getValue("id").readLong(),
+                    track = item.getValue("track").jsonObject.readTrack(),
+                    playlistKey = item["playlistKey"]?.readString(),
+                )
             }
             val selected = root.getValue("selectedEntryId").takeUnless { it == JsonNull }?.readLong()
             val position = root.getValue("positionMs").readLong()

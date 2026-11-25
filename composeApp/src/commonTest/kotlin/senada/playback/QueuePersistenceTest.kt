@@ -272,6 +272,31 @@ class QueuePersistenceTest {
     }
 
     @Test
+    fun backgroundWritesAreDeferredAndLifecycleSaveFlushesTheLatestPosition() = runTest {
+        val store = MemoryQueueStore()
+        val pending = ArrayDeque<() -> Unit>()
+        val deferredStore = object : QueueStore by store {
+            override fun scheduleSave(flush: Boolean, write: () -> Unit) {
+                pending.addLast(write)
+                if (flush) {
+                    while (pending.isNotEmpty()) pending.removeFirst().invoke()
+                }
+            }
+        }
+        val output = FakeAudioOutput()
+        val playback = controller(output, deferredStore)
+        playback.add(stream)
+        playback.resume()
+        output.positionMs = 4_250L
+
+        assertEquals(0, store.writes)
+        playback.saveQueueNow()
+        assertEquals(4_250L, QueueJson.decode(store.text)?.positionMs)
+        assertEquals(playback.state.value.currentEntry?.id, QueueJson.decode(store.text)?.selectedEntryId)
+        assertTrue(pending.isEmpty())
+    }
+
+    @Test
     fun saveNowReadsTheLoadedPlayerAndPreservesThePositionBeforeReloadingIt() = runTest {
         val store = MemoryQueueStore()
         val output = FakeAudioOutput()

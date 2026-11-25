@@ -45,4 +45,32 @@ jobs:
         run: >
           xcodebuild -project iosApp/Senada.xcodeproj -scheme Senada
           -configuration Debug -destination 'generic/platform=iOS Simulator'
-          ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
+          -derivedDataPath "$RUNNER_TEMP/SenadaDerived" ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
+      - name: Launch Senada on an iPhone simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = [device for group in json.load(sys.stdin)["devices"].values() for device in group
+                     if device["name"].startswith("iPhone")]
+          devices.sort(key=lambda device: device["state"] != "Booted")
+          print(devices[0]["udid"])
+          ')
+          xcrun simctl bootstatus "$device" -b
+          app="$RUNNER_TEMP/SenadaDerived/Build/Products/Debug-iphonesimulator/Senada.app"
+          xcrun simctl install "$device" "$app"
+          bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          launched=$(xcrun simctl launch "$device" "$bundle_id")
+          echo "$launched"
+          pid=${launched##*: }
+          [[ "$pid" =~ ^[0-9]+$ ]]
+          sleep 8
+          ps -p "$pid" -o comm= | grep -F Senada
+          xcrun simctl io "$device" screenshot "$RUNNER_TEMP/Senada-iPhone-smoke.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Senada-iPhone-simulator-smoke
+          path: ${{ runner.temp }}/Senada-iPhone-smoke.png
+          if-no-files-found: error
+          retention-days: 14

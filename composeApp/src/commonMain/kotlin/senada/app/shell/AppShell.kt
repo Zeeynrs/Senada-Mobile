@@ -75,6 +75,7 @@ import senada.app.audiolab.soundFxScreen
 import senada.app.audiolab.soundFxSpeedItemIndex
 import senada.app.dataSaverActive
 import senada.app.meteredNetwork
+import senada.app.offlineDownloads
 import senada.app.profilePhotoModel
 import senada.app.userProfileStore
 import senada.app.nowplaying.NowPlayingScreen
@@ -107,6 +108,7 @@ import senada.catalog.ArtistResolveResult
 import senada.catalog.canOpenArtist
 import senada.library.HomeHero
 import senada.library.LibraryRepository
+import senada.library.libraryArtists
 import senada.library.ListenPeriod
 import senada.library.Playlist
 import senada.library.discoverSeeds
@@ -115,6 +117,7 @@ import senada.library.listeningStats
 import senada.library.mostPlayed
 import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
+import senada.lyrics.LyricsSettingsSection
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
@@ -168,10 +171,11 @@ internal fun AppShell(
     val artistOpener = remember(navigator, uiScope) {
         ArtistOpenController(SenadaSources.artistResolver, navigator, uiScope)
     }
-    val actions = remember(library, playback, uiScope, artistOpener) {
-        LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open)
-    }
     val platformContext = LocalPlatformContext.current
+    val downloads = remember(platformContext) { offlineDownloads(platformContext) }
+    val actions = remember(library, playback, uiScope, artistOpener, downloads) {
+        LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open, downloads = downloads)
+    }
     val profileController = remember(platformContext) { UserProfileController(userProfileStore(platformContext)) }
     val profile by profileController.state.collectAsState()
     val profilePhoto = remember(platformContext, profile.photoPath) {
@@ -227,11 +231,16 @@ internal fun AppShell(
         playlistLimit.flatMapLatest { limit -> library.playlist(id, limit) }
     }.collectAsState(null)
     var reorderingPlaylist by remember(openedPlaylistId) { mutableStateOf(false) }
-    var librarySection by rememberSaveable { mutableStateOf(LibraryFilter.Favorites) }
+    var librarySection by rememberSaveable { mutableStateOf(LibraryFilter.All) }
 
     val search = rememberSearchTabState()
     val catalogStore = remember { CatalogDetailStore() }
     val currentCatalogRoute = navigator.currentCatalogRoute
+    val libraryRoot = navigator.destination == AppDestination.Library && currentCatalogRoute == null && openedPlaylistId == null
+    val libraryArtists = if (libraryRoot && (librarySection == LibraryFilter.All || librarySection == LibraryFilter.Artists)) {
+        remember(library) { library.libraryArtists() }.collectAsState(initial = null).value
+    } else null
+    val downloadState = if (libraryRoot && librarySection == LibraryFilter.Offline) downloads.state.collectAsState().value else null
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
@@ -365,7 +374,7 @@ internal fun AppShell(
         !overlay.visible -> maxOf(40.dp, safeBottom)
         else -> overlayHeight + BelowContentGap
     }
-    val listState = key(navigator.destination, currentCatalogRoute, profileRoute) {
+    val listState = key(navigator.destination, currentCatalogRoute, profileRoute, openedPlaylistId, librarySection.takeIf { libraryRoot }) {
         rememberLazyListState()
     }
     LaunchedEffect(profileRoute, focusSoundFxSpeed) {
@@ -384,6 +393,7 @@ internal fun AppShell(
         profileRoute == ProfileRoute.AudioLab -> 10.dp
         profileRoute == ProfileRoute.Equalizer -> 16.dp
         profilePage -> 14.dp
+        libraryRoot && (librarySection == LibraryFilter.All || librarySection == LibraryFilter.Artists) -> 4.dp
         else -> 12.dp
     }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
@@ -497,6 +507,7 @@ internal fun AppShell(
                         ProfileRoute.Stats -> listeningStatsScreen(listeningSummary, listenPeriod, favoriteIds, actions) { listenPeriod = it }
                         ProfileRoute.MostPlayed -> mostPlayedScreen(mostPlayed, favoriteIds, actions)
                         ProfileRoute.Appearance -> item { AppearanceSection(appearance) }
+                        ProfileRoute.Lyrics -> item { LyricsSettingsSection(appearance) }
                         ProfileRoute.Playback -> item { DataSection(appearance) }
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
@@ -542,7 +553,7 @@ internal fun AppShell(
                     }
                     return@LazyColumn
                 }
-                if (!profilePage && navigator.destination != AppDestination.Home && navigator.openedPlaylistId == null) {
+                if (navigator.destination == AppDestination.Search) {
                     item(key = "title-${navigator.destination}") {
                         Text(
                             navigator.destination.label,
@@ -629,6 +640,11 @@ internal fun AppShell(
                         onSection = { librarySection = it },
                         library = libraryState,
                         openedPlaylist = openedPlaylist,
+                        artists = libraryArtists,
+                        downloadState = downloadState,
+                        profileName = profile.name,
+                        profilePhoto = profilePhoto,
+                        onOpenProfile = { navigator.select(AppDestination.Profile) },
                         actions = actions,
                         onOpenPlaylist = { id -> if (id == null) navigator.back() else navigator.openPlaylist(id) },
                         onLoadMoreFavorites = { favoritesLimit.value += LIBRARY_PAGE_SIZE },
@@ -713,6 +729,7 @@ internal fun AppShell(
                     playback = playback,
                     library = libraryState,
                     actions = actions,
+                    appearance = appearance,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
                     onOpenAudioLab = {

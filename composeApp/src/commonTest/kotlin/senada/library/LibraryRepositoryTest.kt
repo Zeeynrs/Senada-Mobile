@@ -6,10 +6,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import senada.db.SenadaDatabase
 import senada.model.Track
 
@@ -57,6 +60,30 @@ class LibraryRepositoryTest {
 
         assertEquals(listOf(duet, track(1)), library.favorites.first())
         assertTrue(library.isFavorite(duet.id).first())
+    }
+
+    @Test
+    fun libraryArtistsComeFromAllSavedTracksAndMergeMatchingNames() = runTest {
+        val library = library()
+        val favorite = track(1).copy(artists = listOf("Beyoncé"))
+        val collaboration = track(2).copy(artists = listOf("Beyonce feat. Solange", "Earth, Wind & Fire"))
+        val historyOnly = track(3).copy(artists = listOf("Riwayat saja"))
+        val local = track(4).copy(id = "local:demo.mp3", artists = listOf("Artis lokal"), source = "local")
+        library.setFavorite(favorite, true)
+        library.setFavorite(local, true)
+        library.recordPlay(historyOnly)
+        val playlist = library.createPlaylist("Pagi", listOf(favorite, collaboration, collaboration))
+
+        val changes = Channel<List<LibraryArtist>>(Channel.UNLIMITED)
+        backgroundScope.launch { library.libraryArtists().collect { changes.send(it) } }
+        val artists = withTimeout(1_000) { changes.receive() }
+        assertEquals(listOf("beyonce", "earth wind fire", "solange"), artists.map { it.key })
+        assertEquals(favorite, artists.first().representative)
+        assertEquals("Earth, Wind & Fire", artists[1].name)
+
+        library.deletePlaylist(playlist)
+        val remaining = withTimeout(1_000) { changes.receive() }
+        assertEquals(listOf("Beyoncé"), remaining.map { it.name })
     }
 
     @Test

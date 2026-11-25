@@ -147,6 +147,15 @@ FROM favorite JOIN track ON track.id = favorite.track_id;
 favoriteIds:
 SELECT track_id FROM favorite;
 
+libraryArtistTracks:
+SELECT track.* FROM track
+WHERE track.id IN (
+    SELECT track_id FROM favorite
+    UNION
+    SELECT track_id FROM playlist_item
+)
+ORDER BY track.id;
+
 addFavorite:
 INSERT OR IGNORE INTO favorite(track_id, added_at) VALUES (?, ?);
 
