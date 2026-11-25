@@ -1,32 +1,53 @@
 package senada.library
 
-import app.cash.sqldelight.coroutines.asFlow
-import app.cash.sqldelight.coroutines.mapToList
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
-import senada.catalog.artistChoicesFor
-import senada.catalog.canOpenArtist
-import senada.catalog.normalizeArtistName
-import senada.model.Track
+import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 
-internal data class LibraryArtist(val key: String, val name: String, val representative: Track)
+internal const val DEFAULT_ARTIST_SOURCE = YOUTUBE_MUSIC_SOURCE
 
-/** Hanya lagu yang ada di favorit atau playlist pengguna, termasuk yang belum dimuat di layar. */
-internal fun LibraryRepository.libraryArtists(): Flow<List<LibraryArtist>> = queries.libraryArtistTracks(::trackOf)
-    .asFlow()
-    .mapToList(dispatcher)
-    .map { tracks ->
-        val artists = mutableMapOf<String, LibraryArtist>()
-        for (track in tracks) {
-            if (!canOpenArtist(track)) continue
-            for (name in artistChoicesFor(track)) {
-                val key = normalizeArtistName(name)
-                if (key !in artists) artists[key] = LibraryArtist(key, name, track)
-            }
-        }
-        artists.values.sortedBy { it.key }
-    }
-    .distinctUntilChanged()
-    .flowOn(dispatcher)
+/** Artis yang diikuti pengguna secara eksplisit, beserta metadata luringnya untuk Library. */
+internal data class FollowedArtist(
+    val id: String,
+    val catalogId: String,
+    val name: String,
+    val artworkUrl: String? = null,
+    val source: String = DEFAULT_ARTIST_SOURCE,
+    val followedAtMs: Long = 0L,
+)
+
+internal fun normalizeArtistSource(source: String): String =
+    source.trim().ifEmpty { DEFAULT_ARTIST_SOURCE }
+
+internal fun normalizeArtistCatalogId(
+    catalogId: String,
+    source: String = DEFAULT_ARTIST_SOURCE,
+): String {
+    val cleanSource = normalizeArtistSource(source)
+    return catalogId.trim().removePrefix("$cleanSource:").trim()
+}
+
+/** Kunci penyimpanan kanonik `<source>:<catalogId>` agar ID lintas sumber tidak bertabrakan. */
+internal fun followedArtistKey(
+    catalogId: String,
+    source: String = DEFAULT_ARTIST_SOURCE,
+): String {
+    val cleanSource = normalizeArtistSource(source)
+    val cleanCatalogId = normalizeArtistCatalogId(catalogId, cleanSource)
+    if (cleanCatalogId.isEmpty()) return ""
+    return "$cleanSource:$cleanCatalogId"
+}
+
+internal fun followedArtistOf(
+    id: String,
+    catalogId: String,
+    name: String,
+    artworkUrl: String?,
+    source: String,
+    followedAtMs: Long,
+): FollowedArtist = FollowedArtist(
+    id = id,
+    catalogId = catalogId,
+    name = name,
+    artworkUrl = artworkUrl?.trim()?.takeIf { it.isNotEmpty() },
+    source = normalizeArtistSource(source),
+    followedAtMs = followedAtMs,
+)

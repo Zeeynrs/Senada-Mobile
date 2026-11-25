@@ -198,6 +198,7 @@ internal fun describe(summary: ImportSummary): String {
         "${summary.playlistTracksAdded} lagu ke playlist yang ada".takeIf { summary.playlistTracksAdded > 0 },
         "${summary.savedAdded} item tersimpan".takeIf { summary.savedAdded > 0 },
         "${summary.historyAdded} lagu riwayat".takeIf { summary.historyAdded > 0 },
+        "${summary.followedArtistsAdded} artis diikuti".takeIf { summary.followedArtistsAdded > 0 },
     )
     return buildString {
         append("Ditambahkan: ").append(added.joinToString(", ")).append('.')

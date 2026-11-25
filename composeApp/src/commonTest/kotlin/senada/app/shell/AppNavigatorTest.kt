@@ -333,4 +333,28 @@ class AppNavigatorTest {
         assertNull(restored.currentCatalogRoute)
         assertEquals(AppDestination.Home, restored.destination)
     }
+
+    @Test
+    fun artistRoutePreservesSourceNamespaceAndRestoresLegacySavedState() {
+        val navigator = AppNavigator()
+        navigator.openArtist("UC_1", "Aurora", "https://example.invalid/a1", source = "ytmusic")
+        // ID yang sama dari sumber berbeda tidak diabaikan sebagai duplikat puncak tumpukan.
+        navigator.openArtist("UC_1", "Aurora", "https://example.invalid/a2", source = "other")
+        assertEquals(2, navigator.catalogStack.size)
+
+        val saved = with(AppNavigator.Saver) { SaverScope { true }.save(navigator) }
+        val restored = assertNotNull(AppNavigator.Saver.restore(assertNotNull(saved)))
+        assertEquals(navigator.catalogStack, restored.catalogStack)
+        assertEquals("other", (restored.currentCatalogRoute as CatalogRoute.Artist).source)
+
+        val legacySaved = listOf(
+            "Search", false, null, "",
+            "artist", "UC_legacy", "Tulus", null, "https://example.invalid/tulus",
+        )
+        val legacyRestored = assertNotNull(AppNavigator.Saver.restore(legacySaved))
+        assertEquals(
+            CatalogRoute.Artist("UC_legacy", "Tulus", "https://example.invalid/tulus", "ytmusic"),
+            legacyRestored.currentCatalogRoute,
+        )
+    }
 }

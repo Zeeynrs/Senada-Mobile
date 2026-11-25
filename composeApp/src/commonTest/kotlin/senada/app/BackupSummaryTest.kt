@@ -27,4 +27,12 @@ class BackupSummaryTest {
     fun anAlreadyImportedBackupSaysSo() {
         assertEquals("Semua isi backup sudah ada di library.", describe(ImportSummary()))
     }
+
+    @Test
+    fun followedArtistsAreDescribedInSummary() {
+        assertEquals(
+            "Ditambahkan: 2 artis diikuti.",
+            describe(ImportSummary(followedArtistsAdded = 2)),
+        )
+    }
 }

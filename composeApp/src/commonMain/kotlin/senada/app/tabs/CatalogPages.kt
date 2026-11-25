@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -684,8 +685,11 @@ private fun LazyListScope.artistDetailScreen(
     onOpenPlaylist: (PlaylistSummary) -> Unit,
 ) {
     val detail = state.data
-    val displayName = detail?.name?.takeIf { it.isNotBlank() } ?: route.label
-    val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
+    val resolvedName = detail?.name?.trim()?.takeIf { it.isNotEmpty() }
+        ?: route.name.trim().takeIf { it.isNotEmpty() }
+    val displayName = resolvedName ?: route.label
+    val artworkUrl = detail?.artworkUrl?.takeIf { it.isNotBlank() } ?: route.artworkUrl?.takeIf { it.isNotBlank() }
+    val followed = library.isArtistFollowed(route.id, route.source)
     val sections = artistPageSections(detail)
     val popularSongs = sections
         .filterIsInstance<ArtistPageSection.PopularSongs>()
@@ -697,13 +701,32 @@ private fun LazyListScope.artistDetailScreen(
         CollectionTopBar(previousLabel = previousLabel, onBack = onBack)
     }
     item(key = "artist-header-${route.id}") {
+        LaunchedEffect(route.id, route.source, detail?.id, detail?.name, detail?.artworkUrl, followed) {
+            if (followed && detail != null) {
+                actions.refreshFollowedArtistMetadata(
+                    catalogId = route.id,
+                    name = detail.name,
+                    artworkUrl = detail.artworkUrl,
+                    source = route.source,
+                )
+            }
+        }
         ArtistHeroCard(
             displayName = displayName,
             artworkUrl = artworkUrl,
             monthlyListeners = detail?.monthlyListeners,
             canPlay = popularSongs.isNotEmpty(),
+            followed = followed,
             onPlay = { actions.playAll(popularSongs, PlaySource.Artist(displayName), resetShuffle = true) },
             onShuffle = { actions.playShuffled(popularSongs, PlaySource.Artist(displayName)) },
+            onToggleFollow = {
+                actions.toggleFollowArtist(
+                    catalogId = route.id,
+                    name = resolvedName ?: displayName,
+                    artworkUrl = artworkUrl,
+                    source = route.source,
+                )
+            },
         )
     }
 
@@ -820,14 +843,40 @@ private fun LazyListScope.artistDetailScreen(
     }
 }
 
+internal data class ArtistFollowControlState(
+    val label: String,
+    val accessibilityLabel: String,
+    val stateLabel: String,
+    val followed: Boolean,
+)
+
+internal fun artistFollowControlState(displayName: String, followed: Boolean): ArtistFollowControlState =
+    if (followed) {
+        ArtistFollowControlState(
+            label = "Mengikuti",
+            accessibilityLabel = "Berhenti mengikuti $displayName",
+            stateLabel = "Mengikuti",
+            followed = true,
+        )
+    } else {
+        ArtistFollowControlState(
+            label = "Ikuti",
+            accessibilityLabel = "Ikuti $displayName",
+            stateLabel = "Belum diikuti",
+            followed = false,
+        )
+    }
+
 @Composable
 private fun ArtistHeroCard(
     displayName: String,
     artworkUrl: String?,
     monthlyListeners: String?,
     canPlay: Boolean,
+    followed: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    onToggleFollow: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val largeFont = LocalDensity.current.fontScale >= 1.5f
@@ -960,7 +1009,57 @@ private fun ArtistHeroCard(
                         )
                     }
                 }
+                ArtistFollowButton(
+                    displayName = displayName,
+                    followed = followed,
+                    onClick = onToggleFollow,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ArtistFollowButton(
+    displayName: String,
+    followed: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val control = remember(displayName, followed) { artistFollowControlState(displayName, followed) }
+    val containerColor = if (control.followed) colors.onSurface else colors.surfaceContainerHigh
+    val contentColor = if (control.followed) colors.background else colors.onSurface
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = containerColor,
+        border = if (control.followed) null else BorderStroke(1.dp, colors.outline),
+        modifier = Modifier.heightIn(min = 48.dp).semantics {
+            role = Role.Button
+            contentDescription = control.accessibilityLabel
+            stateDescription = control.stateLabel
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = if (control.followed) SenadaIcons.Check else SenadaIcons.Add,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = control.label,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = contentColor,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
         }
     }
 }

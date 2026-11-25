@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -156,6 +158,92 @@ class LibraryRepository internal constructor(
 
     /** ID lagu favorit untuk penanda ♥, tanpa memuat data lagunya. */
     val favoriteIds: Flow<Set<String>> = queries.favoriteIds().asFlow().mapToList(dispatcher).map { it.toSet() }
+
+    // -- Artis diikuti --
+
+    internal val followedArtists: Flow<List<FollowedArtist>> =
+        queries.followedArtists(::followedArtistOf).asFlow().mapToList(dispatcher).distinctUntilChanged()
+
+    internal val followedArtistIds: Flow<Set<String>> =
+        queries.followedArtistIds().asFlow().mapToList(dispatcher).map { it.toSet() }.distinctUntilChanged()
+
+    internal fun isArtistFollowed(
+        catalogId: String,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ): Flow<Boolean> {
+        val key = followedArtistKey(catalogId, source)
+        if (key.isEmpty()) return flowOf(false)
+        return queries.followedArtistById(key, ::followedArtistOf)
+            .asFlow()
+            .mapToOneOrNull(dispatcher)
+            .map { it != null }
+            .distinctUntilChanged()
+    }
+
+    internal suspend fun setArtistFollowed(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        followed: Boolean,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ) {
+        val key = followedArtistKey(catalogId, source)
+        if (key.isEmpty()) return
+        write {
+            if (followed) {
+                upsertFollowedArtistNow(key, catalogId, name, artworkUrl, source)
+            } else {
+                queries.deleteFollowedArtist(key)
+            }
+        }
+    }
+
+    /** Mengubah status mengikuti artis dan mengembalikan status baru. */
+    internal suspend fun toggleFollowArtist(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ): Boolean {
+        val key = followedArtistKey(catalogId, source)
+        if (key.isEmpty()) return false
+        return write {
+            val existing = queries.followedArtistById(key, ::followedArtistOf).executeAsOneOrNull()
+            if (existing != null) {
+                queries.deleteFollowedArtist(key)
+                false
+            } else {
+                upsertFollowedArtistNow(key, catalogId, name, artworkUrl, source)
+                true
+            }
+        }
+    }
+
+    /** Memperbarui nama atau artwork artis yang sudah diikuti tanpa menduplikasi baris atau mengubah waktu ikuti. */
+    internal suspend fun refreshFollowedArtistMetadata(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ) {
+        val key = followedArtistKey(catalogId, source)
+        if (key.isEmpty()) return
+        write {
+            val existing = queries.followedArtistById(key, ::followedArtistOf).executeAsOneOrNull() ?: return@write
+            val cleanSource = normalizeArtistSource(source)
+            val cleanCatalogId = normalizeArtistCatalogId(catalogId, cleanSource)
+            val nextName = name.trim().takeIf { it.isNotEmpty() } ?: existing.name
+            val nextArtwork = artworkUrl?.trim()?.takeIf { it.isNotEmpty() } ?: existing.artworkUrl
+            if (
+                nextName != existing.name ||
+                nextArtwork != existing.artworkUrl ||
+                cleanCatalogId != existing.catalogId ||
+                cleanSource != existing.source
+            ) {
+                queries.updateFollowedArtistMetadata(cleanCatalogId, nextName, nextArtwork, cleanSource, key)
+            }
+        }
+    }
 
     /** Semua favorit sekali baca, misalnya untuk Putar semua. */
     suspend fun allFavorites(): List<Track> = withContext(dispatcher) { queries.favorites(::trackOf).executeAsList() }
@@ -359,6 +447,41 @@ class LibraryRepository internal constructor(
         }
     }
 
+    private fun upsertFollowedArtistNow(
+        key: String,
+        catalogId: String,
+        name: String,
+        artworkUrl: String?,
+        source: String,
+    ) {
+        val cleanSource = normalizeArtistSource(source)
+        val cleanCatalogId = normalizeArtistCatalogId(catalogId, cleanSource)
+        if (cleanCatalogId.isEmpty()) return
+        val cleanArtwork = artworkUrl?.trim()?.takeIf { it.isNotEmpty() }
+        val existing = queries.followedArtistById(key, ::followedArtistOf).executeAsOneOrNull()
+        if (existing == null) {
+            queries.insertFollowedArtist(
+                id = key,
+                catalog_id = cleanCatalogId,
+                name = name.trim().ifEmpty { DEFAULT_ARTIST_NAME },
+                artwork_url = cleanArtwork,
+                source = cleanSource,
+                followed_at = now(),
+            )
+            return
+        }
+        val nextName = name.trim().takeIf { it.isNotEmpty() } ?: existing.name
+        val nextArtwork = cleanArtwork ?: existing.artworkUrl
+        if (
+            nextName != existing.name ||
+            nextArtwork != existing.artworkUrl ||
+            cleanCatalogId != existing.catalogId ||
+            cleanSource != existing.source
+        ) {
+            queries.updateFollowedArtistMetadata(cleanCatalogId, nextName, nextArtwork, cleanSource, key)
+        }
+    }
+
     private fun appendNow(playlistId: String, tracks: List<Track>): Int {
         var position = queries.playlistItemCount(playlistId).executeAsOne()
         for (track in tracks) {
@@ -394,6 +517,7 @@ class LibraryRepository internal constructor(
         const val SEARCH_HISTORY_LIMIT = 12
         private val IGNORED_SEARCH_PREFIXES = listOf("http://", "https://", "spotify:", "yt:", "local:", "senada:")
         private const val DEFAULT_PLAYLIST_NAME = "Playlist baru"
+        private const val DEFAULT_ARTIST_NAME = "Artis"
     }
 }
 

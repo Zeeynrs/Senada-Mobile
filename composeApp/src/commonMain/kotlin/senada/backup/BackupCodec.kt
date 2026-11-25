@@ -11,6 +11,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
+import senada.library.followedArtistKey
+import senada.library.normalizeArtistCatalogId
+import senada.library.normalizeArtistSource
 import senada.model.Track
 
 /** Backup tidak bisa dibaca atau ditolak; [userMessage] siap ditampilkan. */
@@ -30,6 +33,16 @@ internal data class BackupPlaylist(
 /** Album/playlist katalog yang disimpan; [metadata] adalah objek JSON desktop utuh. */
 internal data class BackupSavedItem(val kind: String, val id: String, val metadata: String)
 
+/** Artis diikuti yang disimpan pada bidang opsional `followedArtists` di backup. */
+internal data class BackupFollowedArtist(
+    val id: String,
+    val catalogId: String,
+    val name: String,
+    val artworkUrl: String? = null,
+    val source: String = YOUTUBE_MUSIC_SOURCE,
+    val followedAtMs: Long? = null,
+)
+
 /**
  * Isi library dari backup yang bisa dipakai di ponsel. [skipped] menghitung entri yang dilewati:
  * file lokal desktop, lagu dari sumber selain YouTube Music, dan entri yang rusak.
@@ -39,19 +52,21 @@ internal data class BackupDocument(
     val playlists: List<BackupPlaylist> = emptyList(),
     val saved: List<BackupSavedItem> = emptyList(),
     val history: List<BackupTrack> = emptyList(),
+    val followedArtists: List<BackupFollowedArtist> = emptyList(),
     val skipped: Int = 0,
 )
 
 /**
  * Format backup Senada desktop (`senada/backup.py`): `app=Senada`, `kind=backup`, `format=1`, dengan
- * `library` berisi `liked`, `playlists`, `saved` dan `history`. Waktu di desktop dalam detik, artis
- * berupa satu teks dipisah koma, dan identitas lagu ada di `uri` (`yt:track:<videoId>`).
- * Pengaturan desktop tidak pernah dibaca.
+ * `library` berisi `liked`, `playlists`, `saved` dan `history`, serta bidang opsional `followedArtists`.
+ * Waktu di desktop dalam detik, artis pada lagu berupa satu teks dipisah koma, dan identitas lagu ada
+ * di `uri` (`yt:track:<videoId>`). Pengaturan desktop tidak pernah dibaca.
  */
 internal object BackupCodec {
     const val FORMAT = 1
     const val MAX_BYTES = 10 * 1024 * 1024
     private val LIBRARY_KEYS = listOf("liked", "playlists", "saved", "history")
+    private val OPTIONAL_LIBRARY_KEYS = listOf("followedArtists")
     private const val TRACK_PREFIX = "yt:track:"
     private const val ARTIST_SEPARATOR = ", "
 
@@ -73,11 +88,11 @@ internal object BackupCodec {
                 root["library"] as? JsonObject ?: throw BackupException(NOT_A_BACKUP)
             }
             // library.json desktop yang disalin langsung juga diterima, seperti di desktop.
-            LIBRARY_KEYS.any { it in root } -> root
+            (LIBRARY_KEYS + OPTIONAL_LIBRARY_KEYS).any { it in root } -> root
             else -> throw BackupException(NOT_A_BACKUP)
         }
 
-        val sections = LIBRARY_KEYS.associateWith { key ->
+        val sections = (LIBRARY_KEYS + OPTIONAL_LIBRARY_KEYS).associateWith { key ->
             when (val items = library[key]) {
                 null, JsonNull -> emptyList()
                 is JsonArray -> items.filterIsInstance<JsonObject>()
@@ -115,7 +130,10 @@ internal object BackupCodec {
         val history = sections.getValue("history").mapNotNull { item ->
             trackOrSkip(item)?.let { BackupTrack(it, item.secondsAsMs("playedAt")) }
         }
-        return BackupDocument(liked, playlists, saved, history, skipped)
+        val followedArtists = sections.getValue("followedArtists").mapNotNull { item ->
+            item.toFollowedArtist().also { if (it == null) skipped++ }
+        }
+        return BackupDocument(liked, playlists, saved, history, followedArtists, skipped)
     }
 
     /** Backup dalam format desktop; [createdIso] waktu pembuatan dalam ISO 8601. */
@@ -141,6 +159,19 @@ internal object BackupCodec {
             })
             put("saved", buildJsonArray { document.saved.forEach { add(it.toDesktop()) } })
             put("history", buildJsonArray { document.history.forEach { add(it.track.toDesktop("playedAt", it.atMs)) } })
+            if (document.followedArtists.isNotEmpty()) {
+                put("followedArtists", buildJsonArray {
+                    document.followedArtists.forEach { artist ->
+                        add(buildJsonObject {
+                            put("id", artist.catalogId)
+                            put("name", artist.name)
+                            put("source", artist.source)
+                            artist.artworkUrl?.takeIf { it.isNotBlank() }?.let { put("artworkUrl", it) }
+                            put("followedAt", (artist.followedAtMs ?: 0L) / 1_000)
+                        })
+                    }
+                })
+            }
         })
     }.toString()
 
@@ -188,6 +219,29 @@ internal object BackupCodec {
             put("kind", kind)
             put("id", id)
         }
+    }
+
+    private fun JsonObject.toFollowedArtist(): BackupFollowedArtist? {
+        val rawSource = text("source")?.trim().orEmpty()
+        if (rawSource == "local" || rawSource == "demo") return null
+        val source = normalizeArtistSource(rawSource)
+        val rawCatalogId = text("catalogId")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: text("id")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return null
+        val catalogId = normalizeArtistCatalogId(rawCatalogId, source)
+        val key = followedArtistKey(catalogId, source)
+        if (catalogId.isEmpty() || key.isEmpty()) return null
+        val name = text("name")?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val artwork = listOf("artworkUrl", "image", "imageLarge", "imageSmall")
+            .firstNotNullOfOrNull { keyName -> text(keyName)?.trim()?.takeIf { it.isNotEmpty() } }
+        return BackupFollowedArtist(
+            id = key,
+            catalogId = catalogId,
+            name = name,
+            artworkUrl = artwork,
+            source = source,
+            followedAtMs = secondsAsMs("followedAt"),
+        )
     }
 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content

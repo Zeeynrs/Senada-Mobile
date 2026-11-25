@@ -260,5 +260,64 @@ class LibraryBackupTest {
         assertTrue("10 MB" in error.userMessage)
     }
 
+    @Test
+    fun followed_artists_use_optional_backup_field_and_round_trip_without_auto_following_saved_or_liked() = runTest {
+        val library = library()
+        library.setFavorite(pagi, true)
+        library.setArtistFollowed("UC_a1", "Aurora", "https://img.example/a1.jpg", followed = true)
+        library.setArtistFollowed("UC_a2", "Aurora", null, followed = true)
+        library.setArtistFollowed("UC_a3", "Nadin", "https://img.example/nadin.jpg", followed = true, source = "other")
+
+        val exported = library.exportBackup(createdIso = "2026-11-25T00:00:00Z")
+        val root = Json.parseToJsonElement(exported).jsonObject
+        assertEquals(1L, root["format"]!!.jsonPrimitive.long)
+        val lib = root["library"]!!.jsonObject
+        assertEquals(3, lib["followedArtists"]!!.jsonArray.size)
+
+        // Impor ke library baru memulihkan semua artis diikuti beserta ID katalog, sumber, dan artwork.
+        val restoredDb = SenadaDatabase(testLibraryDriver())
+        val restored = LibraryRepository(
+            restoredDb,
+            dispatcher = StandardTestDispatcher(testScheduler),
+            now = { clock++ },
+            newPlaylistId = { "local-restored" },
+        )
+        val summary = restored.importBackup(exported)
+        assertEquals(ImportSummary(favoritesAdded = 1, followedArtistsAdded = 3), summary)
+        val restoredArtists = restored.followedArtists.first()
+        assertEquals(listOf("other:UC_a3", "ytmusic:UC_a2", "ytmusic:UC_a1"), restoredArtists.map { it.id })
+        assertEquals("https://img.example/a1.jpg", restoredArtists.first { it.catalogId == "UC_a1" }.artworkUrl)
+
+        // Impor ulang bersifat idempoten; preview tidak menulis; saved/liked dari backup desktop tidak memicu follow.
+        val repeat = restored.importBackup(exported)
+        assertTrue(repeat.changesNothing)
+
+        val desktopTarget = LibraryRepository(
+            SenadaDatabase(testLibraryDriver()),
+            dispatcher = StandardTestDispatcher(testScheduler),
+            now = { clock++ },
+            newPlaylistId = { "local-desktop" },
+        )
+        val preview = desktopTarget.importBackup(
+            """{"followedArtists":[{"id":"UC_new","name":"Artis Baru"},{"id":"","name":"Rusak"}]}""",
+            apply = false,
+        )
+        assertEquals(ImportSummary(followedArtistsAdded = 1, skipped = 1), preview)
+        assertEquals(emptyList(), desktopTarget.followedArtists.first())
+
+        desktopTarget.importBackup(desktopBackup)
+        assertEquals(emptyList(), desktopTarget.followedArtists.first())
+    }
+
+    @Test
+    fun mobile_export_without_followed_artists_omits_optional_section() = runTest {
+        val library = library()
+        library.setFavorite(pagi, true)
+
+        val exported = library.exportBackup("2026-11-25T00:00:00Z")
+        val lib = Json.parseToJsonElement(exported).jsonObject["library"]!!.jsonObject
+        assertFalse("followedArtists" in lib)
+    }
+
     private fun JsonObject.string(key: String) = this[key]!!.jsonPrimitive.content
 }

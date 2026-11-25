@@ -6,16 +6,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import senada.db.SenadaDatabase
 import senada.model.Track
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LibraryRepositoryTest {
     private val driver = testLibraryDriver()
     private val database = SenadaDatabase(driver)
@@ -63,27 +66,107 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun libraryArtistsComeFromAllSavedTracksAndMergeMatchingNames() = runTest {
+    fun favoritesPlaylistsAndPlaybackDoNotCreateFollowedArtists() = runTest {
         val library = library()
-        val favorite = track(1).copy(artists = listOf("Beyoncé"))
-        val collaboration = track(2).copy(artists = listOf("Beyonce feat. Solange", "Earth, Wind & Fire"))
-        val historyOnly = track(3).copy(artists = listOf("Riwayat saja"))
-        val local = track(4).copy(id = "local:demo.mp3", artists = listOf("Artis lokal"), source = "local")
+        val favorite = track(1).copy(artists = listOf("Tulus"))
+        val collab = track(2).copy(artists = listOf("Beyoncé", "Solange"))
+        val local = track(3).copy(id = "local:demo.mp3", artists = listOf("Artis lokal"), source = "local")
+
         library.setFavorite(favorite, true)
         library.setFavorite(local, true)
-        library.recordPlay(historyOnly)
-        val playlist = library.createPlaylist("Pagi", listOf(favorite, collaboration, collaboration))
+        library.createPlaylist("Pagi", listOf(favorite, collab))
+        library.recordPlay(collab)
+        library.recordImported(local)
 
-        val changes = Channel<List<LibraryArtist>>(Channel.UNLIMITED)
-        backgroundScope.launch { library.libraryArtists().collect { changes.send(it) } }
-        val artists = withTimeout(1_000) { changes.receive() }
-        assertEquals(listOf("beyonce", "earth wind fire", "solange"), artists.map { it.key })
-        assertEquals(favorite, artists.first().representative)
-        assertEquals("Earth, Wind & Fire", artists[1].name)
+        assertEquals(emptyList(), library.followedArtists.first())
+        assertEquals(emptySet(), library.followedArtistIds.first())
+    }
 
-        library.deletePlaylist(playlist)
-        val remaining = withTimeout(1_000) { changes.receive() }
-        assertEquals(listOf("Beyoncé"), remaining.map { it.name })
+    @Test
+    fun firstFollowRepeatFollowAndUnfollowPersistAcrossRestart() = runTest {
+        val library = library()
+        val changes = Channel<List<FollowedArtist>>(Channel.UNLIMITED)
+        backgroundScope.launch { library.followedArtists.collect { changes.send(it) } }
+        assertEquals(emptyList(), withTimeout(1_000) { changes.receive() })
+
+        // Follow pertama menyimpan ID ber-namespace, ID katalog, nama, artwork, dan waktu ikuti.
+        assertTrue(library.toggleFollowArtist("UC_tulus", "Tulus", "https://img.example/tulus.jpg"))
+        val afterFollow = withTimeout(1_000) { changes.receive() }
+        assertEquals(1, afterFollow.size)
+        val first = afterFollow.single()
+        assertEquals("ytmusic:UC_tulus", first.id)
+        assertEquals("UC_tulus", first.catalogId)
+        assertEquals("Tulus", first.name)
+        assertEquals("https://img.example/tulus.jpg", first.artworkUrl)
+        assertEquals("ytmusic", first.source)
+        assertEquals(1_000L, first.followedAtMs)
+        assertTrue(library.isArtistFollowed("UC_tulus").first())
+        assertTrue(library.isArtistFollowed("ytmusic:UC_tulus").first())
+
+        // Follow berulang tidak membuat duplikasi dan mempertahankan waktu ikuti awal.
+        library.setArtistFollowed("UC_tulus", "Tulus", "https://img.example/tulus.jpg", followed = true)
+        library.setArtistFollowed("ytmusic:UC_tulus", "Tulus", null, followed = true)
+        advanceUntilIdle()
+        val reopened = library()
+        val persisted = reopened.followedArtists.first()
+        assertEquals(1, persisted.size)
+        assertEquals(1_000L, persisted.single().followedAtMs)
+        assertEquals("https://img.example/tulus.jpg", persisted.single().artworkUrl)
+
+        // Berhenti mengikuti menghapus baris dan bertahan setelah restart.
+        assertFalse(reopened.toggleFollowArtist("UC_tulus", "Tulus"))
+        val afterUnfollow = withTimeout(1_000) { changes.receive() }
+        assertEquals(emptyList(), afterUnfollow)
+        assertEquals(emptyList(), library().followedArtists.first())
+        assertFalse(library().isArtistFollowed("UC_tulus").first())
+    }
+
+    @Test
+    fun sameNameArtistsWithDifferentIdsOrSourcesStaySeparate() = runTest {
+        val library = library()
+        library.setArtistFollowed("UC_aurora_1", "Aurora", "https://img.example/a1.jpg", followed = true)
+        library.setArtistFollowed("UC_aurora_2", "Aurora", "https://img.example/a2.jpg", followed = true)
+        library.setArtistFollowed("UC_aurora_1", "Aurora", "https://img.example/a3.jpg", followed = true, source = "other")
+
+        val all = library.followedArtists.first()
+        assertEquals(3, all.size)
+        assertEquals(
+            setOf("ytmusic:UC_aurora_1", "ytmusic:UC_aurora_2", "other:UC_aurora_1"),
+            all.map { it.id }.toSet(),
+        )
+
+        // Memperbarui dan berhenti mengikuti salah satu ID tidak memengaruhi artis lain yang bernama sama.
+        library.refreshFollowedArtistMetadata("UC_aurora_1", "Aurora (ID 1)", "https://img.example/a1-new.jpg")
+        library.setArtistFollowed("UC_aurora_2", "Aurora", followed = false)
+
+        val remaining = library.followedArtists.first()
+        assertEquals(2, remaining.size)
+        assertEquals("Aurora (ID 1)", remaining.first { it.id == "ytmusic:UC_aurora_1" }.name)
+        assertEquals("https://img.example/a1-new.jpg", remaining.first { it.id == "ytmusic:UC_aurora_1" }.artworkUrl)
+        assertEquals("Aurora", remaining.first { it.id == "other:UC_aurora_1" }.name)
+        assertFalse(library.isArtistFollowed("UC_aurora_2").first())
+    }
+
+    @Test
+    fun metadataRefreshUpdatesFollowedArtistWithoutAddingUnfollowedOrLosingArtwork() = runTest {
+        val library = library()
+        library.refreshFollowedArtistMetadata("UC_none", "Tidak Diikuti", "https://img.example/x.jpg")
+        assertEquals(emptyList(), library.followedArtists.first())
+
+        library.setArtistFollowed("UC_nadin", "Nadin", artworkUrl = null, followed = true)
+        val initial = library.followedArtists.first().single()
+        assertNull(initial.artworkUrl)
+
+        // Nama dan artwork baru dari katalog memperbarui data luring tanpa mengubah waktu ikuti.
+        library.refreshFollowedArtistMetadata("UC_nadin", "Nadin Amizah", "https://img.example/nadin.jpg")
+        val updated = library.followedArtists.first().single()
+        assertEquals("Nadin Amizah", updated.name)
+        assertEquals("https://img.example/nadin.jpg", updated.artworkUrl)
+        assertEquals(initial.followedAtMs, updated.followedAtMs)
+
+        // Artwork kosong tidak menghapus artwork luring yang sudah tersimpan.
+        library.refreshFollowedArtistMetadata("UC_nadin", "Nadin Amizah", null)
+        assertEquals("https://img.example/nadin.jpg", library.followedArtists.first().single().artworkUrl)
     }
 
     @Test
@@ -326,12 +409,38 @@ class LibraryRepositoryTest {
 
         SenadaDatabase.Schema.migrate(driver, 4, 5)
 
-        assertEquals(6L, SenadaDatabase.Schema.version)
+        assertEquals(7L, SenadaDatabase.Schema.version)
         assertEquals(listOf(existingLocal), library.localTracks().first())
         assertEquals(listOf(track(1), existingLocal), library.favorites.first())
 
         library.recordImported(newlyImported)
         assertEquals(listOf(newlyImported, existingLocal), library.localTracks().first())
+    }
+
+    @Test
+    fun aVersionSixDatabaseUpgradesToSevenPreservingDataWithoutAutoFollowing() = runTest {
+        driver.execute(null, "DROP TABLE followed_artist", 0)
+        val library = library()
+        val existingFav = track(1).copy(artists = listOf("Tulus"))
+        val existingPlaylistSong = track(2).copy(artists = listOf("Hindia"))
+        val existingHistory = track(3).copy(artists = listOf("Nadin Amizah"))
+        library.setFavorite(existingFav, true)
+        val playlistId = library.createPlaylist("Favorit Lama", listOf(existingPlaylistSong))
+        library.recordPlay(existingHistory)
+        library.setSaved("album", "MPREb_1", """{"kind":"album","id":"MPREb_1"}""", saved = true)
+
+        SenadaDatabase.Schema.migrate(driver, 6, 7)
+
+        assertEquals(7L, SenadaDatabase.Schema.version)
+        // Migrasi bersifat aditif: relasi favorit/playlist lama tidak otomatis menjadi follow.
+        assertEquals(emptyList(), library.followedArtists.first())
+        assertEquals(listOf(existingFav), library.favorites.first())
+        assertEquals(listOf(existingPlaylistSong), library.playlistTracks(playlistId))
+        assertEquals(listOf(existingHistory), library.history().first())
+        assertEquals(1, library.savedItems.first().size)
+
+        library.setArtistFollowed("UC_tulus", "Tulus", "https://img.example/tulus.jpg", followed = true)
+        assertEquals(listOf("UC_tulus"), library.followedArtists.first().map { it.catalogId })
     }
 
     @Test

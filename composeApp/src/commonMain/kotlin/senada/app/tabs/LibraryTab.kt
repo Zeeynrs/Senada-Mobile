@@ -38,8 +38,8 @@ import senada.app.offlineSongsTab
 import senada.app.playlistsTab
 import senada.app.rememberAudioImportController
 import senada.app.sumKnownDurationMs
+import senada.library.FollowedArtist
 import senada.library.Playlist
-import senada.library.LibraryArtist
 import senada.model.Track
 import senada.offline.OfflineState
 import senada.platform.importedAudioStorage
@@ -61,7 +61,7 @@ internal fun LazyListScope.libraryTab(
     onSection: (LibraryFilter) -> Unit,
     library: LibraryState,
     openedPlaylist: Playlist?,
-    artists: List<LibraryArtist>?,
+    artists: List<FollowedArtist>?,
     downloadState: OfflineState?,
     profileName: String,
     profilePhoto: String?,
@@ -71,6 +71,8 @@ internal fun LazyListScope.libraryTab(
     onLoadMoreFavorites: () -> Unit,
     onLoadMorePlaylist: () -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenArtist: (FollowedArtist) -> Unit = {},
+    onOpenArtistSearch: () -> Unit = onOpenSearch,
     reorderingPlaylist: Boolean = false,
     onToggleReorderPlaylist: () -> Unit = {},
 ) {
@@ -89,7 +91,7 @@ internal fun LazyListScope.libraryTab(
         LibraryFilterChips(section, onSection)
     }
     when (section) {
-        LibraryFilter.All -> libraryOverviewRows(library, artists.orEmpty(), actions, onSection) { onOpenPlaylist(it) }
+        LibraryFilter.All -> libraryOverviewRows(library, artists.orEmpty(), actions, onSection, { onOpenPlaylist(it) }, onOpenArtist)
         LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites, onOpenSearch)
         LibraryFilter.Offline -> offlineSongsTab(downloadState ?: OfflineState(), library, actions, onOpenSearch)
         LibraryFilter.Artists -> when {
@@ -97,9 +99,13 @@ internal fun LazyListScope.libraryTab(
                 Text("Memuat artis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             artists.isEmpty() -> item(key = "library-artists-empty") {
-                LibraryEmptyState("Simpan lagu ke favorit atau playlist untuk melihat artisnya.", "Cari lagu", onAction = onOpenSearch)
+                LibraryEmptyState(
+                    message = "Belum ada artis yang diikuti. Ikuti artis dari halaman artis untuk menyimpannya di sini.",
+                    actionLabel = "Cari artis",
+                    onAction = onOpenArtistSearch,
+                )
             }
-            else -> libraryArtistRows(artists, actions)
+            else -> libraryArtistRows(artists, onOpenArtist)
         }
         LibraryFilter.Playlists -> playlistsTab(
             library = library,

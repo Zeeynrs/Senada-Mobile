@@ -78,6 +78,18 @@ CREATE TABLE imported_track (
     imported_at INTEGER NOT NULL
 );
 
+-- Artis yang diikuti pengguna secara eksplisit; metadata disimpan luring agar tetap tampil tanpa jaringan.
+CREATE TABLE followed_artist (
+    id TEXT NOT NULL PRIMARY KEY,
+    catalog_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    artwork_url TEXT,
+    source TEXT NOT NULL DEFAULT 'ytmusic',
+    followed_at INTEGER NOT NULL
+);
+
+CREATE INDEX followed_artist_followed_at ON followed_artist(followed_at);
+
 -- Lagu --
 
 upsertTrack:
@@ -147,14 +159,32 @@ FROM favorite JOIN track ON track.id = favorite.track_id;
 favoriteIds:
 SELECT track_id FROM favorite;
 
-libraryArtistTracks:
-SELECT track.* FROM track
-WHERE track.id IN (
-    SELECT track_id FROM favorite
-    UNION
-    SELECT track_id FROM playlist_item
-)
-ORDER BY track.id;
+-- Artis diikuti --
+
+followedArtists:
+SELECT id, catalog_id, name, artwork_url, source, followed_at
+FROM followed_artist
+ORDER BY followed_at DESC, rowid DESC;
+
+followedArtistIds:
+SELECT id FROM followed_artist;
+
+followedArtistById:
+SELECT id, catalog_id, name, artwork_url, source, followed_at
+FROM followed_artist
+WHERE id = ?;
+
+insertFollowedArtist:
+INSERT INTO followed_artist(id, catalog_id, name, artwork_url, source, followed_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updateFollowedArtistMetadata:
+UPDATE followed_artist
+SET catalog_id = ?, name = ?, artwork_url = ?, source = ?
+WHERE id = ?;
+
+deleteFollowedArtist:
+DELETE FROM followed_artist WHERE id = ?;
 
 addFavorite:
 INSERT OR IGNORE INTO favorite(track_id, added_at) VALUES (?, ?);

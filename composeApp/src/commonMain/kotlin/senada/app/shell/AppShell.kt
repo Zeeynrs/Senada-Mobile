@@ -87,6 +87,7 @@ import senada.app.tabs.HomeShelvesController
 import senada.app.tabs.HomeTopScrim
 import senada.app.tabs.LibraryFilter
 import senada.app.tabs.PlaylistSaveStatus
+import senada.app.tabs.SearchFilter
 import senada.app.tabs.catalogDetailScreen
 import senada.app.tabs.homeTab
 import senada.app.tabs.homeTopScrimProgress
@@ -108,7 +109,6 @@ import senada.catalog.ArtistResolveResult
 import senada.catalog.canOpenArtist
 import senada.library.HomeHero
 import senada.library.LibraryRepository
-import senada.library.libraryArtists
 import senada.library.ListenPeriod
 import senada.library.Playlist
 import senada.library.discoverSeeds
@@ -196,8 +196,31 @@ internal fun AppShell(
     val playlists by library.playlists.collectAsState(emptyList())
     val playlistCovers by remember(library) { library.playlistCovers }.collectAsState(emptyMap())
     val history by remember(library) { library.history() }.collectAsState(emptyList())
-    val libraryState = remember(favorites, favoriteTotal, favoriteDurationMs, favoriteIds, playlists, playlistCovers, history) {
-        LibraryState(favorites, favoriteTotal, favoriteIds, playlists, history, favoriteDurationMs, playlistCovers)
+    val followedArtistsState by remember(library) { library.followedArtists }.collectAsState(initial = null)
+    val followedArtists = followedArtistsState.orEmpty()
+    val followedArtistIds = remember(followedArtists) { followedArtists.mapTo(HashSet()) { it.id } }
+    val libraryState = remember(
+        favorites,
+        favoriteTotal,
+        favoriteDurationMs,
+        favoriteIds,
+        playlists,
+        playlistCovers,
+        history,
+        followedArtists,
+        followedArtistIds,
+    ) {
+        LibraryState(
+            favorites = favorites,
+            favoriteTotal = favoriteTotal,
+            favoriteIds = favoriteIds,
+            playlists = playlists,
+            history = history,
+            favoriteDurationMs = favoriteDurationMs,
+            playlistCovers = playlistCovers,
+            followedArtists = followedArtists,
+            followedArtistIds = followedArtistIds,
+        )
     }
     val hero = if (navigator.destination == AppDestination.Home) {
         remember(library, screenVisible) { library.homeHero() }.collectAsState(HomeHero.Welcome).value
@@ -237,9 +260,6 @@ internal fun AppShell(
     val catalogStore = remember { CatalogDetailStore() }
     val currentCatalogRoute = navigator.currentCatalogRoute
     val libraryRoot = navigator.destination == AppDestination.Library && currentCatalogRoute == null && openedPlaylistId == null
-    val libraryArtists = if (libraryRoot && (librarySection == LibraryFilter.All || librarySection == LibraryFilter.Artists)) {
-        remember(library) { library.libraryArtists() }.collectAsState(initial = null).value
-    } else null
     val downloadState = if (libraryRoot && librarySection == LibraryFilter.Offline) downloads.state.collectAsState().value else null
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
@@ -640,7 +660,7 @@ internal fun AppShell(
                         onSection = { librarySection = it },
                         library = libraryState,
                         openedPlaylist = openedPlaylist,
-                        artists = libraryArtists,
+                        artists = followedArtistsState,
                         downloadState = downloadState,
                         profileName = profile.name,
                         profilePhoto = profilePhoto,
@@ -650,6 +670,13 @@ internal fun AppShell(
                         onLoadMoreFavorites = { favoritesLimit.value += LIBRARY_PAGE_SIZE },
                         onLoadMorePlaylist = { playlistLimit.value += LIBRARY_PAGE_SIZE },
                         onOpenSearch = { navigator.select(AppDestination.Search) },
+                        onOpenArtist = { artist ->
+                            navigator.openArtist(artist.catalogId, artist.name, artist.artworkUrl, artist.source)
+                        },
+                        onOpenArtistSearch = {
+                            search.filter = SearchFilter.Artists
+                            navigator.select(AppDestination.Search)
+                        },
                         reorderingPlaylist = reorderingPlaylist,
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )

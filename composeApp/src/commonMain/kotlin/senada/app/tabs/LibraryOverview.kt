@@ -40,7 +40,7 @@ import senada.app.shell.ProfileAvatar
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
 import senada.catalog.youtube.resizeGoogleArtwork
-import senada.library.LibraryArtist
+import senada.library.FollowedArtist
 
 @Composable
 internal fun LibraryToolbar(
@@ -71,10 +71,11 @@ internal fun LibraryToolbar(
 
 internal fun LazyListScope.libraryOverviewRows(
     library: LibraryState,
-    artists: List<LibraryArtist>,
+    artists: List<FollowedArtist>,
     actions: LibraryActions,
     onSection: (LibraryFilter) -> Unit,
     onOpenPlaylist: (String) -> Unit,
+    onOpenArtist: (FollowedArtist) -> Unit,
 ) {
     item(key = "library-overview-favorites") {
         LibraryShortcutRow("Favorit", "${library.favoriteTotal} lagu", SenadaIcons.HeartFilled) {
@@ -85,7 +86,7 @@ internal fun LazyListScope.libraryOverviewRows(
         LibraryShortcutRow("Offline", "Lagu yang diunduh", SenadaIcons.Download) { onSection(LibraryFilter.Offline) }
     }
     libraryPlaylistRows(library, actions, onOpenPlaylist)
-    libraryArtistRows(artists, actions)
+    libraryArtistRows(artists, onOpenArtist)
     item(key = "library-overview-history") {
         LibraryShortcutRow("Riwayat", "Lagu yang baru diputar", SenadaIcons.Clock) { onSection(LibraryFilter.History) }
     }
@@ -94,13 +95,18 @@ internal fun LazyListScope.libraryOverviewRows(
     }
 }
 
-internal fun LazyListScope.libraryArtistRows(artists: List<LibraryArtist>, actions: LibraryActions) {
-    items(artists, key = { "library-artist-${it.key}" }) { artist ->
+internal fun LazyListScope.libraryArtistRows(
+    artists: List<FollowedArtist>,
+    onOpenArtist: (FollowedArtist) -> Unit,
+) {
+    items(artists, key = { "library-artist-${it.id}" }) { artist ->
         LibraryBrowseRow(
-            title = artist.name, subtitle = "Artis", label = "Buka artis ${artist.name}",
-            onClick = { actions.openArtist(artist.representative, artist.name) },
+            title = artist.name,
+            subtitle = "Artis",
+            label = "Buka artis ${artist.name}",
+            onClick = { onOpenArtist(artist) },
         ) {
-            val url = artist.representative.artworkUrl
+            val url = artist.artworkUrl
             val cover = remember(url) { url?.takeIf(String::isNotBlank)?.let { resizeGoogleArtwork(it, 144) } }
             ProfileAvatar(artist.name, size = 56.dp, borderWidth = 0.dp, photoModel = cover)
         }

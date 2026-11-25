@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.library.LibraryRepository
 import senada.library.encodeArtists
+import senada.library.followedArtistOf
 import senada.library.trackOf
 import senada.model.Track
 
@@ -17,9 +18,10 @@ internal data class ImportSummary(
     val savedAdded: Int = 0,
     val historyAdded: Int = 0,
     val skipped: Int = 0,
+    val followedArtistsAdded: Int = 0,
 ) {
     val changesNothing get() =
-        favoritesAdded + playlistsAdded + playlistTracksAdded + savedAdded + historyAdded == 0
+        favoritesAdded + playlistsAdded + playlistTracksAdded + savedAdded + historyAdded + followedArtistsAdded == 0
 }
 
 /**
@@ -54,6 +56,16 @@ internal suspend fun LibraryRepository.exportBackup(createdIso: String = isoNow(
                 BackupPlaylist(id, name, description, createdAt, items[id].orEmpty())
             }.executeAsList()
             val saved = queries.savedItems { kind, id, metadata, _ -> BackupSavedItem(kind, id, metadata) }.executeAsList()
+            val followedArtists = queries.followedArtists(::followedArtistOf).executeAsList().map { artist ->
+                BackupFollowedArtist(
+                    id = artist.id,
+                    catalogId = artist.catalogId,
+                    name = artist.name,
+                    artworkUrl = artist.artworkUrl,
+                    source = artist.source,
+                    followedAtMs = artist.followedAtMs,
+                )
+            }
             // Backup tidak membawa file audio; lagu impor lokal hanya berlaku di ponsel ini.
             fun List<Track>.streamable() = filter { it.source == YOUTUBE_MUSIC_SOURCE }
             BackupDocument(
@@ -61,6 +73,7 @@ internal suspend fun LibraryRepository.exportBackup(createdIso: String = isoNow(
                 playlists = playlists.map { it.copy(tracks = it.tracks.streamable()) },
                 saved = saved,
                 history = history.filter { it.track.source == YOUTUBE_MUSIC_SOURCE },
+                followedArtists = followedArtists,
             )
         }
         BackupCodec.encode(document, createdIso)
@@ -120,7 +133,30 @@ private fun LibraryRepository.mergeNow(document: BackupDocument): ImportSummary 
     queries.trimHistory(LibraryRepository.HISTORY_LIMIT.toLong())
     queries.deleteUnusedTracks()
 
-    return ImportSummary(favoritesAdded, playlistsAdded, playlistTracksAdded, savedAdded, historyAdded, document.skipped)
+    var followedArtistsAdded = 0
+    for (artist in document.followedArtists.asReversed()) {
+        val existing = queries.followedArtistById(artist.id, ::followedArtistOf).executeAsOneOrNull()
+        if (existing != null) continue
+        queries.insertFollowedArtist(
+            id = artist.id,
+            catalog_id = artist.catalogId,
+            name = artist.name,
+            artwork_url = artist.artworkUrl,
+            source = artist.source,
+            followed_at = artist.followedAtMs ?: now(),
+        )
+        followedArtistsAdded++
+    }
+
+    return ImportSummary(
+        favoritesAdded = favoritesAdded,
+        playlistsAdded = playlistsAdded,
+        playlistTracksAdded = playlistTracksAdded,
+        savedAdded = savedAdded,
+        historyAdded = historyAdded,
+        skipped = document.skipped,
+        followedArtistsAdded = followedArtistsAdded,
+    )
 }
 
 private fun LibraryRepository.append(playlistId: String, tracks: List<Track>) {
