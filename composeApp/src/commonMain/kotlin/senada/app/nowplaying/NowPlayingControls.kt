@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -42,12 +41,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import senada.app.OverflowActionItem
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlin.math.roundToLong
 import senada.app.accessibleDuration
 import senada.app.excludeSystemGestures
-import senada.app.minTouchTarget
 import senada.app.playbackTime
 import senada.app.shell.SenadaIcons
 import senada.app.theme.LocalSenadaLook
@@ -154,7 +153,7 @@ private fun TransportButton(
 }
 
 @Composable
-internal fun PlayerPlaybackMenu(state: PlaybackState, playback: PlaybackController, close: () -> Unit) {
+internal fun PlayerPlaybackMenu(state: PlaybackState, playback: PlaybackController, select: (() -> Unit) -> Unit) {
     val queue = state.queue
     val shuffle = if (queue.shuffleEnabled) "nyala" else "mati"
     val (repeat, nextMode) = when (queue.repeatMode) {
@@ -162,24 +161,16 @@ internal fun PlayerPlaybackMenu(state: PlaybackState, playback: PlaybackControll
         RepeatMode.All -> "semua" to RepeatMode.One
         RepeatMode.One -> "satu" to RepeatMode.Off
     }
-    DropdownMenuItem(
-        text = { Text("Acak: $shuffle") },
-        leadingIcon = { Icon(SenadaIcons.Shuffle, null) },
-        modifier = Modifier.minTouchTarget().semantics { contentDescription = "Acak: $shuffle" },
-        onClick = {
-            close()
-            playback.setShuffleEnabled(!queue.shuffleEnabled)
-        },
-    )
-    DropdownMenuItem(
-        text = { Text("Ulangi: $repeat") },
-        leadingIcon = { Icon(if (queue.repeatMode == RepeatMode.One) SenadaIcons.RepeatOne else SenadaIcons.Repeat, null) },
-        modifier = Modifier.minTouchTarget().semantics { contentDescription = "Ulangi: $repeat" },
-        onClick = {
-            close()
-            playback.setRepeatMode(nextMode)
-        },
-    )
+    OverflowActionItem(
+        label = "Acak: $shuffle",
+        icon = SenadaIcons.Shuffle,
+        modifier = Modifier.semantics { contentDescription = "Acak: $shuffle" },
+    ) { select { playback.setShuffleEnabled(!queue.shuffleEnabled) } }
+    OverflowActionItem(
+        label = "Ulangi: $repeat",
+        icon = if (queue.repeatMode == RepeatMode.One) SenadaIcons.RepeatOne else SenadaIcons.Repeat,
+        modifier = Modifier.semantics { contentDescription = "Ulangi: $repeat" },
+    ) { select { playback.setRepeatMode(nextMode) } }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

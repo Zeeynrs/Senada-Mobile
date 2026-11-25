@@ -32,8 +32,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -73,10 +71,11 @@ import kotlinx.coroutines.flow.map
 import senada.app.ArtistPickerDialog
 import senada.app.LibraryActions
 import senada.app.LibraryState
+import senada.app.OverflowActionItem
+import senada.app.OverflowActionSheet
 import senada.app.LocalArtworkAccent
 import senada.app.SenadaSources
 import senada.app.TrackMenu
-import senada.app.minTouchTarget
 import senada.app.shell.NowPlayingPanelState
 import senada.app.shell.PlatformBackHandler
 import senada.app.shell.SenadaIcons
@@ -393,32 +392,30 @@ private fun PlayerTrackMenu(
     val trigger: @Composable (() -> Unit) -> Unit = { open ->
         PlayerGlassButton(NowPlayingIcons.More, "Menu lainnya", scale, onClick = open)
     }
-    val playbackItems: @Composable (() -> Unit) -> Unit = { close ->
-        PlayerPlaybackMenu(state, playback, close)
+    val playbackItems: @Composable ((() -> Unit) -> Unit) -> Unit = { select ->
+        PlayerPlaybackMenu(state, playback, select)
     }
-    val audioLabItem: @Composable (() -> Unit) -> Unit = { close ->
-        DropdownMenuItem(
-            text = { Text("Buka Audio Lab") },
-            onClick = {
-                close()
-                onOpenAudioLab()
-            },
-            modifier = Modifier.minTouchTarget(),
-        )
+    val audioLabItem: @Composable ((() -> Unit) -> Unit) -> Unit = { select ->
+        OverflowActionItem("Buka Audio Lab", SenadaIcons.AudioLab) { select(onOpenAudioLab) }
     }
     if (track != null) {
         TrackMenu(
             track, library, actions,
             trigger = trigger,
             leadingItems = playbackItems,
-        ) { close -> audioLabItem(close) }
+        ) { select -> audioLabItem(select) }
     } else {
         var expanded by remember { mutableStateOf(false) }
         Box {
             trigger { expanded = true }
-            DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                playbackItems { expanded = false }
-                audioLabItem { expanded = false }
+            if (expanded) {
+                OverflowActionSheet(
+                    title = state.audio.selection?.title ?: "Sedang diputar",
+                    onDismiss = { expanded = false },
+                ) { select ->
+                    playbackItems(select)
+                    audioLabItem(select)
+                }
             }
         }
     }

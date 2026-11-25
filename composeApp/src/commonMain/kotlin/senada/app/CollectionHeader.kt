@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -420,6 +418,8 @@ internal fun CollectionHeader(
                 HorizontalDivider(color = colors.outline)
                 CollectionActionRow(
                     title = title,
+                    subtitle = meta?.display,
+                    cover = cover,
                     menuItems = menuItems,
                     onMenuAction = onMenuAction,
                     canPlay = canPlay,
@@ -531,6 +531,8 @@ internal fun CompactCollectionHeader(
 @Composable
 private fun CollectionActionRow(
     title: String,
+    subtitle: String?,
+    cover: CollectionCover,
     menuItems: List<CollectionMenuItem>,
     onMenuAction: (CollectionMenuAction) -> Unit,
     canPlay: Boolean,
@@ -578,16 +580,25 @@ private fun CollectionActionRow(
                     )
                 }
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                menuItems.forEach { item ->
-                    DropdownMenuItem(
-                        text = { Text(item.label) },
-                        enabled = item.enabled,
-                        onClick = {
-                            menuOpen = false
-                            onMenuAction(item.action)
-                        },
-                    )
+            if (menuOpen) {
+                OverflowActionSheet(
+                    title = title,
+                    subtitle = subtitle,
+                    artwork = { OverflowActionArtwork(cover) },
+                    onDismiss = { menuOpen = false },
+                ) { select ->
+                    menuItems.forEach { item ->
+                        val icon = when (item.action) {
+                            CollectionMenuAction.RenamePlaylist -> SenadaIcons.Edit
+                            CollectionMenuAction.DeletePlaylist -> SenadaIcons.Trash
+                            CollectionMenuAction.EnqueueAll -> SenadaIcons.Queue
+                            CollectionMenuAction.OpenArtist -> SenadaIcons.Person
+                            CollectionMenuAction.SaveToLibrary -> SenadaIcons.Library
+                        }
+                        OverflowActionItem(item.label, icon, enabled = item.enabled) {
+                            select { onMenuAction(item.action) }
+                        }
+                    }
                 }
             }
         }
