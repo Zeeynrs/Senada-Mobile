@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +46,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -316,8 +315,8 @@ internal fun TrackMenu(
     onEnqueue: () -> Unit = { actions.enqueue(track) },
     onRemoveFromQueue: (() -> Unit)? = null,
     trigger: (@Composable (open: () -> Unit) -> Unit)? = null,
-    leadingItems: @Composable (close: () -> Unit) -> Unit = {},
-    extra: @Composable ColumnScope.(close: () -> Unit) -> Unit = {},
+    leadingItems: @Composable (select: (() -> Unit) -> Unit) -> Unit = {},
+    extra: @Composable ColumnScope.(select: (() -> Unit) -> Unit) -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
@@ -341,51 +340,51 @@ internal fun TrackMenu(
                 )
             }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            leadingItems { open = false }
-            if (onRemoveFromQueue != null) {
-                DropdownMenuItem(
-                    text = { Text("Hapus dari antrean") },
-                    onClick = {
-                        open = false
-                        onRemoveFromQueue()
-                    },
-                    modifier = Modifier.minTouchTarget().semantics { contentDescription = "Hapus ${track.title} dari antrean" },
-                )
-            }
-            DropdownMenuItem(
-                text = { Text("Tambah ke antrean") },
-                onClick = {
-                    open = false
-                    onEnqueue()
+        if (open) {
+            OverflowActionSheet(
+                title = track.title,
+                subtitle = track.artists.joinToString(),
+                artwork = {
+                    OverflowActionArtwork(
+                        CollectionCover(artworkUrl = track.artworkUrl, fallbackIcon = SenadaIcons.MusicNote),
+                    )
                 },
-                modifier = Modifier.minTouchTarget(),
-            )
-            DropdownMenuItem(text = { Text(if (favorite) "Hapus dari favorit" else "Tambah ke favorit") }, onClick = {
-                open = false
-                actions.toggleFavorite(track)
-            })
-            if (artistChoices.isNotEmpty()) {
-                DropdownMenuItem(text = { Text("Buka artis") }, onClick = {
-                    open = false
-                    if (artistChoices.size == 1) {
-                        actions.openArtist(track, artistChoices.first())
-                    } else {
-                        pickingArtist = true
+                onDismiss = { open = false },
+            ) { select ->
+                leadingItems(select)
+                if (onRemoveFromQueue != null) {
+                    OverflowActionItem(
+                        label = "Hapus dari antrean",
+                        icon = SenadaIcons.Close,
+                        modifier = Modifier.semantics { contentDescription = "Hapus ${track.title} dari antrean" },
+                    ) { select(onRemoveFromQueue) }
+                }
+                OverflowActionItem("Tambah ke antrean", SenadaIcons.Queue) { select(onEnqueue) }
+                OverflowActionItem(
+                    label = if (favorite) "Hapus dari favorit" else "Tambah ke favorit",
+                    icon = if (favorite) SenadaIcons.HeartFilled else SenadaIcons.Heart,
+                ) { select { actions.toggleFavorite(track) } }
+                if (artistChoices.isNotEmpty()) {
+                    OverflowActionItem("Buka artis", SenadaIcons.Person) {
+                        select {
+                            if (artistChoices.size == 1) {
+                                actions.openArtist(track, artistChoices.first())
+                            } else {
+                                pickingArtist = true
+                            }
+                        }
                     }
-                })
+                }
+                library.playlists.forEach { playlist ->
+                    OverflowActionItem("Tambah ke ${playlist.name}", SenadaIcons.Library) {
+                        select { actions.addToPlaylist(playlist.id, track) }
+                    }
+                }
+                OverflowActionItem("Playlist baru…", SenadaIcons.Add) {
+                    select { naming = true }
+                }
+                extra(select)
             }
-            library.playlists.forEach { playlist ->
-                DropdownMenuItem(text = { Text("Tambah ke ${playlist.name}", maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = {
-                    open = false
-                    actions.addToPlaylist(playlist.id, track)
-                })
-            }
-            DropdownMenuItem(text = { Text("Playlist baru…") }, onClick = {
-                open = false
-                naming = true
-            })
-            extra { open = false }
         }
     }
     if (naming) {
@@ -664,24 +663,21 @@ internal fun LazyListScope.playlistsTab(
                     Icon(imageVector = SenadaIcons.ChevronDown, contentDescription = null)
                 }
             } else {
-                TrackMenu(entry.track, library, actions) { close ->
+                TrackMenu(entry.track, library, actions) { select ->
                     if (index > 0) {
-                        DropdownMenuItem(text = { Text("Pindah ke atas") }, onClick = {
-                            close()
-                            actions.moveInPlaylist(opened.id, index, index - 1)
-                        })
+                        OverflowActionItem("Pindah ke atas", SenadaIcons.ChevronUp) {
+                            select { actions.moveInPlaylist(opened.id, index, index - 1) }
+                        }
                     }
                     // Urutan memakai indeks di seluruh playlist; halaman yang dimuat selalu awal playlist.
                     if (index < opened.entryCount - 1) {
-                        DropdownMenuItem(text = { Text("Pindah ke bawah") }, onClick = {
-                            close()
-                            actions.moveInPlaylist(opened.id, index, index + 1)
-                        })
+                        OverflowActionItem("Pindah ke bawah", SenadaIcons.ChevronDown) {
+                            select { actions.moveInPlaylist(opened.id, index, index + 1) }
+                        }
                     }
-                    DropdownMenuItem(text = { Text("Hapus dari playlist") }, onClick = {
-                        close()
-                        actions.removeFromPlaylist(opened.id, entry.itemId)
-                    })
+                    OverflowActionItem("Hapus dari playlist", SenadaIcons.Close) {
+                        select { actions.removeFromPlaylist(opened.id, entry.itemId) }
+                    }
                 }
             }
         }
@@ -756,23 +752,16 @@ private fun PlaylistRow(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Ganti nama") },
-                            onClick = {
-                                menuOpen = false
-                                renaming = true
-                            },
-                            modifier = Modifier.minTouchTarget(),
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Hapus playlist") },
-                            onClick = {
-                                menuOpen = false
-                                deleting = true
-                            },
-                            modifier = Modifier.minTouchTarget(),
-                        )
+                    if (menuOpen) {
+                        OverflowActionSheet(
+                            title = playlist.name,
+                            subtitle = playlistRowSubtitle(playlist.trackCount),
+                            artwork = { PlaylistRowCover(cover, size = 48.dp) },
+                            onDismiss = { menuOpen = false },
+                        ) { select ->
+                            OverflowActionItem("Ganti nama", SenadaIcons.Edit) { select { renaming = true } }
+                            OverflowActionItem("Hapus playlist", SenadaIcons.Trash) { select { deleting = true } }
+                        }
                     }
                 }
             },
@@ -801,11 +790,11 @@ private fun PlaylistRow(
 }
 
 @Composable
-private fun PlaylistRowCover(cover: PlaylistCover) {
+private fun PlaylistRowCover(cover: PlaylistCover, size: Dp = 56.dp) {
     val coverShape = RoundedCornerShape(LocalSenadaLook.current.listCoverRadius)
     Box(
         modifier = Modifier
-            .size(56.dp)
+            .size(size)
             .clip(coverShape)
             .background(MaterialTheme.colorScheme.primaryContainer)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), coverShape),

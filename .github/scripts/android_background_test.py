@@ -1348,6 +1348,25 @@ def check_library_chips(min_px: int) -> None:
         )
         screenshot("09b-library-playlists")
         screenshot("v2-97-library-playlists")
+        if menu_matches:
+            menu_opened = tap_desc("Buka menu playlist Pagi")
+            menu_header = "Menu untuk Pagi"
+            sheet = menu_opened and wait_for(
+                lambda: (tree := ui_tree()) is not None
+                and ui_bounds(menu_header, attribute="content-desc", root=tree)
+                and find_interactive("Ganti nama", root=tree)
+                and find_interactive("Hapus playlist", root=tree),
+                5,
+            )
+            check(sheet, "Menu playlist membuka panel dengan judul dan aksi playlist")
+            if menu_opened:
+                if sheet:
+                    screenshot("v2-100-playlist-action-sheet")
+                shell("input keyevent KEYCODE_BACK")
+                check(
+                    sheet and wait_for(lambda: not ui_bounds(menu_header, attribute="content-desc"), 5),
+                    "Kembali menutup panel menu playlist",
+                )
         if row_matches:
             x1, y1, x2, y2 = row_matches[0][0]
             tap(((x1 + x2) // 2, (y1 + y2) // 2))
