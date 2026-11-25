@@ -16,6 +16,12 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import senada.app.AppLanguage
+import senada.app.LibraryActions
+import senada.app.LibraryState
+import senada.app.shell.AppDestination
+import senada.app.shell.AppNavigator
+import senada.app.shell.CatalogRoute
 import senada.catalog.AlbumDetail
 import senada.catalog.AlbumPage
 import senada.catalog.AlbumSummary
@@ -37,6 +43,10 @@ import senada.db.SenadaDatabase
 import senada.library.LibraryRepository
 import senada.library.testLibraryDriver
 import senada.model.Track
+import senada.playback.FakeAudioOutput
+import senada.playback.PlaybackController
+import senada.playback.SampleAudioSelection
+import senada.playback.SampleAudioSource
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CatalogPagesTest {
@@ -374,5 +384,82 @@ class CatalogPagesTest {
 
         assertEquals(emptyList(), artistPageSections(null))
         assertEquals(emptyList(), artistPageSections(ArtistDetail(id = "UC_empty", name = "Kosong")))
+    }
+
+    @Test
+    fun artistFollowControlStateFormatsToggleLabelsAndAccessibility() {
+        val unfollowed = artistFollowControlState("Tulus", followed = false, language = AppLanguage.Indonesian)
+        assertEquals("Ikuti", unfollowed.label)
+        assertEquals("Ikuti Tulus", unfollowed.accessibilityLabel)
+        assertEquals("Belum diikuti", unfollowed.stateLabel)
+        assertFalse(unfollowed.followed)
+
+        val followed = artistFollowControlState("Tulus", followed = true, language = AppLanguage.Indonesian)
+        assertEquals("Mengikuti", followed.label)
+        assertEquals("Berhenti mengikuti Tulus", followed.accessibilityLabel)
+        assertEquals("Mengikuti", followed.stateLabel)
+        assertTrue(followed.followed)
+        assertEquals(
+            "Follow Tulus",
+            artistFollowControlState("Tulus", followed = false, language = AppLanguage.English).accessibilityLabel,
+        )
+    }
+
+    @Test
+    fun artistDetailFollowFlowWorksAcrossSourcesBackNavigationAndLibraryWithoutNameResolution() = runTest {
+        val repo = testLibrary()
+        val playback = PlaybackController(FakeAudioOutput(), backgroundScope) { entry ->
+            SampleAudioSelection(entry.track.title, SampleAudioSource.Local, "file:///${entry.id}.m4a", entry.id)
+        }
+        val actions = LibraryActions(repo, playback, this)
+        val navigator = AppNavigator()
+
+        // Buka artis tanpa lagu populer dari Cari / Beranda, lalu ikuti.
+        navigator.select(AppDestination.Search)
+        navigator.openArtist("UC_kosong", "Artis Tanpa Lagu", "https://img.example/kosong.jpg")
+        val route1 = assertIs<CatalogRoute.Artist>(navigator.currentCatalogRoute)
+        actions.toggleFollowArtist(route1.id, route1.name, route1.artworkUrl, route1.source)
+        advanceUntilIdle()
+
+        var followed = repo.followedArtists.first()
+        var state = LibraryState(
+            followedArtists = followed,
+            followedArtistIds = followed.mapTo(HashSet()) { it.id },
+        )
+        assertTrue(state.isArtistFollowed(route1.id, route1.source))
+
+        // Masuk ke album lalu kembali ke halaman artis yang sama: status tetap Mengikuti.
+        navigator.openAlbum("MPREb_1", "Album Satu")
+        assertTrue(navigator.back())
+        val restoredRoute1 = assertIs<CatalogRoute.Artist>(navigator.currentCatalogRoute)
+        assertTrue(state.isArtistFollowed(restoredRoute1.id, restoredRoute1.source))
+
+        // Buka artis bernama sama namun ID katalog berbeda dari pemutar/katalog dan ikuti.
+        navigator.openArtist("UC_lain", "Artis Tanpa Lagu", artworkUrl = null)
+        val route2 = assertIs<CatalogRoute.Artist>(navigator.currentCatalogRoute)
+        actions.toggleFollowArtist(route2.id, route2.name, route2.artworkUrl, route2.source)
+        advanceUntilIdle()
+        // Metadata dari detail artis memperbarui entri yang diikuti tanpa duplikasi.
+        actions.refreshFollowedArtistMetadata(route2.id, "Artis Lain Resmi", "https://img.example/lain.jpg", route2.source)
+        advanceUntilIdle()
+
+        followed = repo.followedArtists.first()
+        assertEquals(2, followed.size)
+        val fromLibrary = followed.first { it.catalogId == "UC_lain" }
+        assertEquals("Artis Lain Resmi", fromLibrary.name)
+        assertEquals("https://img.example/lain.jpg", fromLibrary.artworkUrl)
+
+        // Membuka dari Library memakai ID katalog langsung (tanpa resolver nama) dan berhenti mengikuti.
+        navigator.select(AppDestination.Library)
+        navigator.openArtist(fromLibrary.catalogId, fromLibrary.name, fromLibrary.artworkUrl, fromLibrary.source)
+        val openedFromLibrary = assertIs<CatalogRoute.Artist>(navigator.currentCatalogRoute)
+        assertEquals("UC_lain", openedFromLibrary.id)
+        actions.toggleFollowArtist(openedFromLibrary.id, openedFromLibrary.name, openedFromLibrary.artworkUrl, openedFromLibrary.source)
+        advanceUntilIdle()
+
+        val remaining = repo.followedArtists.first()
+        assertEquals(listOf("UC_kosong"), remaining.map { it.catalogId })
+        assertFalse(LibraryState(followedArtists = remaining, followedArtistIds = remaining.mapTo(HashSet()) { it.id })
+            .isArtistFollowed("UC_lain"))
     }
 }

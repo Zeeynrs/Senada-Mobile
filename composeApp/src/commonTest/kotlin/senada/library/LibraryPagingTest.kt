@@ -130,11 +130,12 @@ class LibraryPagingTest {
         driver.execute(null, "DROP TABLE playlist_play", 0)
         driver.execute(null, "DROP TABLE imported_track", 0)
         driver.execute(null, "DROP TABLE listen_event", 0)
+        driver.execute(null, "DROP TABLE followed_artist", 0)
         fillFavorites(3)
 
         SenadaDatabase.Schema.migrate(driver, 2, SenadaDatabase.Schema.version)
 
-        assertEquals(6L, SenadaDatabase.Schema.version)
+        assertEquals(7L, SenadaDatabase.Schema.version)
         assertEquals(3, library().favoritesPage(50).first().size)
     }
 }

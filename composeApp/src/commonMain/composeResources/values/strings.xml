@@ -247,6 +247,10 @@
         <item quantity="one">%1$d history track</item>
         <item quantity="other">%1$d history tracks</item>
     </plurals>
+    <plurals name="backup_followed_artists">
+        <item quantity="one">%1$d followed artist</item>
+        <item quantity="other">%1$d followed artists</item>
+    </plurals>
     <plurals name="backup_skipped_entries">
         <item quantity="one">%1$d entry skipped (desktop local files or non-YouTube Music sources).</item>
         <item quantity="other">%1$d entries skipped (desktop local files or non-YouTube Music sources).</item>
@@ -786,6 +790,11 @@
     <string name="catalog_artist_play_top_a11y">Play top songs by %1$s</string>
     <string name="catalog_artist_shuffle_top_a11y">Shuffle top songs by %1$s</string>
     <string name="catalog_artist_see_all_a11y">See all top songs by %1$s</string>
+    <string name="catalog_artist_follow">Follow</string>
+    <string name="catalog_artist_following">Following</string>
+    <string name="catalog_artist_not_followed">Not following</string>
+    <string name="catalog_artist_follow_a11y">Follow %1$s</string>
+    <string name="catalog_artist_unfollow_a11y">Unfollow %1$s</string>
     <string name="catalog_tracklist_heading">Tracklist</string>
     <string name="catalog_album_empty">No songs in this album yet.</string>
     <string name="catalog_playlist_empty">No songs in this playlist yet.</string>
@@ -818,7 +827,7 @@
     <string name="library_shortcut_imported_sub">Audio on device</string>
     <string name="library_shortcut_open_a11y">Open %1$s</string>
     <string name="library_artists_loading">Loading artists…</string>
-    <string name="library_artists_empty">Save songs to favorites or playlists to see their artists.</string>
+    <string name="library_artists_empty">You have not followed any artists yet. Follow artists from their pages to see them here.</string>
     <string name="library_imported_eyebrow">Local storage</string>
     <string name="library_imported_empty_short">No imported audio files yet.</string>
     <string name="library_empty_eyebrow">Nothing here yet</string>

@@ -48,6 +48,7 @@ import senada.resources.backup_apply_title
 import senada.resources.backup_desc
 import senada.resources.backup_export
 import senada.resources.backup_favorites_imported
+import senada.resources.backup_followed_artists
 import senada.resources.backup_history_imported
 import senada.resources.backup_import
 import senada.resources.backup_io_error
@@ -249,6 +250,8 @@ internal fun describe(summary: ImportSummary, language: AppLanguage = AppStrings
             .takeIf { summary.savedAdded > 0 },
         AppStrings.plural(Res.plurals.backup_history_imported, summary.historyAdded, language, summary.historyAdded)
             .takeIf { summary.historyAdded > 0 },
+        AppStrings.plural(Res.plurals.backup_followed_artists, summary.followedArtistsAdded, language, summary.followedArtistsAdded)
+            .takeIf { summary.followedArtistsAdded > 0 },
     )
     return buildString {
         append(AppStrings.get(Res.string.backup_added_prefix, language, added.joinToString(", ")))

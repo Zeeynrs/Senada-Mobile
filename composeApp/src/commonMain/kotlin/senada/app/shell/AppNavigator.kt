@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import senada.app.AppLanguage
 import senada.app.AppStrings
 import senada.catalog.MoodChip
+import senada.catalog.youtube.YOUTUBE_MUSIC_SOURCE
 import senada.resources.Res
 import senada.resources.catalog_type_album
 import senada.resources.catalog_type_artist
@@ -92,6 +93,7 @@ internal sealed interface CatalogRoute {
         override val id: String,
         val name: String,
         override val artworkUrl: String? = null,
+        val source: String = YOUTUBE_MUSIC_SOURCE,
     ) : CatalogRoute {
         override fun label(language: AppLanguage): String =
             name.ifBlank { AppStrings.get(Res.string.catalog_type_artist, language) }
@@ -204,13 +206,19 @@ internal class AppNavigator(
         if (route != currentProfileRoute) profileStack = profileStack + route
     }
 
-    fun openArtist(id: String, name: String = "", artworkUrl: String? = null) {
+    fun openArtist(
+        id: String,
+        name: String = "",
+        artworkUrl: String? = null,
+        source: String = YOUTUBE_MUSIC_SOURCE,
+    ) {
         val cleanId = id.trim()
+        val cleanSource = source.trim().ifEmpty { YOUTUBE_MUSIC_SOURCE }
         if (cleanId.isEmpty()) return
         nowPlayingOpen = false
         val top = catalogStack.lastOrNull()
-        if (top is CatalogRoute.Artist && top.id == cleanId) return
-        catalogStack = catalogStack + CatalogRoute.Artist(cleanId, name, artworkUrl)
+        if (top is CatalogRoute.Artist && top.id == cleanId && top.source == cleanSource) return
+        catalogStack = catalogStack + CatalogRoute.Artist(cleanId, name, artworkUrl, cleanSource)
     }
 
     fun openAlbum(id: String, title: String = "", subtitle: String? = null, artworkUrl: String? = null) {
@@ -273,7 +281,7 @@ internal class AppNavigator(
                                 add("artist")
                                 add(route.id)
                                 add(route.name)
-                                add(null)
+                                add(route.source)
                                 add(route.artworkUrl)
                             }
                             is CatalogRoute.Album -> {
@@ -312,7 +320,14 @@ internal class AppNavigator(
                         val artwork = saved[i + 4] as? String
                         if (!id.isNullOrBlank()) {
                             when (kind) {
-                                "artist" -> add(CatalogRoute.Artist(id, label, artwork))
+                                "artist" -> add(
+                                    CatalogRoute.Artist(
+                                        id = id,
+                                        name = label,
+                                        artworkUrl = artwork,
+                                        source = subtitle?.takeIf { it.isNotBlank() } ?: YOUTUBE_MUSIC_SOURCE,
+                                    ),
+                                )
                                 "album" -> add(CatalogRoute.Album(id, label, subtitle, artwork))
                                 "playlist" -> add(CatalogRoute.Playlist(id, label, subtitle, artwork))
                                 "mood" -> add(CatalogRoute.Mood(id, label, params = subtitle, artworkUrl = artwork))

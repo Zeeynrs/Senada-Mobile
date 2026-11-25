@@ -231,6 +231,9 @@
     <plurals name="backup_history_imported">
         <item quantity="other">%1$d lagu riwayat</item>
     </plurals>
+    <plurals name="backup_followed_artists">
+        <item quantity="other">%1$d artis diikuti</item>
+    </plurals>
     <plurals name="backup_skipped_entries">
         <item quantity="other">%1$d entri dilewati (file lokal desktop atau sumber selain YouTube Music).</item>
     </plurals>
@@ -765,6 +768,11 @@
     <string name="catalog_artist_play_top_a11y">Putar lagu terpopuler %1$s</string>
     <string name="catalog_artist_shuffle_top_a11y">Putar acak lagu terpopuler %1$s</string>
     <string name="catalog_artist_see_all_a11y">Lihat semua lagu terpopuler %1$s</string>
+    <string name="catalog_artist_follow">Ikuti</string>
+    <string name="catalog_artist_following">Mengikuti</string>
+    <string name="catalog_artist_not_followed">Belum diikuti</string>
+    <string name="catalog_artist_follow_a11y">Ikuti %1$s</string>
+    <string name="catalog_artist_unfollow_a11y">Berhenti mengikuti %1$s</string>
     <string name="catalog_tracklist_heading">Daftar lagu</string>
     <string name="catalog_album_empty">Belum ada lagu di album ini.</string>
     <string name="catalog_playlist_empty">Belum ada lagu di playlist ini.</string>
@@ -795,7 +803,7 @@
     <string name="library_shortcut_imported_sub">Audio di perangkat</string>
     <string name="library_shortcut_open_a11y">Buka %1$s</string>
     <string name="library_artists_loading">Memuat artis…</string>
-    <string name="library_artists_empty">Simpan lagu ke favorit atau playlist untuk melihat artisnya.</string>
+    <string name="library_artists_empty">Belum ada artis yang diikuti. Ikuti artis dari halaman artis untuk menyimpannya di sini.</string>
     <string name="library_imported_eyebrow">Penyimpanan lokal</string>
     <string name="library_imported_empty_short">Belum ada file audio impor.</string>
     <string name="library_empty_eyebrow">Belum ada isi</string>

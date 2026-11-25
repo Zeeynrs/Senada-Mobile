@@ -70,10 +70,13 @@ import senada.app.theme.SenadaPalette
 import senada.catalog.artistChoicesFor
 import senada.catalog.canOpenArtist
 import senada.catalog.youtube.resizeGoogleArtwork
+import senada.library.DEFAULT_ARTIST_SOURCE
+import senada.library.FollowedArtist
 import senada.library.LibraryRepository
 import senada.library.Playlist
 import senada.library.PlaylistImporter
 import senada.library.PlaylistSummary
+import senada.library.followedArtistKey
 import senada.library.recordPlaylistPlay
 import senada.local.ImportedAudioStorage
 import senada.local.syncImportedAudio
@@ -144,7 +147,14 @@ internal data class LibraryState(
     val history: List<Track> = emptyList(),
     val favoriteDurationMs: Long? = null,
     val playlistCovers: Map<String, List<String>> = emptyMap(),
-)
+    val followedArtists: List<FollowedArtist> = emptyList(),
+    val followedArtistIds: Set<String> = emptySet(),
+) {
+    fun isArtistFollowed(catalogId: String, source: String = DEFAULT_ARTIST_SOURCE): Boolean {
+        val key = followedArtistKey(catalogId, source)
+        return key.isNotEmpty() && key in followedArtistIds
+    }
+}
 
 /** Pilihan sampul 56 dp untuk satu baris playlist di daftar. */
 internal sealed interface PlaylistCover {
@@ -213,6 +223,27 @@ internal class LibraryActions(
         }
     }
     fun toggleFavorite(track: Track) = write { library.toggleFavorite(track) }
+    fun toggleFollowArtist(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ) = write { library.toggleFollowArtist(catalogId, name, artworkUrl, source) }
+
+    fun setArtistFollowed(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        followed: Boolean,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ) = write { library.setArtistFollowed(catalogId, name, artworkUrl, followed, source) }
+
+    fun refreshFollowedArtistMetadata(
+        catalogId: String,
+        name: String,
+        artworkUrl: String? = null,
+        source: String = DEFAULT_ARTIST_SOURCE,
+    ) = write { library.refreshFollowedArtistMetadata(catalogId, name, artworkUrl, source) }
     fun addToPlaylist(playlistId: String, track: Track) = write { library.addToPlaylist(playlistId, listOf(track)) }
     fun createPlaylist(name: String, tracks: List<Track> = emptyList()) = write { library.createPlaylist(name, tracks) }
     fun renamePlaylist(id: String, name: String) = write { library.renamePlaylist(id, name) }

@@ -88,6 +88,7 @@ internal object SenadaIcons {
     val Lyrics = stroke("Lyrics", "M4 6h16", "M4 12h10", "M4 18h13")
     val Queue = stroke("Queue", "M3 6h13", "M3 12h13", "M3 18h8", "M16 15l5 3-5 3Z")
     val Close = stroke("Close", "M6 6l12 12", "M18 6L6 18")
+    val Check = stroke("Check", "M5 12.5l4.5 4.5L19 7.5")
     val Trash = stroke("Trash", "M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13", "M10 11v5", "M14 11v5")
     val Add = stroke("Add", "M12 5v14", "M5 12h14")
     val Download = stroke("Download", "M12 3v12", "M7 10l5 5 5-5", "M5 20h14")

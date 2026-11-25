@@ -42,8 +42,8 @@ import senada.app.offlineSongsTab
 import senada.app.playlistsTab
 import senada.app.rememberAudioImportController
 import senada.app.sumKnownDurationMs
+import senada.library.FollowedArtist
 import senada.library.Playlist
-import senada.library.LibraryArtist
 import senada.model.Track
 import senada.offline.OfflineState
 import senada.platform.importedAudioStorage
@@ -62,7 +62,7 @@ import senada.resources.library_imported_empty_short
 import senada.resources.library_imported_eyebrow
 import senada.resources.library_shortcut_imported
 import senada.resources.library_shortcut_offline
-import senada.resources.offline_find_songs
+import senada.resources.search_artists_prompt_title
 
 /** Pilihan filter di dalam satu tab Library. */
 internal enum class LibraryFilter {
@@ -93,7 +93,7 @@ internal fun LazyListScope.libraryTab(
     onSection: (LibraryFilter) -> Unit,
     library: LibraryState,
     openedPlaylist: Playlist?,
-    artists: List<LibraryArtist>?,
+    artists: List<FollowedArtist>?,
     downloadState: OfflineState?,
     profileName: String,
     profilePhoto: String?,
@@ -103,6 +103,8 @@ internal fun LazyListScope.libraryTab(
     onLoadMoreFavorites: () -> Unit,
     onLoadMorePlaylist: () -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenArtist: (FollowedArtist) -> Unit = {},
+    onOpenArtistSearch: () -> Unit = onOpenSearch,
     reorderingPlaylist: Boolean = false,
     onToggleReorderPlaylist: () -> Unit = {},
 ) {
@@ -121,7 +123,7 @@ internal fun LazyListScope.libraryTab(
         LibraryFilterChips(section, onSection)
     }
     when (section) {
-        LibraryFilter.All -> libraryOverviewRows(library, artists.orEmpty(), actions, onSection) { onOpenPlaylist(it) }
+        LibraryFilter.All -> libraryOverviewRows(library, artists.orEmpty(), actions, onSection, { onOpenPlaylist(it) }, onOpenArtist)
         LibraryFilter.Favorites -> favoritesTab(library, actions, onLoadMoreFavorites, onOpenSearch)
         LibraryFilter.Offline -> offlineSongsTab(downloadState ?: OfflineState(), library, actions, onOpenSearch)
         LibraryFilter.Artists -> when {
@@ -131,11 +133,11 @@ internal fun LazyListScope.libraryTab(
             artists.isEmpty() -> item(key = "library-artists-empty") {
                 LibraryEmptyState(
                     message = appString(Res.string.library_artists_empty),
-                    actionLabel = appString(Res.string.offline_find_songs),
-                    onAction = onOpenSearch,
+                    actionLabel = appString(Res.string.search_artists_prompt_title),
+                    onAction = onOpenArtistSearch,
                 )
             }
-            else -> libraryArtistRows(artists, actions)
+            else -> libraryArtistRows(artists, onOpenArtist)
         }
         LibraryFilter.Playlists -> playlistsTab(
             library = library,

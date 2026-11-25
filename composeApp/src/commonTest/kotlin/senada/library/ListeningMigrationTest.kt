@@ -60,7 +60,7 @@ class ListeningMigrationTest {
 
             SenadaDatabase.Schema.migrate(driver, 5, 6)
 
-            assertEquals(6L, SenadaDatabase.Schema.version)
+            assertEquals(7L, SenadaDatabase.Schema.version)
             val rows = driver.executeQuery(null, "SELECT count(*) FROM listen_event", { cursor ->
                 cursor.next()
                 QueryResult.Value(cursor.getLong(0))

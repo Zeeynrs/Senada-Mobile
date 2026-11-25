@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -124,15 +125,20 @@ import senada.resources.catalog_album_load_failed
 import senada.resources.catalog_album_loading
 import senada.resources.catalog_artist_empty
 import senada.resources.catalog_artist_empty_eyebrow
+import senada.resources.catalog_artist_follow
+import senada.resources.catalog_artist_follow_a11y
+import senada.resources.catalog_artist_following
 import senada.resources.catalog_artist_load_failed
 import senada.resources.catalog_artist_loading
 import senada.resources.catalog_artist_newest_albums
+import senada.resources.catalog_artist_not_followed
 import senada.resources.catalog_artist_play_top_a11y
 import senada.resources.catalog_artist_popular_albums
 import senada.resources.catalog_artist_popular_songs
 import senada.resources.catalog_artist_popular_songs_named
 import senada.resources.catalog_artist_see_all_a11y
 import senada.resources.catalog_artist_shuffle_top_a11y
+import senada.resources.catalog_artist_unfollow_a11y
 import senada.resources.catalog_error_eyebrow
 import senada.resources.catalog_mood_load_failed
 import senada.resources.catalog_playlist_load_failed
@@ -814,8 +820,11 @@ private fun LazyListScope.artistDetailScreen(
     onOpenPlaylist: (PlaylistSummary) -> Unit,
 ) {
     val detail = state.data
-    val displayName = detail?.name?.takeIf { it.isNotBlank() } ?: route.label
-    val artworkUrl = detail?.artworkUrl ?: route.artworkUrl
+    val resolvedName = detail?.name?.trim()?.takeIf { it.isNotEmpty() }
+        ?: route.name.trim().takeIf { it.isNotEmpty() }
+    val displayName = resolvedName ?: route.label
+    val artworkUrl = detail?.artworkUrl?.takeIf { it.isNotBlank() } ?: route.artworkUrl?.takeIf { it.isNotBlank() }
+    val followed = library.isArtistFollowed(route.id, route.source)
     val sections = artistPageSections(detail)
     val popularSongs = sections
         .filterIsInstance<ArtistPageSection.PopularSongs>()
@@ -827,13 +836,32 @@ private fun LazyListScope.artistDetailScreen(
         CollectionTopBar(previousLabel = previousLabel, onBack = onBack)
     }
     item(key = "artist-header-${route.id}") {
+        LaunchedEffect(route.id, route.source, detail?.id, detail?.name, detail?.artworkUrl, followed) {
+            if (followed && detail != null) {
+                actions.refreshFollowedArtistMetadata(
+                    catalogId = route.id,
+                    name = detail.name,
+                    artworkUrl = detail.artworkUrl,
+                    source = route.source,
+                )
+            }
+        }
         ArtistHeroCard(
             displayName = displayName,
             artworkUrl = artworkUrl,
             monthlyListeners = detail?.monthlyListeners,
             canPlay = popularSongs.isNotEmpty(),
+            followed = followed,
             onPlay = { actions.playAll(popularSongs, PlaySource.Artist(displayName), resetShuffle = true) },
             onShuffle = { actions.playShuffled(popularSongs, PlaySource.Artist(displayName)) },
+            onToggleFollow = {
+                actions.toggleFollowArtist(
+                    catalogId = route.id,
+                    name = resolvedName ?: displayName,
+                    artworkUrl = artworkUrl,
+                    source = route.source,
+                )
+            },
         )
     }
 
@@ -952,14 +980,42 @@ private fun LazyListScope.artistDetailScreen(
     }
 }
 
+internal data class ArtistFollowControlState(
+    val label: String,
+    val accessibilityLabel: String,
+    val stateLabel: String,
+    val followed: Boolean,
+)
+
+internal fun artistFollowControlState(
+    displayName: String,
+    followed: Boolean,
+    language: AppLanguage = AppStrings.currentLanguage,
+): ArtistFollowControlState {
+    val followingLabel = AppStrings.get(Res.string.catalog_artist_following, language)
+    val accessibilityResource = if (followed) {
+        Res.string.catalog_artist_unfollow_a11y
+    } else {
+        Res.string.catalog_artist_follow_a11y
+    }
+    return ArtistFollowControlState(
+        label = if (followed) followingLabel else AppStrings.get(Res.string.catalog_artist_follow, language),
+        accessibilityLabel = AppStrings.get(accessibilityResource, language, displayName),
+        stateLabel = if (followed) followingLabel else AppStrings.get(Res.string.catalog_artist_not_followed, language),
+        followed = followed,
+    )
+}
+
 @Composable
 private fun ArtistHeroCard(
     displayName: String,
     artworkUrl: String?,
     monthlyListeners: String?,
     canPlay: Boolean,
+    followed: Boolean,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    onToggleFollow: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val largeFont = LocalDensity.current.fontScale >= 1.5f
@@ -1028,73 +1084,123 @@ private fun ArtistHeroCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                    val playTopDesc = appString(Res.string.catalog_artist_play_top_a11y, displayName)
-                    val shuffleTopDesc = appString(Res.string.catalog_artist_shuffle_top_a11y, displayName)
-                    Button(
-                        onClick = onPlay,
-                        enabled = canPlay,
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = playContainer,
-                            contentColor = playContent,
-                            disabledContainerColor = colors.surfaceContainerHighest,
-                            disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
+                val playTopDesc = appString(Res.string.catalog_artist_play_top_a11y, displayName)
+                val shuffleTopDesc = appString(Res.string.catalog_artist_shuffle_top_a11y, displayName)
+                Button(
+                    onClick = onPlay,
+                    enabled = canPlay,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = playContainer,
+                        contentColor = playContent,
+                        disabledContainerColor = colors.surfaceContainerHighest,
+                        disabledContentColor = colors.onSurface.copy(alpha = 0.38f),
+                    ),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics {
+                        contentDescription = playTopDesc
+                    },
+                ) {
+                    Icon(
+                        imageVector = SenadaIcons.Play,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        appString(Res.string.action_play),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
                         ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                        modifier = Modifier.heightIn(min = 48.dp).semantics {
-                            contentDescription = playTopDesc
-                        },
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+                Surface(
+                    onClick = onShuffle,
+                    enabled = canPlay,
+                    shape = RoundedCornerShape(24.dp),
+                    color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
+                    border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
+                    modifier = Modifier.heightIn(min = 48.dp).semantics {
+                        role = Role.Button
+                        contentDescription = shuffleTopDesc
+                    },
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        val contentTint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
                         Icon(
-                            imageVector = SenadaIcons.Play,
+                            imageVector = SenadaIcons.Shuffle,
                             contentDescription = null,
+                            tint = contentTint,
                             modifier = Modifier.size(18.dp),
                         )
-                        Spacer(Modifier.width(6.dp))
                         Text(
-                            appString(Res.string.action_play),
+                            appString(Res.string.action_shuffle),
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 14.sp,
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.Bold,
                             ),
+                            color = contentTint,
                             modifier = Modifier.clearAndSetSemantics {},
                         )
                     }
-                    Surface(
-                        onClick = onShuffle,
-                        enabled = canPlay,
-                        shape = RoundedCornerShape(24.dp),
-                        color = if (canPlay) colors.surfaceContainerHigh else Color.Transparent,
-                        border = BorderStroke(1.dp, if (canPlay) colors.outline else colors.outlineVariant),
-                        modifier = Modifier.heightIn(min = 48.dp).semantics {
-                            role = Role.Button
-                            contentDescription = shuffleTopDesc
-                        },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            val contentTint = if (canPlay) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
-                            Icon(
-                                imageVector = SenadaIcons.Shuffle,
-                                contentDescription = null,
-                                tint = contentTint,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                appString(Res.string.action_shuffle),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                                color = contentTint,
-                                modifier = Modifier.clearAndSetSemantics {},
-                            )
-                        }
-                    }
+                }
+                ArtistFollowButton(
+                    displayName = displayName,
+                    followed = followed,
+                    onClick = onToggleFollow,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ArtistFollowButton(
+    displayName: String,
+    followed: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val control = artistFollowControlState(displayName, followed, LocalAppLanguage.current)
+    val containerColor = if (control.followed) colors.onSurface else colors.surfaceContainerHigh
+    val contentColor = if (control.followed) colors.background else colors.onSurface
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = containerColor,
+        border = if (control.followed) null else BorderStroke(1.dp, colors.outline),
+        modifier = Modifier.heightIn(min = 48.dp).semantics {
+            role = Role.Button
+            contentDescription = control.accessibilityLabel
+            stateDescription = control.stateLabel
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = if (control.followed) SenadaIcons.Check else SenadaIcons.Add,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = control.label,
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = contentColor,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
         }
     }
 }

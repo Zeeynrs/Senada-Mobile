@@ -1,0 +1,11 @@
+-- Versi 6 → 7: daftar artis yang diikuti pengguna secara eksplisit.
+CREATE TABLE IF NOT EXISTS followed_artist (
+    id TEXT NOT NULL PRIMARY KEY,
+    catalog_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    artwork_url TEXT,
+    source TEXT NOT NULL DEFAULT 'ytmusic',
+    followed_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS followed_artist_followed_at ON followed_artist(followed_at);

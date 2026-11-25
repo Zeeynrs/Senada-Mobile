@@ -35,4 +35,14 @@ class BackupSummaryTest {
         assertEquals("Everything in this backup is already in your library.", describe(ImportSummary()))
         assertEquals("Semua isi backup sudah ada di library.", describe(ImportSummary(), AppLanguage.Indonesian))
     }
+
+    @Test
+    fun followedArtistsAreDescribedInSummary() {
+        val summary = ImportSummary(followedArtistsAdded = 2)
+        assertEquals("Added: 2 followed artists.", describe(summary, AppLanguage.English))
+        assertEquals(
+            "Ditambahkan: 2 artis diikuti.",
+            describe(summary, AppLanguage.Indonesian),
+        )
+    }
 }
