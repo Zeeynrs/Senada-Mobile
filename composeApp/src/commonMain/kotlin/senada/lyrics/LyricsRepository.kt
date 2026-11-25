@@ -236,7 +236,8 @@ private val TIMING_VERSION_REGEXES = mapOf(
     "demo" to Regex("""\bdemo\b""", RegexOption.IGNORE_CASE),
 )
 
-private val NON_ALNUM = Regex("""[^\p{L}\p{N}]+""")
+// Kotlin/Native resolves the single-letter N alias as IsN, which its regex engine does not define.
+private val NON_ALNUM = Regex("""[^\p{L}\p{Nd}\p{Nl}\p{No}]+""")
 
 private fun recordingVersionTags(title: String): Set<String> = buildSet {
     for ((tag, regex) in TIMING_VERSION_REGEXES) {
