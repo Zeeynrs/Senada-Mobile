@@ -19,7 +19,8 @@ ACTIVITY = f"{PKG}/senada.platform.MainActivity"
 APK = "composeApp/build/outputs/apk/debug/composeApp-debug.apk"
 FIRST = "Selepas Hujan"
 SECOND = "Sebelum Pagi"
-QUEUE_ACTION = "Tambah ke antrean"
+QUEUE_ACTION = "Tambahkan ke antrean"
+OPEN_NOW_PLAYING = "Buka pemutar"
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "build/android-e2e")
 STATES = {"0": "NONE", "1": "STOPPED", "2": "PAUSED", "3": "PLAYING", "6": "BUFFERING", "7": "ERROR"}
 
@@ -254,19 +255,19 @@ def open_tab(label: str) -> bool:
 
 
 def open_now_playing() -> bool:
-    return tap_desc("Buka Sedang diputar") and bool(wait_for(lambda: find_interactive("Tutup", attribute="content-desc"), 5))
+    return tap_desc(OPEN_NOW_PLAYING) and bool(wait_for(lambda: find_interactive("Tutup", attribute="content-desc"), 5))
 
 
 def now_playing_closed() -> bool:
     tree = ui_tree()
     return tree is not None and not find_interactive("Tutup", attribute="content-desc", root=tree) and bool(
-        find_interactive("Buka Sedang diputar", attribute="content-desc", root=tree)
+        find_interactive(OPEN_NOW_PLAYING, attribute="content-desc", root=tree)
     )
 
 
 def check_now_playing_swipes() -> None:
     name = "Geser mini player ke atas membuka Sedang diputar dan geser header ke bawah menutupnya"
-    mini_player = desc_point("Buka Sedang diputar")
+    mini_player = desc_point(OPEN_NOW_PLAYING)
     if mini_player is None:
         check(False, name, "Mini player tidak ditemukan")
         return
@@ -362,9 +363,9 @@ def check_queue_ended_now_playing() -> None:
     shell("input keyevent KEYCODE_WAKEUP")
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
-    if wait_for(lambda: desc_point("Buka Sedang diputar"), 5) is None:
+    if wait_for(lambda: desc_point(OPEN_NOW_PLAYING), 5) is None:
         dismiss_system_dialogs()
-        wait_for(lambda: desc_point("Buka Sedang diputar"), 3)
+        wait_for(lambda: desc_point(OPEN_NOW_PLAYING), 3)
     opened = open_now_playing()
     if opened:
         time.sleep(0.3)
@@ -376,7 +377,7 @@ def check_queue_ended_now_playing() -> None:
         tree = None
         screenshot("05b-queue-ended-nowplaying")
 
-    header_ok = tree is not None and bool(ui_bounds("Diputar dari Antrean", root=tree)) and not ui_bounds(
+    header_ok = tree is not None and bool(ui_bounds("Diputar dari antrean", root=tree)) and not ui_bounds(
         "Sedang diputar", root=tree
     )
     title_bounds = (
@@ -456,25 +457,71 @@ def back_to_profile() -> bool:
     return bool(wait_for(lambda: desc_point("Profil"), 5))
 
 
+def language_screen_shows(heading: str, option: str, active_label: str) -> bool:
+    root = ui_tree()
+    return (
+        root is not None
+        and bool(ui_bounds(heading, root=root))
+        and bool(ui_bounds(active_label, root=root))
+        and is_selected_label(option, root=root)
+    )
+
+
+def check_app_language() -> bool:
+    def english_nav_ready():
+        dismiss_system_dialogs()
+        root = ui_tree()
+        return root is not None and all(
+            ui_bounds(label, attribute="content-desc", root=root) for label in ("Home", "Search", "Profile")
+        )
+
+    if not check(wait_for(english_nav_ready, 30, 1), "Bahasa default aplikasi adalah English"):
+        return False
+    if not check(
+        open_tab("Profile") and tap_profile_item("Language") and wait_for(
+            lambda: language_screen_shows("App language", "English", "ACTIVE: ENGLISH"), 5,
+        ),
+        "Profile membuka Language dengan English terpilih",
+    ):
+        return False
+    for option, heading, active_label in (
+        ("Bahasa Indonesia", "Bahasa aplikasi", "AKTIF: BAHASA INDONESIA"),
+        ("English", "App language", "ACTIVE: ENGLISH"),
+        ("Bahasa Indonesia", "Bahasa aplikasi", "AKTIF: BAHASA INDONESIA"),
+    ):
+        if not check(
+            tap_text(option, scrolls=0) and wait_for(lambda: language_screen_shows(heading, option, active_label), 5),
+            f"Memilih {option} langsung memperbarui halaman bahasa",
+        ):
+            return False
+    if not check(back_to_profile(), "Navigasi Profil memakai Bahasa Indonesia setelah bahasa diganti"):
+        return False
+    shell(f"am force-stop {PKG}")
+    shell(f"am start -W -n {ACTIVITY}")
+    return check(
+        wait_for(lambda: desc_point("Cari"), 30, 1),
+        "Bahasa Indonesia bertahan setelah proses aplikasi dimulai ulang",
+    )
+
+
 def screenshot_full_profile() -> None:
     """Perpanjang layar sebentar agar seluruh Profil terlihat seperti kanvas mockup."""
     original_size = re.search(r"Override size: (\d+x\d+)", shell("wm size"))
     density = screen_density() / 160
-    # Profil kini punya satu baris pengaturan tambahan untuk Lirik.
-    width, height = round(390 * density), round(1440 * density)
+    width, height = round(390 * density), round(1560 * density)
     try:
         shell(f"wm size {width}x{height}")
 
         def full_profile_visible():
             root = ui_tree()
-            if root is None or not ui_bounds("Halo lagi, Uji!", root=root) or not ui_bounds("Lirik", root=root):
+            if root is None or not all(ui_bounds(label, root=root) for label in ("Halo lagi, Uji!", "Lirik", "Bahasa")):
                 return False
             return any(
                 y2 < overlay_top(root, height)
                 for _, _, _, y2 in ui_bounds("Tentang Senada", root=root)
             )
 
-        check(wait_for(full_profile_visible, 10), "Sapaan, Lirik, dan kartu versi terlihat pada kanvas Profil")
+        check(wait_for(full_profile_visible, 10), "Sapaan, Lirik, Bahasa, dan kartu versi terlihat pada kanvas Profil")
         screenshot("v2-40-profile-full")
     finally:
         shell("wm size " + (original_size.group(1) if original_size else "reset"))
@@ -533,7 +580,7 @@ def check_profile_shell() -> None:
         if label == "Audio Lab":
             tree = ui_tree()
             nav_hidden = tree is not None and not find_interactive("Beranda", attribute="content-desc", root=tree)
-            mini_boxes = find_interactive("Buka Sedang diputar", attribute="content-desc", root=tree) if tree is not None else []
+            mini_boxes = find_interactive(OPEN_NOW_PLAYING, attribute="content-desc", root=tree) if tree is not None else []
             _, height = screen_size()
             max_bottom_margin_px = int(48 * screen_density() / 160)
             mini_at_bottom = bool(mini_boxes) and (height - mini_boxes[0][0][3]) <= max_bottom_margin_px
@@ -549,7 +596,7 @@ def check_profile_shell() -> None:
                     lambda: (t := ui_tree()) is not None
                     and not find_interactive("Tutup", attribute="content-desc", root=t)
                     and bool(find_interactive("Kembali ke Profil", attribute="content-desc", root=t))
-                    and bool(find_interactive("Buka Sedang diputar", attribute="content-desc", root=t)),
+                    and bool(find_interactive(OPEN_NOW_PLAYING, attribute="content-desc", root=t)),
                     5,
                 )
                 check(
@@ -918,7 +965,6 @@ def check_home_shelves() -> None:
     scroll_to_top(2)
     shelf_titles = {
         "Baru diputar",
-        "Untuk kamu",
         "Mood & genre",
         "Lagu untuk kamu",
         "Lagu populer",
@@ -1307,11 +1353,14 @@ def check_home_hero_play() -> None:
 
 
 def check_collection_header() -> None:
+    favorited = False
     if open_tab("Cari"):
         scroll_to_top(3)
         if tap_desc(f"Buka menu {FIRST}"):
-            if not tap_text("Tambah ke favorit", scrolls=0):
+            favorited = tap_text("Tambahkan ke favorit", scrolls=0)
+            if not favorited:
                 shell("input keyevent KEYCODE_BACK")
+    check(favorited, "Lagu contoh ditambahkan ke Favorit untuk menguji filter Artis")
 
     if not check(open_tab("Library"), "Tab Library dapat dibuka untuk memeriksa header koleksi Favorit"):
         return
@@ -1321,12 +1370,16 @@ def check_collection_header() -> None:
     ))
     check(overview, "Filter Semua menampilkan koleksi Favorit sebagai baris di Library")
     screenshot("v2-library-overview")
-    artists = tap_desc("Filter Library Artis") and bool(wait_for(
-        lambda: find_interactive_prefix("Buka artis ") or ui_bounds(
-            "Simpan lagu ke favorit atau playlist untuk melihat artisnya.",
-        ), 5,
-    ))
-    check(artists and not ui_bounds("Buka Favorit", attribute="content-desc"), "Filter Artis menampilkan bagian artis")
+    artists = tap_desc("Filter Library Artis") and wait_for(
+        lambda: (root := ui_tree()) is not None
+        and ui_bounds(
+            "Belum ada artis yang diikuti. Ikuti artis dari halaman artis untuk menyimpannya di sini.", root=root,
+        )
+        and find_interactive("Cari artis", root=root)
+        and not ui_bounds("Buka Favorit", attribute="content-desc", root=root),
+        5,
+    )
+    check(artists, "Filter Artis tetap kosong setelah menambah lagu ke Favorit")
     if not check(tap_desc("Filter Library Favorit"), "Filter Favorit dapat dipilih"):
         return
     min_px = min_touch_px()
@@ -1391,7 +1444,7 @@ def check_library_chips(min_px: int) -> None:
             x1, y1, x2, y2 = row_matches[0][0]
             tap(((x1 + x2) // 2, (y1 + y2) // 2))
             back_btn = wait_for(lambda: find_interactive("Kembali ke semua playlist", attribute="content-desc"), 5) or []
-            empty_msg = ui_bounds("Playlist ini masih kosong.")
+            empty_msg = ui_bounds("Playlist ini belum memiliki lagu.")
             detail_ok = bool(back_btn) and bool(empty_msg) and all(
                 (box[2] - box[0]) >= min_px and (box[3] - box[1]) >= min_px
                 for box, _ in back_btn
@@ -1717,7 +1770,7 @@ def check_initial_accessibility() -> None:
 def check_search_keyboard() -> None:
     scroll_to_top(2)
     placeholder = "Cari judul atau artis"
-    labels = ("Beranda", "Buka Sedang diputar")
+    labels = ("Beranda", OPEN_NOW_PLAYING)
 
     def visible_bars(root: ET.Element) -> list[str]:
         return [label for label in labels if ui_bounds(label, attribute="content-desc", root=root)]
@@ -1754,7 +1807,7 @@ def overlay_top(root: ET.Element, height: int) -> int:
     """Batas atas mini player dan navigasi bawah yang mengambang di atas isi tab."""
     tops = [
         box[1]
-        for label in ("Buka Sedang diputar", "Beranda")
+        for label in (OPEN_NOW_PLAYING, "Open Now Playing", "Beranda", "Home")
         for box in ui_bounds(label, attribute="content-desc", root=root)
     ]
     return min(tops, default=height)
@@ -1799,6 +1852,37 @@ def scroll_to_top(swipes: int = 4) -> None:
         time.sleep(0.35)
 
 
+def check_queue_drag() -> None:
+    def handle_bounds():
+        root = ui_tree()
+        if root is None:
+            return None
+        first = ui_bounds(f"Urutkan {FIRST}", attribute="content-desc", root=root)
+        second = ui_bounds(f"Urutkan {SECOND}", attribute="content-desc", root=root)
+        return (first[0], second[0]) if first and second else None
+
+    def handles_ordered(first_above: bool):
+        bounds = handle_bounds()
+        if bounds is None:
+            return None
+        upper, lower = bounds if first_above else bounds[::-1]
+        return bounds if upper[1] < lower[1] else None
+
+    bounds = wait_for(lambda: handles_ordered(True), 5)
+    if not check(bounds, "Kedua lagu memiliki pegangan urutkan di antrean"):
+        return
+    x1, y1, x2, y2 = bounds[0]
+    x = (x1 + x2) // 2
+    shell(f"input swipe {x} {(y1 + y2) // 2} {x} {bounds[1][3] - 1} 700")
+    reordered = wait_for(lambda: handles_ordered(False), 5)
+    if not check(reordered, "Menyeret pegangan lagu pertama ke bawah mengubah urutan antrean"):
+        return
+    x1, y1, x2, y2 = reordered[0]
+    x = (x1 + x2) // 2
+    shell(f"input swipe {x} {(y1 + y2) // 2} {x} {reordered[1][1] + 1} 700")
+    check(wait_for(lambda: handles_ordered(True), 5), "Menyeret kembali mengembalikan urutan antrean")
+
+
 def check_now_playing_queue() -> None:
     if not check(open_now_playing() and tap_desc("Antrean"), "Panel Antrean di Sedang diputar dapat dibuka"):
         return
@@ -1838,7 +1922,7 @@ def check_now_playing_queue() -> None:
     enqueue = find_interactive(QUEUE_ACTION, root=menu) if menu is not None else []
     if not check(
         remove and enqueue and remove[0][0][1] < enqueue[0][0][1],
-        "Hapus dari antrean berada di atas aksi Tambah ke antrean pada menu ⋯",
+        "Hapus dari antrean berada di atas aksi Tambahkan ke antrean pada menu ⋯",
     ):
         return
     removed = tap_text(remove_label, scrolls=0) and wait_for(
@@ -1872,11 +1956,11 @@ def check_large_font_accessibility() -> None:
     menu_targets = [(label, "content-desc") for label in ("Acak: mati", "Ulangi: mati")]
     player_targets = [
         (label, "content-desc")
-        for label in ("Tutup", "Menu lainnya", "Sebelumnya", "Berikutnya", "Timer tidur")
+        for label in ("Tutup", "Opsi lainnya", "Sebelumnya", "Berikutnya", "Timer tidur")
     ]
     player_found = {}
     if open_now_playing():
-        if tap_desc("Menu lainnya"):
+        if tap_desc("Opsi lainnya"):
             player_found.update(collect_while_scrolling(menu_targets, scrolls=3))
             shell("input keyevent KEYCODE_BACK")
             time.sleep(0.6)
@@ -2122,12 +2206,7 @@ def scenario() -> None:
     shell("wm dismiss-keyguard")
     shell(f"am start -W -n {ACTIVITY}")
 
-    def search_tab_ready():
-        dismiss_system_dialogs()
-        return find_interactive("Cari", attribute="content-desc")
-
-    opened = wait_for(search_tab_ready, 30, 1)
-    if not check(opened and open_tab("Cari"), "Aplikasi terbuka dan tab Cari dapat dibuka"):
+    if not check_app_language() or not check(open_tab("Cari"), "Aplikasi terbuka dan tab Cari dapat dibuka"):
         screenshot("01-app")
         return
     screenshot("01-app")
@@ -2178,6 +2257,7 @@ def scenario() -> None:
     if check(tap_desc("Antrean") and wait_for(lambda: desc_point("Tutup antrean"), 5),
              "Tombol Antrean membuka panel antrean"):
         screenshot("v2-62-nowplaying-queue")
+        check_queue_drag()
         check(tap_desc("Tutup antrean"), "Panel antrean dapat ditutup")
     paused_tree = ui_tree()
     paused_readable = paused_tree is not None and any(
