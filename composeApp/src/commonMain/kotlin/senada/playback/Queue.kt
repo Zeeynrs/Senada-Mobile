@@ -40,6 +40,23 @@ class Queue private constructor(
     fun remove(entryId: Long): Queue =
         Queue(entries.filterNot { it.id == entryId }, nextId, repeatMode, shuffledEntries?.filterNot { it.id == entryId })
 
+    /** Memindahkan entri ber-ID [entryId] ke [toIndex] pada urutan putar aktif ([playOrder]). */
+    fun move(entryId: Long, toIndex: Int): Queue {
+        val current = playOrder
+        val fromIndex = current.indexOfFirst { it.id == entryId }
+        if (fromIndex < 0) return this
+        val targetIndex = toIndex.coerceIn(0, current.lastIndex)
+        if (fromIndex == targetIndex) return this
+        val reordered = current.toMutableList().apply {
+            add(targetIndex, removeAt(fromIndex))
+        }
+        return if (shuffledEntries != null) {
+            Queue(entries, nextId, repeatMode, reordered)
+        } else {
+            Queue(reordered, nextId, repeatMode, null)
+        }
+    }
+
     internal fun withRepeatMode(mode: RepeatMode) = Queue(entries, nextId, mode, shuffledEntries)
 
     internal fun withShuffle(enabled: Boolean, activeEntryId: Long?, random: Random = Random.Default): Queue {

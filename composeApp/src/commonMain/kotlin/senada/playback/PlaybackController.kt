@@ -157,6 +157,15 @@ internal class PlaybackController(
         publish()
     }
 
+    /** Memindahkan entri ber-ID [entryId] ke [toIndex] tanpa mengganggu pemutaran yang sedang berjalan. */
+    fun move(entryId: Long, toIndex: Int) {
+        val moved = queue.move(entryId, toIndex)
+        if (moved === queue) return
+        queue = moved
+        prefetchNext()
+        publish()
+    }
+
     /** Memutar alamat yang sudah diketahui, misalnya tombol uji audio. */
     fun play(selection: SampleAudioSelection) {
         sleepTimer.expireIfDue()

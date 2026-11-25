@@ -43,6 +43,12 @@ internal object NowPlayingIcons {
         stroke("M4 6h12M4 12h12M4 18h8")
         fill("M17 15v6l4-3z")
     }
+    val DragHandle = icon("Pegangan urutan") {
+        for (y in listOf(6.5f, 12f, 17.5f)) {
+            fill("M9 ${y - 1.3f}a1.3 1.3 0 1 1 0 2.6a1.3 1.3 0 1 1 0-2.6z")
+            fill("M15 ${y - 1.3f}a1.3 1.3 0 1 1 0 2.6a1.3 1.3 0 1 1 0-2.6z")
+        }
+    }
     val Chevron = ImageVector.Builder("Buka lirik", 14.dp, 14.dp, 16f, 16f).apply {
         stroke("M6 3l5 5-5 5")
     }.build()

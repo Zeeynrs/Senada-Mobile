@@ -323,6 +323,80 @@ class QueuePersistenceTest {
         assertEquals(4_275L, QueueJson.decode(store.text)?.positionMs)
     }
 
+    @Test
+    fun reorderedQueuePersistsAndRestoresOrderSelectionAndNavigation() = runTest {
+        val third = Track("demo:track:senja", "Senja", listOf("Senada"), source = "demo")
+        val store = MemoryQueueStore()
+        val playback = controller(FakeAudioOutput(), store)
+        playback.addAll(listOf(stream, local), playlistKey = "library:utama")
+        playback.add(third)
+        playback.add(stream)
+        val (copy1, mid, last, copy2) = playback.state.value.queue.entries
+
+        playback.setRepeatMode(RepeatMode.All)
+        playback.playEntry(mid.id)
+        // Pindahkan salinan kedua ke posisi teratas, dan lagu aktif ke posisi kedua.
+        playback.move(copy2.id, 0)
+        playback.move(mid.id, 1)
+        val expectedOrder = playback.state.value.queue.playOrder
+        assertEquals(listOf(copy2, mid, copy1, last), expectedOrder)
+
+        val restored = controller(FakeAudioOutput(), store)
+        val restoredState = restored.state.value
+        assertEquals(expectedOrder, restoredState.queue.entries)
+        assertEquals(mid.id, restoredState.currentEntry?.id)
+        assertEquals("library:utama", restoredState.currentEntry?.playlistKey)
+        assertEquals(RepeatMode.All, restoredState.queue.repeatMode)
+
+        restored.next()
+        assertEquals(copy1.id, restored.state.value.currentEntry?.id)
+    }
+
+    @Test
+    fun reorderedShuffledQueuePersistsEffectiveOrderAndBaseOrderAcrossRestore() = runTest {
+        val third = Track("demo:track:senja", "Senja", listOf("Senada"), source = "demo")
+        val store = MemoryQueueStore()
+        val playback = controller(FakeAudioOutput(), store)
+        playback.add(stream)
+        playback.add(local)
+        playback.add(third)
+        val baseEntries = playback.state.value.queue.entries
+
+        playback.playEntry(baseEntries.first().id)
+        playback.setShuffleEnabled(true)
+        val lastShuffled = playback.state.value.queue.playOrder.last()
+        playback.move(lastShuffled.id, 1)
+        val savedOrder = playback.state.value.queue.playOrder
+
+        val restored = controller(FakeAudioOutput(), store)
+        assertTrue(restored.state.value.queue.shuffleEnabled)
+        assertEquals(baseEntries, restored.state.value.queue.entries)
+        assertEquals(savedOrder, restored.state.value.queue.playOrder)
+
+        restored.next()
+        assertEquals(lastShuffled.id, restored.state.value.currentEntry?.id)
+
+        restored.setShuffleEnabled(false)
+        assertEquals(baseEntries, restored.state.value.queue.playOrder)
+        assertEquals(lastShuffled.id, restored.state.value.currentEntry?.id)
+    }
+
+    @Test
+    fun noOpMoveDoesNotWriteToStore() = runTest {
+        val store = MemoryQueueStore()
+        val playback = controller(FakeAudioOutput(), store)
+        playback.add(stream)
+        playback.add(local)
+        val first = playback.state.value.queue.entries.first()
+        val writesBefore = store.writes
+
+        playback.move(first.id, 0)
+        playback.move(first.id, -5)
+        playback.move(999L, 1)
+
+        assertEquals(writesBefore, store.writes)
+    }
+
     private fun TestScope.controller(
         output: FakeAudioOutput,
         store: QueueStore,
