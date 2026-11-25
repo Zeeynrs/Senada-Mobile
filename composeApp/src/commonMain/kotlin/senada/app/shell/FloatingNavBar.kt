@@ -1,7 +1,10 @@
 package senada.app.shell
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,11 +47,18 @@ internal fun FloatingNavBar(
         ) {
             for (destination in AppDestination.entries) {
                 val selected = destination == current
+                val interactionSource = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .selectable(selected = selected, role = Role.Tab, onClick = { onSelect(destination) })
+                        .selectable(
+                            selected = selected,
+                            interactionSource = interactionSource,
+                            indication = null,
+                            role = Role.Tab,
+                            onClick = { onSelect(destination) },
+                        )
                         .semantics { contentDescription = destination.label },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -64,7 +75,8 @@ internal fun FloatingNavBar(
                         modifier = Modifier
                             .size(width = 64.dp, height = 44.dp)
                             .clip(CircleShape)
-                            .background(pillBackground),
+                            .background(pillBackground)
+                            .indication(interactionSource, LocalIndication.current),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (destination == AppDestination.Profile) {
