@@ -8,7 +8,10 @@ import senada.app.AppearanceStore
 class LyricsAppearanceTest {
     @Test
     fun appearanceStoreKeepsLyricsChoicesAcrossSessions() {
-        val appearance = LyricsAppearance(LyricsSize.Large, LyricsFont.Serif, LyricsAlignment.Center, LyricsHighlight.Glow)
+        val appearance = LyricsAppearance(
+            LyricsSize.Large, LyricsFont.Serif, LyricsAlignment.Center, LyricsHighlight.Glow,
+            romanization = true,
+        )
         var saved: String? = null
         AppearanceStore({ saved }, { saved = it }).save(Appearance(lyricsAppearance = appearance))
 

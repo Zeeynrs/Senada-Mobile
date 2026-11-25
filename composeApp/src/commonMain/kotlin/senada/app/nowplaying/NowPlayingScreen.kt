@@ -114,6 +114,7 @@ import senada.lyrics.LyricsPanelResult
 import senada.lyrics.LyricsSettingsSheet
 import senada.lyrics.rememberActiveLyricIndex
 import senada.lyrics.rememberLyrics
+import senada.lyrics.lyricRomanization
 import senada.model.Track
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
@@ -181,10 +182,13 @@ internal fun NowPlayingScreen(
     var lyricsAttempt by remember(track?.id) { mutableStateOf(0) }
     val downloads = actions.downloads
     val localLyrics = remember(downloads) { downloads?.let { it::lyrics } }
-    val lyrics = rememberLyrics(track, SenadaSources.lyrics, screenVisible && immersive, lyricsAttempt, localLyrics)
+    val lyricsAppearance = appearance.settings?.lyricsAppearance ?: LyricsAppearance()
+    val lyrics = rememberLyrics(
+        track, SenadaSources.lyrics, screenVisible && immersive, lyricsAttempt, localLyrics,
+        showRomanization = lyricsAppearance.romanization,
+    )
     val coverUrl = rememberOfflineArtwork(track?.id, downloads) ?: track?.artworkUrl
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
-    val lyricsAppearance = appearance.settings?.lyricsAppearance ?: LyricsAppearance()
     val fullViewTheme = appearance.settings?.fullViewTheme ?: FullViewTheme.Standard
     val showThemePicker = { if (appearance.settings != null) themePickerOpen = true }
     val language = LocalAppLanguage.current
@@ -241,7 +245,7 @@ internal fun NowPlayingScreen(
                                 onTheme = showThemePicker,
                                 onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
                                 onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
-                                lyricTextScale = lyricsAppearance.size.scale,
+                                lyricsAppearance = lyricsAppearance,
                                 safeTop = safeTop, safeBottom = safeBottom,
                             )
                         } else {
@@ -294,7 +298,7 @@ private fun PlayerMainContent(
     onQueue: () -> Unit,
     onOpenAudioLab: () -> Unit,
     scale: Float,
-    lyricTextScale: Float,
+    lyricsAppearance: LyricsAppearance,
     viewportHeight: Dp,
     safeTop: Dp,
     safeBottom: Dp,
@@ -321,7 +325,7 @@ private fun PlayerMainContent(
             )
             Spacer(Modifier.height(4.dp * scale))
             Column(Modifier.padding(horizontal = inset)) {
-                PlayerActiveLyric(synced, playback, scale, lyricTextScale, onLyrics)
+                PlayerActiveLyric(synced, playback, scale, lyricsAppearance, onLyrics)
                 NowPlayingPosition(state.audio, playback, scale)
                 Spacer(Modifier.height((70.dp * scale - (48.dp * scale).coerceAtLeast(48.dp)).coerceAtLeast(0.dp)))
                 NowPlayingControls(state, playback, scale)
@@ -501,20 +505,23 @@ private fun PlayerActiveLyric(
     synced: LyricsDocument.Synced?,
     playback: PlaybackController,
     scale: Float,
-    textScale: Float,
+    appearance: LyricsAppearance,
     onClick: () -> Unit,
 ) {
     val line = if (synced != null) {
         val index = rememberActiveLyricIndex(synced.lines, playback)
-        synced.lines.getOrNull(index)?.text?.takeIf { it.isNotBlank() }
+        synced.lines.getOrNull(index)?.takeIf { it.text.isNotBlank() }
     } else {
         null
     }
-    ActiveLyric(line, scale, textScale, onClick)
+    val reading = remember(line, appearance.romanization) {
+        if (appearance.romanization) line?.let { lyricRomanization(it.text, it.romanization) } else null
+    }
+    ActiveLyric(line?.text, reading, scale, appearance.size.scale, onClick)
 }
 
 @Composable
-private fun ActiveLyric(line: String?, scale: Float, textScale: Float, onClick: () -> Unit) {
+private fun ActiveLyric(line: String?, reading: String?, scale: Float, textScale: Float, onClick: () -> Unit) {
     val target = (48.dp * scale).coerceAtLeast(48.dp)
     if (line == null) {
         Spacer(Modifier.height(target))
@@ -525,12 +532,19 @@ private fun ActiveLyric(line: String?, scale: Float, textScale: Float, onClick: 
                 .padding(top = 14.dp * scale, bottom = 4.dp * scale),
             horizontalArrangement = Arrangement.spacedBy(6.dp * scale),
         ) {
-            Text(
-                line, fontSize = (15f * scale * textScale).sp, lineHeight = (20f * scale * textScale).sp,
-                fontWeight = FontWeight.Bold,
-                color = PlayerWhite.copy(alpha = .90f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
+            Column(Modifier.weight(1f, fill = false)) {
+                Text(
+                    line, fontSize = (15f * scale * textScale).sp, lineHeight = (20f * scale * textScale).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PlayerWhite.copy(alpha = .90f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (reading != null) {
+                    Text(
+                        reading, fontSize = (12f * scale * textScale).sp, lineHeight = (16f * scale * textScale).sp,
+                        color = PlayerWhite.copy(alpha = .72f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             Icon(NowPlayingIcons.Chevron, null, Modifier.padding(top = 3.dp * scale).size(14.dp * scale),
                 tint = PlayerWhite.copy(alpha = .90f))
         }

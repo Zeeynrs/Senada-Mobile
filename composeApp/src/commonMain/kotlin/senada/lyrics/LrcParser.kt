@@ -15,6 +15,7 @@ internal data class LyricLine(
     val text: String,
     val words: List<LyricWord> = emptyList(),
     val endMs: Long? = null,
+    val romanization: String? = null,
 )
 
 internal object LrcParser {
@@ -220,6 +221,8 @@ internal object LrcParser {
 }
 
 internal object TtmlParser {
+    private val transliterationTag = metadataTag("transliteration")
+    private val referenceTextTag = metadataTag("text")
     private val pTagRegex = Regex("""<p\b([^>]*)>(.*?)</p>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
     private val spanOrCloseRegex = Regex("""<(/?)span\b([^>]*)>""", RegexOption.IGNORE_CASE)
     private val attrRegex = Regex("""([a-zA-Z0-9_:-]+)\s*=\s*"([^"]*)"|([a-zA-Z0-9_:-]+)\s*=\s*'([^']*)'""")
@@ -227,11 +230,13 @@ internal object TtmlParser {
     private val clockRegex = Regex("""^(?:(\d+):)?(?:(\d+):)?(\d+(?:\.\d+)?)s?$""")
     private val msRegex = Regex("""^(\d+(?:\.\d+)?)ms$""", RegexOption.IGNORE_CASE)
     private val timingAttrRegex = Regex("""\b(?:[a-zA-Z0-9_-]+:)?timing\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+    private val whitespace = Regex("""\s+""")
 
     fun parse(ttml: String): List<LyricLine> {
         val timingMode = timingAttrRegex.find(ttml)?.groupValues?.get(1)?.lowercase()
         if (timingMode == "none") return emptyList()
 
+        val romanizations = romanizationsByLineKey(ttml)
         val lines = mutableListOf<LyricLine>()
         for (pMatch in pTagRegex.findAll(ttml)) {
             val attrs = parseAttrs(pMatch.groupValues[1])
@@ -247,14 +252,36 @@ internal object TtmlParser {
             val plainText = if (words.isNotEmpty()) {
                 words.joinToString("") { it.text }.trim()
             } else {
-                unescapeXml(xmlTagRegex.replace(inner, "")).trim().replace(Regex("""\s+"""), " ")
+                plainXmlText(inner)
             }
             if (plainText.isEmpty()) continue
             val lineEnd = pEnd ?: words.lastOrNull()?.endMs
-            lines += LyricLine(lineStart, plainText, words, lineEnd)
+            lines += LyricLine(lineStart, plainText, words, lineEnd, attrs["key"]?.let(romanizations::get))
         }
         return lines.sortedBy { it.startMs }
     }
+
+    private fun romanizationsByLineKey(ttml: String): Map<String, String> = buildMap {
+        for (transliteration in transliterationTag.findAll(ttml)) {
+            val lang = parseAttrs(transliteration.groupValues[1])["lang"]
+            if (lang != null && lang.split('-').none { it.equals("Latn", ignoreCase = true) }) continue
+            for (text in referenceTextTag.findAll(transliteration.groupValues[2])) {
+                val key = parseAttrs(text.groupValues[1])["for"] ?: continue
+                val value = plainXmlText(text.groupValues[2])
+                if (hasLatinLetters(value) && key !in this) {
+                    put(key, value)
+                }
+            }
+        }
+    }
+
+    private fun metadataTag(name: String) = Regex(
+        """<(?:[\w.-]+:)?$name(?=[\s>])([^>]*)>(.*?)</(?:[\w.-]+:)?$name\s*>""",
+        setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE),
+    )
+
+    private fun plainXmlText(text: String): String =
+        whitespace.replace(unescapeXml(xmlTagRegex.replace(text, "")).trim(), " ")
 
     private fun parseSpans(inner: String): List<LyricWord> {
         val matches = spanOrCloseRegex.findAll(inner).toList()

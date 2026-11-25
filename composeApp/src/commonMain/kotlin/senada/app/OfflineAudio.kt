@@ -7,6 +7,7 @@ import coil3.PlatformContext
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withTimeoutOrNull
 import okio.FileSystem
 import okio.Path
 import senada.offline.OfflineDownloads
@@ -16,7 +17,11 @@ internal expect fun offlineDownloads(context: PlatformContext): OfflineDownloads
 
 internal fun createOfflineDownloads(root: Path, fileUri: (Path) -> String): OfflineDownloads = OfflineDownloads(
     OfflineStore(root, FileSystem.SYSTEM, fileUri), SenadaSources.streams, SenadaSources.http,
-    SenadaSources.lyrics::get, MainScope(),
+    { track ->
+        val lyrics = SenadaSources.lyrics
+        withTimeoutOrNull(15_000) { lyrics.get(track) }?.let { lyrics.withRomanization(track, it) }
+    },
+    MainScope(),
 )
 
 @Composable

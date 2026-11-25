@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -35,7 +36,7 @@ import senada.resources.error_lyrics_unreadable
 
 internal sealed interface LyricsDocument {
     data class Synced(val lines: List<LyricLine>) : LyricsDocument
-    data class Plain(val lines: List<String>) : LyricsDocument
+    data class Plain(val lines: List<String>, val romanizations: Map<Int, String> = emptyMap()) : LyricsDocument
     data object Instrumental : LyricsDocument
     data object Unavailable : LyricsDocument
 }
@@ -55,9 +56,12 @@ internal class LyricsException(
 internal class LyricsRepository(private val http: HttpClient) {
     private val cache = mutableMapOf<String, LyricsDocument>()
     private val cacheLock = Mutex()
+    private val romanizationCache = mutableMapOf<String, List<LyricLine>>()
+    private val romanizationLock = Mutex()
 
     suspend fun clearCache() {
         cacheLock.withLock { cache.clear() }
+        romanizationLock.withLock { romanizationCache.clear() }
     }
 
     suspend fun get(track: Track): LyricsDocument {
@@ -66,6 +70,48 @@ internal class LyricsRepository(private val http: HttpClient) {
         return cacheLock.withLock {
             cache[track.id] ?: withContext(Dispatchers.Default) { fetch(track) }.also { cache[track.id] = it }
         }
+    }
+
+    suspend fun withRomanization(track: Track, document: LyricsDocument): LyricsDocument {
+        val needsSource = when (document) {
+            is LyricsDocument.Synced -> document.lines.any {
+                it.romanization == null && needsRomanizationFromSource(it.text)
+            }
+            is LyricsDocument.Plain -> document.lines.withIndex().any {
+                it.index !in document.romanizations && needsRomanizationFromSource(it.value)
+            }
+            else -> false
+        }
+        if (!needsSource || track.artists.firstOrNull().isNullOrBlank()) return document
+        return romanizationLock.withLock {
+            // A downloaded document can differ from the current online reference, so
+            // cache provider lines by track and match against the current document each time.
+            val provider = romanizationCache[track.id]
+                ?: fetchRomanizations(track).also {
+                    if (it.isNotEmpty()) romanizationCache[track.id] = it
+                }
+            attachRomanizations(document, provider)
+        }
+    }
+
+    private suspend fun fetchRomanizations(track: Track): List<LyricLine> = withContext(Dispatchers.Default) {
+        withTimeoutOrNull(3_000) {
+            try {
+                val response = http.get("https://api.betterlyrics.org/getLyrics") {
+                    parameter("s", track.title)
+                    parameter("a", track.artists.first())
+                    track.durationMs?.takeIf { it > 0 }?.let { parameter("d", (it / 1000.0).roundToLong()) }
+                }
+                if (!response.status.isSuccess()) return@withTimeoutOrNull emptyList()
+                val json = Json.parseToJsonElement(response.bodyAsText()) as? JsonObject
+                val ttml = (json?.get("ttml") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ttml?.let(TtmlParser::parse).orEmpty()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }.orEmpty()
     }
 
     private suspend fun fetch(track: Track): LyricsDocument {
@@ -224,9 +270,16 @@ private fun JsonObject.evaluateCandidate(track: Track): CandidateEvaluation? {
         if (lines.any { it.text.isNotEmpty() }) {
             val compatible = isTimingCompatible(track, candidateTitle, candidateDurationMs, lines)
             if (!compatible) {
-                val fallback = plainDoc ?: lines.map { it.text }.filter { it.isNotEmpty() }
+                val fallback = plainDoc ?: lines.filter { it.text.isNotEmpty() }
                     .takeIf { it.isNotEmpty() }
-                    ?.let(LyricsDocument::Plain)
+                    ?.let { nonEmpty ->
+                        LyricsDocument.Plain(
+                            nonEmpty.map { it.text },
+                            nonEmpty.mapIndexedNotNull { index, line ->
+                                line.romanization?.let { index to it }
+                            }.toMap(),
+                        )
+                    }
                 return CandidateEvaluation.IncompatibleSynced(fallback)
             }
             val score = scoreCandidate(track, candidateTitle, candidateArtist, candidateDurationMs, lines)
@@ -238,6 +291,33 @@ private fun JsonObject.evaluateCandidate(track: Track): CandidateEvaluation? {
         CandidateEvaluation.Other(LyricsDocument.Instrumental)
     } else {
         null
+    }
+}
+
+private fun attachRomanizations(
+    document: LyricsDocument,
+    provider: List<LyricLine>,
+): LyricsDocument {
+    fun key(text: String): String = text.filterNot { it.isWhitespace() }.lowercase()
+
+    val byOriginal = provider.filter { it.romanization != null }
+        .groupBy({ key(it.text) }, { it.romanization })
+        .mapValues { (_, values) -> values.distinct().singleOrNull() }
+    if (byOriginal.isEmpty()) return document
+    return when (document) {
+        is LyricsDocument.Synced -> document.copy(lines = document.lines.map { line ->
+            if (line.romanization != null || !needsRomanizationFromSource(line.text)) line
+            else line.copy(romanization = byOriginal[key(line.text)])
+        })
+        is LyricsDocument.Plain -> document.copy(romanizations = buildMap {
+            putAll(document.romanizations)
+            document.lines.forEachIndexed { index, text ->
+                if (index !in this && needsRomanizationFromSource(text)) {
+                    byOriginal[key(text)]?.let { put(index, it) }
+                }
+            }
+        })
+        else -> document
     }
 }
 

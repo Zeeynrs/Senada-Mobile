@@ -13,6 +13,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import senada.model.Track
 
 class LyricsRepositoryTest {
@@ -24,6 +27,61 @@ class LyricsRepositoryTest {
             requests += request
             reply(request)
         }))
+
+    @Test
+    fun fetchesMatchingRomanizationWithoutReplacingTheOriginalTiming() = runTest {
+        val ttml = """
+            <tt xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+              <head><metadata><transliterations>
+                <transliteration xml:lang="ja-Kana"><text for="L1">よる</text></transliteration>
+                <itunes:transliteration xml:lang="ja-Latn">
+                  <itunes:text for="L1"><span begin="10.0s">yoru</span></itunes:text>
+                </itunes:transliteration>
+              </transliterations></metadata></head>
+              <body><div><p begin="10.0s" itunes:key="L1">夜</p></div></body>
+            </tt>
+        """.trimIndent()
+        val repo = repository { request ->
+            if (request.url.host == "lrclib.net") {
+                respond("""{"syncedLyrics":"[00:08.00]<00:08.00>夜<00:09.00>\n[00:12.00]空"}""")
+            }
+            else respond(buildJsonObject { put("ttml", JsonPrimitive(ttml)) }.toString())
+        }
+        val original = repo.get(track) as LyricsDocument.Synced
+        assertEquals(listOf("lrclib.net"), requests.map { it.url.host })
+        val document = repo.withRomanization(track, original) as LyricsDocument.Synced
+
+        assertEquals(listOf(8000L, 12000L), document.lines.map { it.startMs })
+        assertEquals(original.lines.first().words, document.lines.first().words)
+        assertEquals(listOf("yoru", null), document.lines.map { it.romanization })
+        assertEquals(listOf("lrclib.net", "api.betterlyrics.org"), requests.map { it.url.host })
+        assertEquals(document, repo.withRomanization(track, original))
+        assertEquals(
+            LyricsDocument.Plain(listOf("夜", "空"), mapOf(0 to "yoru")),
+            repo.withRomanization(track, LyricsDocument.Plain(listOf("夜", "空"))),
+        )
+        assertEquals(2, requests.size)
+    }
+
+    @Test
+    fun unavailableRomanizationKeepsTheOriginalLyrics() = runTest {
+        val repo = repository { respond("", HttpStatusCode.Unauthorized) }
+        val original = LyricsDocument.Plain(listOf("夜"))
+
+        assertEquals(original, repo.withRomanization(track, original))
+    }
+
+    @Test
+    fun hangulCanBeRomanizedWithoutAProviderRequest() = runTest {
+        val repo = repository { error("Hangul should be romanized locally") }
+        val original = LyricsDocument.Plain(listOf("감사합니다, hello!"))
+
+        assertEquals(original, repo.withRomanization(track, original))
+        assertEquals("gamsahamnida, hello!", lyricRomanization(original.lines.single()))
+        assertEquals("silla", lyricRomanization("신라"))
+        assertEquals("gachi", lyricRomanization("같이", "gachi"))
+        assertNull(lyricRomanization("hello!"))
+    }
 
     @Test
     fun exactMatchUsesTrackMetadataAndCachesSyncedLyricsById() = runTest {

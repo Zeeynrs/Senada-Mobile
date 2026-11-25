@@ -33,11 +33,14 @@ import senada.resources.lyrics_alignment_title
 import senada.resources.lyrics_font_title
 import senada.resources.lyrics_highlight_title
 import senada.resources.lyrics_preview_heading
+import senada.resources.lyrics_romanization_title
 import senada.resources.lyrics_sample_1
 import senada.resources.lyrics_sample_2
 import senada.resources.lyrics_sample_3
 import senada.resources.lyrics_settings_sheet_title
 import senada.resources.lyrics_size_title
+import senada.resources.state_off
+import senada.resources.state_on
 
 @Composable
 internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
@@ -59,7 +62,8 @@ internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LyricsLineText(appString(Res.string.lyrics_sample_1), appearance, LyricLineState.Past, baseSize = 18f)
                     LyricsLineText(
-                        appString(Res.string.lyrics_sample_2), appearance, LyricLineState.Active,
+                        if (appearance.romanization) "함께 노래해" else appString(Res.string.lyrics_sample_2),
+                        appearance, LyricLineState.Active,
                         baseSize = 18f, progress = .55f,
                     )
                     LyricsLineText(appString(Res.string.lyrics_sample_3), appearance, LyricLineState.Upcoming, baseSize = 18f)
@@ -76,6 +80,14 @@ internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
             }
             LyricsOptions(appString(Res.string.lyrics_highlight_title), LyricsHighlight.entries, appearance.highlight, { it.label(language) }, enabled) { highlight ->
                 preferences.updateLyricsAppearance { it.copy(highlight = highlight) }
+            }
+            val romanizationOn = appString(Res.string.state_on)
+            val romanizationOff = appString(Res.string.state_off)
+            LyricsOptions(
+                appString(Res.string.lyrics_romanization_title), listOf(false, true), appearance.romanization,
+                { if (it) romanizationOn else romanizationOff }, enabled,
+            ) { show ->
+                preferences.updateLyricsAppearance { it.copy(romanization = show) }
             }
         }
     }

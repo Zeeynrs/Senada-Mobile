@@ -154,6 +154,11 @@ private fun LyricsDocument.encodeLyrics() = buildJsonObject {
         is LyricsDocument.Plain -> {
             put("type", "plain")
             put("lines", buildJsonArray { lines.forEach { add(JsonPrimitive(it)) } })
+            if (romanizations.isNotEmpty()) {
+                put("romanizations", buildJsonObject {
+                    romanizations.forEach { (index, text) -> put(index.toString(), text) }
+                })
+            }
         }
         is LyricsDocument.Synced -> {
             put("type", "synced")
@@ -162,6 +167,7 @@ private fun LyricsDocument.encodeLyrics() = buildJsonObject {
                     add(buildJsonObject {
                         put("time", line.startMs)
                         put("text", line.text)
+                        line.romanization?.let { put("romanization", it) }
                         line.endMs?.let { put("end", it) }
                         if (line.words.isNotEmpty()) {
                             put("words", buildJsonArray {
@@ -184,7 +190,18 @@ private fun LyricsDocument.encodeLyrics() = buildJsonObject {
 }
 
 private fun JsonObject.decodeLyrics(): LyricsDocument? = when (string("type")) {
-    "plain" -> LyricsDocument.Plain(strings("lines"))
+    "plain" -> {
+        val lines = strings("lines")
+        val saved = get("romanizations") as? JsonObject
+        LyricsDocument.Plain(lines, buildMap {
+            saved?.forEach { (key, value) ->
+                val index = key.toIntOrNull()
+                if (index != null && index in lines.indices && value is JsonPrimitive && value.isString) {
+                    put(index, value.content)
+                }
+            }
+        })
+    }
     "synced" -> LyricsDocument.Synced((get("lines") as? JsonArray).orEmpty().mapNotNull { value ->
         val line = value as? JsonObject ?: return@mapNotNull null
         val time = line.primitive("time")?.longOrNull ?: return@mapNotNull null
@@ -195,7 +212,7 @@ private fun JsonObject.decodeLyrics(): LyricsDocument? = when (string("type")) {
             val text = obj.string("text") ?: return@mapNotNull null
             LyricWord(t, d, text)
         }
-        LyricLine(time, line.string("text").orEmpty(), words, line.primitive("end")?.longOrNull)
+        LyricLine(time, line.string("text").orEmpty(), words, line.primitive("end")?.longOrNull, line.string("romanization"))
     })
     "instrumental" -> LyricsDocument.Instrumental
     "unavailable" -> LyricsDocument.Unavailable

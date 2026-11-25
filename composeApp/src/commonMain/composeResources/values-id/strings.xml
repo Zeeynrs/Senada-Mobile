@@ -816,4 +816,5 @@
     <string name="a11y_move_track_up">Pindah %1$s ke atas</string>
     <string name="a11y_move_track_down">Pindah %1$s ke bawah</string>
     <string name="a11y_open_playlist_menu">Buka menu playlist %1$s</string>
+    <string name="lyrics_romanization_title">Romanisasi</string>
 </resources>

@@ -65,7 +65,7 @@ class OfflineStoreTest {
             assertNull(store.find(track))
             assertEquals(emptyList(), store.list())
 
-            val lyrics = LyricsDocument.Plain(listOf("Baris lirik"))
+            val lyrics = LyricsDocument.Plain(listOf("夜"), mapOf(0 to "yoru"))
             store.save(
                 track, audio, writeAudio = { files.write(it) { writeUtf8("complete") } },
                 writeCover = { files.write(it) { writeUtf8("cover") } }, readLyrics = { lyrics },
@@ -96,10 +96,11 @@ class OfflineStoreTest {
                 listOf(
                     LyricLine(
                         startMs = 1_000L,
-                        text = "Halo dunia",
+                        text = "夜の空",
+                        romanization = "yoru no sora",
                         words = listOf(
-                            LyricWord(1_000L, 400L, "Halo "),
-                            LyricWord(1_400L, 600L, "dunia"),
+                            LyricWord(1_000L, 400L, "夜の"),
+                            LyricWord(1_400L, 600L, "空"),
                         ),
                         endMs = 2_000L,
                     ),

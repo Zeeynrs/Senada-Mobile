@@ -839,4 +839,5 @@
     <string name="a11y_move_track_up">Move %1$s up</string>
     <string name="a11y_move_track_down">Move %1$s down</string>
     <string name="a11y_open_playlist_menu">Open playlist menu %1$s</string>
+    <string name="lyrics_romanization_title">Romanization</string>
 </resources>

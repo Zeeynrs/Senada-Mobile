@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.put
 import senada.app.AppLanguage
 import senada.app.AppStrings
@@ -65,6 +66,7 @@ internal data class LyricsAppearance(
     val font: LyricsFont = LyricsFont.Sans,
     val alignment: LyricsAlignment = LyricsAlignment.Left,
     val highlight: LyricsHighlight = LyricsHighlight.Bright,
+    val romanization: Boolean = false,
 )
 
 internal fun lyricsAppearanceFromJson(value: JsonElement?): LyricsAppearance {
@@ -74,6 +76,7 @@ internal fun lyricsAppearanceFromJson(value: JsonElement?): LyricsAppearance {
         font = json.enumValue("font", LyricsFont.Sans),
         alignment = json.enumValue("alignment", LyricsAlignment.Left),
         highlight = json.enumValue("highlight", LyricsHighlight.Bright),
+        romanization = (json["romanization"] as? JsonPrimitive)?.booleanOrNull ?: false,
     )
 }
 
@@ -87,6 +90,7 @@ internal fun LyricsAppearance.toJson(): JsonObject = buildJsonObject {
     put("font", font.name.lowercase())
     put("alignment", alignment.name.lowercase())
     put("highlight", highlight.name.lowercase())
+    put("romanization", romanization)
 }
 
 internal fun lyricProgress(positionMs: Long, startMs: Long, nextStartMs: Long?): Float {

@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okio.FileSystem
 import senada.app.AppLanguage
 import senada.app.AppStrings
@@ -68,7 +67,7 @@ internal class OfflineDownloads(
     private val store: OfflineStore,
     private val resolver: StreamResolver,
     private val http: HttpClient,
-    private val readLyrics: suspend (Track) -> LyricsDocument,
+    private val readLyrics: suspend (Track) -> LyricsDocument?,
     private val scope: CoroutineScope,
 ) {
     private val mutableState = MutableStateFlow(OfflineState())
@@ -159,7 +158,7 @@ internal class OfflineDownloads(
                             }
                         }
                     },
-                    readLyrics = { withTimeoutOrNull(15_000) { optional { readLyrics(track) } } },
+                    readLyrics = { optional { readLyrics(track) } },
                 )
             }
         } catch (e: CancellationException) {

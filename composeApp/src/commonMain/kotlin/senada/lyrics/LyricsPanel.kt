@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -94,6 +93,7 @@ internal fun rememberLyrics(
     enabled: Boolean,
     attempt: Int,
     offlineLyrics: (suspend (Track) -> LyricsDocument?)? = null,
+    showRomanization: Boolean = false,
 ): LyricsPanelResult {
     if (track == null) return LyricsPanelResult.Ready(LyricsDocument.Unavailable)
     var result by remember(track.id, attempt) { mutableStateOf<LyricsPanelResult>(LyricsPanelResult.Loading) }
@@ -102,7 +102,14 @@ internal fun rememberLyrics(
             result = loadLyrics(track) { offlineLyrics?.invoke(it) ?: repository.get(it) }
         }
     }
-    return result
+    val original = (result as? LyricsPanelResult.Ready)?.document
+    var withRomanization by remember(track.id, original) { mutableStateOf<LyricsDocument?>(null) }
+    LaunchedEffect(track.id, enabled, showRomanization, original, repository) {
+        if (enabled && showRomanization && original != null && withRomanization == null) {
+            withRomanization = repository.withRomanization(track, original).takeIf { it != original }
+        }
+    }
+    return withRomanization?.let(LyricsPanelResult::Ready) ?: result
 }
 
 @Composable
@@ -149,8 +156,11 @@ internal fun LyricsPanel(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(vertical = 16.dp),
                     ) {
-                        items(document.lines) { line ->
-                            LyricsLineText(line, appearance, LyricLineState.Plain, baseSize = 24f)
+                        itemsIndexed(document.lines) { index, line ->
+                            LyricsLineText(
+                                line, appearance, LyricLineState.Plain, baseSize = 24f,
+                                romanization = document.romanizations[index],
+                            )
                         }
                     }
                     LyricsDocument.Instrumental -> LyricsMessage(appString(Res.string.lyrics_instrumental))
@@ -177,6 +187,7 @@ internal fun LyricsLineText(
     baseSize: Float = 28f,
     progress: Float? = null,
     sungEnd: Int? = null,
+    romanization: String? = null,
 ) {
     val highlighting = (progress != null || sungEnd != null) && state == LyricLineState.Active &&
         appearance.highlight == LyricsHighlight.Karaoke
@@ -204,17 +215,27 @@ internal fun LyricsLineText(
         null
     }
     val size = baseSize * appearance.size.scale
-    Text(
-        annotated,
-        modifier = modifier.fillMaxWidth(),
-        color = color,
-        fontSize = size.sp,
-        lineHeight = (size * 1.25f).sp,
-        fontWeight = FontWeight.Bold,
-        fontFamily = if (appearance.font == LyricsFont.Serif) FontFamily.Serif else MaterialTheme.typography.bodyLarge.fontFamily,
-        textAlign = if (appearance.alignment == LyricsAlignment.Center) TextAlign.Center else TextAlign.Left,
-        style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
-    )
+    val font = if (appearance.font == LyricsFont.Serif) FontFamily.Serif else MaterialTheme.typography.bodyLarge.fontFamily
+    val alignment = if (appearance.alignment == LyricsAlignment.Center) TextAlign.Center else TextAlign.Left
+    val reading = remember(text, romanization, appearance.romanization) {
+        if (appearance.romanization) lyricRomanization(text, romanization) else null
+    }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            annotated, Modifier.fillMaxWidth(), color = color, fontSize = size.sp,
+            lineHeight = (size * 1.25f).sp, fontWeight = FontWeight.Bold,
+            fontFamily = font, textAlign = alignment, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
+        )
+        if (reading != null) {
+            val readingSize = (size * .65f).coerceAtLeast(12f)
+            Text(
+                reading, Modifier.fillMaxWidth(),
+                color = Color.White.copy(alpha = if (state == LyricLineState.Active) .8f else color.alpha),
+                fontSize = readingSize.sp, lineHeight = (readingSize * 1.25f).sp,
+                fontFamily = font, textAlign = alignment,
+            )
+        }
+    }
 }
 
 @Composable
@@ -266,6 +287,7 @@ private fun SyncedLyrics(
                         if (current) stateDescription = activeLineLabel
                     },
                 sungEnd = sungEnd,
+                romanization = line.romanization,
             )
         }
     }
