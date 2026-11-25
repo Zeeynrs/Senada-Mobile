@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,12 +52,12 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import senada.app.AboutSection
 import senada.app.AppearanceSection
 import senada.app.BackupSection
 import senada.app.DataSection
 import senada.app.DeveloperSection
 import senada.app.StorageSection
-import senada.app.versionName
 import senada.app.AppearancePreferences
 import senada.app.ArtistOpenBanner
 import senada.app.ArtistOpenController
@@ -67,13 +66,14 @@ import senada.app.LibraryActions
 import senada.app.LibraryState
 import senada.app.LanguageSection
 import senada.app.LocalAppLanguage
-import senada.app.SenadaMark
 import senada.app.SenadaSources
 import senada.app.UiText
 import senada.app.UserProfileController
+import senada.app.appString
 import senada.app.browseDisplayTitleStyle
 import senada.resources.Res
 import senada.resources.error_playlist_save_failed
+import senada.resources.updater_available_badge
 import senada.app.audiolab.audioLabScreen
 import senada.app.audiolab.equalizerScreen
 import senada.app.audiolab.soundFxScreen
@@ -127,6 +127,7 @@ import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
 import senada.playback.SleepTimerState
+import senada.updater.updateController
 
 /** Ruang kosong di atas navigasi dan mini player yang mengambang setelah baris terakhir isi tab. */
 private val BelowContentGap = 16.dp
@@ -178,6 +179,8 @@ internal fun AppShell(
         ArtistOpenController(SenadaSources.artistResolver, navigator, uiScope)
     }
     val platformContext = LocalPlatformContext.current
+    val updater = remember(platformContext) { updateController(platformContext) }
+    val updateState by updater.state.collectAsState()
     val downloads = remember(platformContext) { offlineDownloads(platformContext) }
     val actions = remember(library, playback, uiScope, artistOpener, downloads) {
         LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open, downloads = downloads)
@@ -270,6 +273,9 @@ internal fun AppShell(
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
+    LaunchedEffect(updater, saveData, screenVisible) {
+        if (screenVisible) updater.checkIfDue(saveDataActive = saveData)
+    }
     val profileRoot = navigator.destination == AppDestination.Profile && profileRoute == null && currentCatalogRoute == null
     val profileSummary = if (profileRoot) {
         remember(library, screenVisible) { library.listeningStats(ListenPeriod.Month) }.collectAsState(null).value
@@ -541,15 +547,7 @@ internal fun AppShell(
                         ProfileRoute.Backup -> item { BackupSection(library) }
                         ProfileRoute.Storage -> item { StorageSection(playback, library) }
                         ProfileRoute.Developer -> item { DeveloperSection(playback, fullAudioEffects) }
-                        ProfileRoute.About -> item {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                SenadaMark(Modifier.size(48.dp))
-                                Text("Senada " + versionName())
-                            }
-                        }
+                        ProfileRoute.About -> item { AboutSection(updater) }
                         ProfileRoute.AudioLab -> audioLabScreen(
                             effects = effectsState,
                             effectsAvailable = fullAudioEffectsAvailable,
@@ -690,6 +688,9 @@ internal fun AppShell(
                         onToggleReorderPlaylist = { reorderingPlaylist = !reorderingPlaylist },
                     )
                     AppDestination.Profile -> item(key = "profile") {
+                        val badge = updateState.availableCandidate
+                            ?.takeIf { updateState.hasUndismissedUpdate }
+                            ?.let { appString(Res.string.updater_available_badge, it.release.tagName) }
                         ProfileTab(
                             controller = profileController,
                             photo = profilePhoto,
@@ -700,6 +701,7 @@ internal fun AppShell(
                             onOpenArtist = { navigator.openArtist(it.id, it.name, it.artworkUrl) },
                             developerUnlocked = versionTaps == 7,
                             onVersionTap = { if (versionTaps < 7) versionTaps++ },
+                            updateBadge = badge,
                         )
                     }
                 }

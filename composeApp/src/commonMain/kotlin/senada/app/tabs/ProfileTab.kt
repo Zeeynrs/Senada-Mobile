@@ -96,6 +96,7 @@ internal fun ProfileTab(
     onOpenArtist: (ArtistResolveResult.Found) -> Unit,
     developerUnlocked: Boolean,
     onVersionTap: () -> Unit,
+    updateBadge: String? = null,
 ) {
     val profile by controller.state.collectAsState()
     var searching by rememberSaveable { mutableStateOf(false) }
@@ -184,6 +185,13 @@ internal fun ProfileTab(
                         MonoLabel(appString(Res.string.profile_version_label))
                         Text(versionName(), style = MaterialTheme.typography.displaySmall.copy(
                             fontSize = 36.sp, lineHeight = TextUnit.Unspecified, letterSpacing = (-0.04).em))
+                        if (updateBadge != null) {
+                            Text(
+                                updateBadge,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.primary,
+                            )
+                        }
                     }
                     TextButton(onClick = { onOpen(ProfileRoute.About) },
                         colors = ButtonDefaults.textButtonColors(containerColor = colors.surfaceContainerHighest,
