@@ -170,6 +170,7 @@ internal fun NowPlayingScreen(
     onOpenAudioLab: () -> Unit,
     panel: NowPlayingPanelState,
     immersive: Boolean,
+    backdropBitmaps: PlayerBackdropBitmaps,
     backdropFromCover: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -211,7 +212,7 @@ internal fun NowPlayingScreen(
                 val safeTop = with(density) { insets.getTop(this).toDp() }
                 val safeBottom = with(density) { insets.getBottom(this).toDp() }
                 val look = LocalSenadaLook.current
-                val backdrop = rememberPlayerBackdrop(accent, backdropFromCover, scale)
+                val backdrop = rememberPlayerBackdrop(accent, backdropFromCover, scale, backdropBitmaps)
                 NowPlayingBackdrop(backdrop)
                 CompositionLocalProvider(LocalPlayerBackdrop provides backdrop) {
                     AnimatedContent(

@@ -216,6 +216,16 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
             ) { index, entry ->
                 val isActiveRow = reorderState.isActiveItem(entry.id)
                 val activeProgress = reorderState.activeProgressFor(entry.id)
+                val reorderMotion = if (isActiveRow) {
+                    Modifier.graphicsLayer {
+                        translationY = reorderState.translationYFor(entry.id, listState.layoutInfo)
+                        val rowScale = reorderState.scaleFor(entry.id)
+                        scaleX = rowScale
+                        scaleY = rowScale
+                    }
+                } else {
+                    Modifier
+                }
                 Box(
                     Modifier.fillMaxWidth()
                         .zIndex(if (isActiveRow) 1f else 0f)
@@ -224,12 +234,7 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
                             placementSpec = if (isActiveRow) null else placementSpec,
                             fadeOutSpec = null,
                         )
-                        .graphicsLayer {
-                            translationY = reorderState.translationYFor(entry.id, listState.layoutInfo)
-                            val rowScale = reorderState.scaleFor(entry.id)
-                            scaleX = rowScale
-                            scaleY = rowScale
-                        }
+                        .then(reorderMotion)
                         .playerGlass(shape)
                         .then(
                             if (activeProgress > 0f) {

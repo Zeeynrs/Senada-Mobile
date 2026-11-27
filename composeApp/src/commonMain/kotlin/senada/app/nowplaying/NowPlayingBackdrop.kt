@@ -208,11 +208,25 @@ internal fun backdropCacheSize(frame: Size, maxShortSidePx: Float = BACKDROP_CAC
     )
 }
 
+/** Keep the most recent raster for each layer across panel closes. Transition state is per panel. */
+internal class PlayerBackdropBitmaps {
+    private data class Raster(val key: BackdropCacheKey, val bitmap: ImageBitmap)
+
+    private val latest = mutableMapOf<Boolean, Raster>()
+
+    fun resolve(key: BackdropCacheKey, render: () -> ImageBitmap): ImageBitmap {
+        val raster = latest[key.glass]
+        if (raster != null && raster.key == key) return raster.bitmap
+        return render().also { latest[key.glass] = Raster(key, it) }
+    }
+}
+
 @Stable
 internal class PlayerBackdrop(
     initialAppearance: BackdropAppearance,
     initialGlow: Color,
     initialScale: Float,
+    private val bitmaps: PlayerBackdropBitmaps,
 ) {
     var appearance by mutableStateOf(initialAppearance)
         private set
@@ -357,7 +371,7 @@ internal class PlayerBackdrop(
         if (target.width <= 0 || target.height <= 0) return null
         val slot = if (glass) glassSlot else backdropSlot
         val (nextSlot, bitmap) = slot.resolve(key) {
-            rasterizeBackdropBitmap(key, frame, target, fontScale, layoutDirection)
+            bitmaps.resolve(key) { rasterizeBackdropBitmap(key, frame, target, fontScale, layoutDirection) }
         }
         if (glass) glassSlot = nextSlot else backdropSlot = nextSlot
         return bitmap
@@ -452,18 +466,24 @@ private fun DrawScope.drawCrossfadedBitmap(
 }
 
 @Composable
-internal fun rememberPlayerBackdrop(accent: Color?, fromCover: Boolean, scale: Float): PlayerBackdrop {
+internal fun rememberPlayerBackdrop(
+    accent: Color?,
+    fromCover: Boolean,
+    scale: Float,
+    bitmaps: PlayerBackdropBitmaps,
+): PlayerBackdrop {
     val look = LocalSenadaLook.current
     val targetColors = remember(accent, fromCover) { playerBackdropColors(accent, fromCover) }
     val targetAppearance = remember(targetColors, fromCover) { backdropAppearance(targetColors, fromCover) }
     val transitionDurationMs = playerBackdropTransitionDurationMs(look.animationScale)
     val currentDurationMs by rememberUpdatedState(transitionDurationMs)
     val currentTargetGlow by rememberUpdatedState(targetColors.glow)
-    val backdrop = remember {
+    val backdrop = remember(bitmaps) {
         PlayerBackdrop(
             initialAppearance = targetAppearance,
             initialGlow = targetColors.glow,
             initialScale = scale,
+            bitmaps = bitmaps,
         )
     }
     SideEffect {
