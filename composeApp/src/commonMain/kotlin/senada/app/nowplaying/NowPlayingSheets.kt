@@ -110,7 +110,9 @@ internal fun PlayerSheetContent(
 
 @Composable
 internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, library: LibraryState, actions: LibraryActions) {
-    val sourceEntries = state.queue.playOrder
+    // Lagu yang sudah diputar disembunyikan; tombol Sebelumnya tetap bisa kembali ke sana.
+    val upcoming = upcomingQueue(state.queue.playOrder, state.audio.selection?.queueEntryId)
+    val sourceEntries = upcoming.entries
     if (sourceEntries.isEmpty()) {
         Text(appString(Res.string.queue_empty_period), color = PlayerWhite)
         return
@@ -119,10 +121,13 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
     val placementSpec = look.tweenOrSnap<androidx.compose.ui.unit.IntOffset>(QUEUE_REORDER_ANIM_MS)
     val listState = rememberLazyListState()
     val reorderState = rememberQueueReorderState(sourceEntries) { entryId, toIndex ->
-        playback.move(entryId, toIndex)
+        playback.move(entryId, upcoming.moveTarget(toIndex))
     }
     val displayEntries = reorderState.displayEntries(sourceEntries)
-    val canReorder = displayEntries.size > 1
+    // Lagu yang sedang dipilih tetap di atas; hanya lagu berikutnya yang bisa diurutkan.
+    val firstMovable = if (upcoming.startsWithCurrent) 1 else 0
+    val minMoveIndex = upcoming.moveTarget(0)
+    val canReorder = displayEntries.size - firstMovable > 1
     val shape = RoundedCornerShape(16.dp)
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
@@ -257,28 +262,28 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
                             actions,
                             onRemoveFromQueue = { playback.remove(entry.id) },
                             leadingItems = { select ->
-                                if (index > 0) {
+                                if (index > firstMovable) {
                                     OverflowActionItem(appString(Res.string.queue_move_up), SenadaIcons.ChevronUp) {
-                                        select { moveQueueEntryBy(playback, entry.id, -1) }
+                                        select { moveQueueEntryBy(playback, entry.id, -1, minMoveIndex) }
                                     }
                                 }
-                                if (index < displayEntries.lastIndex) {
+                                if (index >= firstMovable && index < displayEntries.lastIndex) {
                                     OverflowActionItem(appString(Res.string.queue_move_down), SenadaIcons.ChevronDown) {
-                                        select { moveQueueEntryBy(playback, entry.id, 1) }
+                                        select { moveQueueEntryBy(playback, entry.id, 1, minMoveIndex) }
                                     }
                                 }
                             },
                         )
-                        if (canReorder) {
+                        if (canReorder && index >= firstMovable) {
                             QueueDragHandle(
                                 entryId = entry.id,
                                 title = entry.track.title,
-                                index = index,
-                                total = displayEntries.size,
+                                index = index - firstMovable,
+                                total = displayEntries.size - firstMovable,
                                 active = reorderState.draggedId == entry.id,
                                 onPositioned = { coords -> handleCoords[entry.id] = coords },
                                 onDisposeHandle = { handleCoords.remove(entry.id) },
-                                onMoveBy = { delta -> moveQueueEntryBy(playback, entry.id, delta) },
+                                onMoveBy = { delta -> moveQueueEntryBy(playback, entry.id, delta, minMoveIndex) },
                             )
                         }
                     }
@@ -288,11 +293,12 @@ internal fun PlayerQueue(state: PlaybackState, playback: PlaybackController, lib
     }
 }
 
-private fun moveQueueEntryBy(playback: PlaybackController, entryId: Long, delta: Int): Boolean {
+/** [minIndex] menjaga entri tetap di bawah lagu yang sedang dipilih, di bagian antrean yang tampil. */
+private fun moveQueueEntryBy(playback: PlaybackController, entryId: Long, delta: Int, minIndex: Int = 0): Boolean {
     val order = playback.state.value.queue.playOrder
     val currentIndex = order.indexOfFirst { it.id == entryId }
     if (currentIndex < 0) return false
-    val targetIndex = (currentIndex + delta).coerceIn(0, order.lastIndex)
+    val targetIndex = (currentIndex + delta).coerceIn(minIndex.coerceAtMost(order.lastIndex), order.lastIndex)
     if (targetIndex == currentIndex) return false
     playback.move(entryId, targetIndex)
     return true

@@ -1854,34 +1854,22 @@ def scroll_to_top(swipes: int = 4) -> None:
 
 
 def check_queue_drag() -> None:
-    def handle_bounds():
+    # Lagu yang sedang dipilih (entri pertama) tetap di atas dan tidak bisa diseret; lagu yang sudah
+    # diputar disembunyikan. Dengan satu lagu berikutnya tidak ada yang bisa diurutkan, jadi pegangan
+    # tidak tampil. Logika seret-urutkan diuji di PlayerQueueReorderTest dan UpcomingQueueTest.
+    def queue_rows():
         root = ui_tree()
         if root is None:
             return None
-        first = ui_bounds(f"Urutkan {FIRST}", attribute="content-desc", root=root)
-        second = ui_bounds(f"Urutkan {SECOND}", attribute="content-desc", root=root)
-        return (first[0], second[0]) if first and second else None
+        first = ui_bounds(f"Buka menu {FIRST}", attribute="content-desc", root=root)
+        second = ui_bounds(f"Buka menu {SECOND}", attribute="content-desc", root=root)
+        handle = ui_bounds(f"Urutkan {FIRST}", attribute="content-desc", root=root)
+        return root if first and second and first[0][1] < second[0][1] and not handle else None
 
-    def handles_ordered(first_above: bool):
-        bounds = handle_bounds()
-        if bounds is None:
-            return None
-        upper, lower = bounds if first_above else bounds[::-1]
-        return bounds if upper[1] < lower[1] else None
-
-    bounds = wait_for(lambda: handles_ordered(True), 5)
-    if not check(bounds, "Kedua lagu memiliki pegangan urutkan di antrean"):
-        return
-    x1, y1, x2, y2 = bounds[0]
-    x = (x1 + x2) // 2
-    shell(f"input swipe {x} {(y1 + y2) // 2} {x} {bounds[1][3] - 1} 700")
-    reordered = wait_for(lambda: handles_ordered(False), 5)
-    if not check(reordered, "Menyeret pegangan lagu pertama ke bawah mengubah urutan antrean"):
-        return
-    x1, y1, x2, y2 = reordered[0]
-    x = (x1 + x2) // 2
-    shell(f"input swipe {x} {(y1 + y2) // 2} {x} {reordered[1][1] + 1} 700")
-    check(wait_for(lambda: handles_ordered(True), 5), "Menyeret kembali mengembalikan urutan antrean")
+    check(
+        wait_for(queue_rows, 5),
+        "Antrean menampilkan lagu aktif di atas lagu berikutnya, tanpa pegangan urutkan pada lagu aktif",
+    )
 
 
 def check_now_playing_queue() -> None:
