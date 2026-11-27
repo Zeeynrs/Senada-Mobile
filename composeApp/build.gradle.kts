@@ -81,6 +81,11 @@ android {
         ndk.abiFilters += listOf("arm64-v8a", "x86_64")
     }
 
+    buildFeatures {
+        // isDebugBuild() membaca BuildConfig.DEBUG untuk menyembunyikan lagu contoh di build rilis.
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

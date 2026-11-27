@@ -21,6 +21,16 @@ class DemoCatalogTest {
     }
 
     @Test
+    fun releaseBuildsShowNoSampleTracks() {
+        assertTrue(DemoCatalog.visibleTracks(debug = false).isEmpty())
+    }
+
+    @Test
+    fun debugBuildsShowBothSampleTracks() {
+        assertEquals(listOf("Selepas Hujan", "Sebelum Pagi"), DemoCatalog.visibleTracks(debug = true).map { it.title })
+    }
+
+    @Test
     fun bothTracksHaveDifferentBundledAudioPaths() = runBlocking {
         val tracks = DemoCatalog.search("").items
         val paths = tracks.map { DemoCatalog.localAudioPath(it.id) }

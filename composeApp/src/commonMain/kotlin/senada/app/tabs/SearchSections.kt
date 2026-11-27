@@ -48,6 +48,8 @@ internal fun LazyListScope.searchResults(
     onLoadMore: () -> Unit,
     onResultUsed: () -> Unit,
 ) {
+    // Build rilis tidak punya katalog contoh: kolom cari kosong hanya menampilkan riwayat pencarian.
+    if (search.query.isEmpty() && search.tracks.isEmpty() && !search.loading && search.errorText == null) return
     item(key = "search-results-heading") {
         val heading = appString(
             if (search.query.isEmpty()) Res.string.search_heading_demo else Res.string.search_heading_ytm,
