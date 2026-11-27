@@ -6,6 +6,7 @@ saat layar mati. Screenshot, dumpsys dan logcat disimpan di folder keluaran.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -1740,10 +1741,10 @@ def check_karaoke() -> None:
         "audioDurationMs": 12_000,
         "lyrics": {"type": "synced", "lines": [
             {"time": 0, "end": 5_900, "text": timed_line, "words": [
-                {"t": 0, "d": 4_000, "text": "Langit "},
-                {"t": 4_000, "d": 900, "text": "biru "},
-                {"t": 4_900, "d": 600, "text": "家族 "},
-                {"t": 5_500, "d": 400, "text": "한글"},
+                {"t": 0, "d": 5_000, "text": "Langit "},
+                {"t": 5_000, "d": 400, "text": "biru "},
+                {"t": 5_400, "d": 300, "text": "家族 "},
+                {"t": 5_700, "d": 200, "text": "한글"},
             ]},
             {"time": 6_000, "text": estimated_line},
             {"time": 10_500, "text": "Cahaya kembali"},
@@ -1752,8 +1753,8 @@ def check_karaoke() -> None:
 
     def write_song_file(filename: str, data: bytes) -> None:
         subprocess.run(
-            ["adb", "shell", "-T", f"run-as {PKG} sh -c 'cat > {directory}/{filename}'"],
-            input=data, check=True,
+            ["adb", "shell", "-T", f"run-as {PKG} sh -c 'base64 -d > {directory}/{filename}'"],
+            input=base64.b64encode(data), check=True,
         )
 
     shell(f"am force-stop {PKG}")
@@ -1764,9 +1765,11 @@ def check_karaoke() -> None:
 
     if not check(
         wait_for(lambda: desc_point("Library"), 10) and open_tab("Library")
-        and tap_desc("Filter Library Offline") and tap_text(title),
+        and tap_desc("Filter Library Offline") and tap_desc(f"{title}, Senada, 12 detik")
+        and wait_session("PLAYING", title, 8),
         "Lagu karaoke fixture dapat diputar dari Library Offline",
     ):
+        screenshot("karaoke-offline-unavailable")
         return
     if not check(
         pause_for_setup(title) and open_now_playing() and tap_desc("Lirik")
@@ -1779,8 +1782,8 @@ def check_karaoke() -> None:
     # Freeze playback inside the timed word so its partial fill is visible in the artifact.
     shell("cmd media_session dispatch play")
     if not check(
-        wait_session("PLAYING", title, 5, min_ms=2_100) and pause_for_setup(title)
-        and wait_session("PAUSED", title, 3, min_ms=2_100, max_ms=3_900),
+        wait_session("PLAYING", title, 5, min_ms=1_700) and pause_for_setup(title)
+        and wait_session("PAUSED", title, 3, min_ms=1_700, max_ms=4_950),
         "Karaoke dijeda di tengah kata dengan timing asli",
         session(),
     ):
@@ -1797,7 +1800,7 @@ def check_karaoke() -> None:
     shell("cmd media_session dispatch play")
     if check(
         wait_session("PLAYING", title, 5, min_ms=7_500) and pause_for_setup(title)
-        and wait_session("PAUSED", title, 3, min_ms=7_500, max_ms=9_500)
+        and wait_session("PAUSED", title, 3, min_ms=7_500, max_ms=10_450)
         and is_selected_label(estimated_line),
         "Karaoke tanpa timing kata tetap memilih baris estimasi saat diputar dan dijeda",
         session(),
