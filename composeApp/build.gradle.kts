@@ -76,14 +76,34 @@ android {
         applicationId = "io.github.zeeynrs.senada"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        // Akhiran -beta menaruh build rilis di kanal Beta, karena rilis GitHub Senada masih pre-release.
+        versionName = "1.0.2-beta"
         ndk.abiFilters += listOf("arm64-v8a", "x86_64")
     }
 
     buildFeatures {
         // isDebugBuild() membaca BuildConfig.DEBUG untuk menyembunyikan lagu contoh di build rilis.
         buildConfig = true
+    }
+
+    // Kunci rilis tetap dari GitHub Secrets (workflow Android release). Tanpa variabelnya, build rilis
+    // tidak ditandatangani; kunci yang sama wajib dipakai agar update di aplikasi bisa memasang di atas versi lama.
+    val releaseKeystore = System.getenv("SENADA_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("SENADA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SENADA_KEY_ALIAS")
+                keyPassword = System.getenv("SENADA_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.findByName("release")
+        }
     }
 
     compileOptions {
