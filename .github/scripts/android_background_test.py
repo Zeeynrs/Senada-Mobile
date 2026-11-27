@@ -1729,7 +1729,7 @@ def check_karaoke() -> None:
     """Use the downloaded-song format to exercise real and estimated cues without a network provider."""
     title = "Karaoke Senada"
     timed_line = "Langit biru 家族 한글"
-    estimated_line = "e\u0301lan pagi 다시 빛"
+    estimated_line = "e\u0301lan pagi 다시 빛 家族と歩く午後の長い道"
     fixture_id = "karaoke-fixture"
     directory = f"files/offline-audio/{fixture_id}"
     manifest = {

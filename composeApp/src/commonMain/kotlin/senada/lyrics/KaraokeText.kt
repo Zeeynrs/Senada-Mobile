@@ -57,11 +57,13 @@ internal fun KaraokeText(
 }
 
 private class WordShape(private val word: KaraokeWord, layout: TextLayoutResult) {
-    val outline = layout.getPathForRange(word.graphemeOffsets.first(), word.graphemeOffsets.last())
     private val glyphs = Array(word.graphemeCount) { index ->
         val start = word.graphemeOffsets[index]
-        val end = word.graphemeOffsets[index + 1]
-        GlyphShape(layout.getPathForRange(start, end).getBounds(), layout.getBidiRunDirection(start))
+        // Selection paths can extend into the following row at a soft wrap. Use the glyph's own box.
+        GlyphShape(layout.getBoundingBox(start), layout.getBidiRunDirection(start))
+    }
+    val outline = Path().apply {
+        for (glyph in glyphs) glyph.appendTo(this, 1f)
     }
 
     fun appendFill(path: Path, position: Long) {
@@ -81,6 +83,7 @@ private class WordShape(private val word: KaraokeWord, layout: TextLayoutResult)
 private class GlyphShape(private val bounds: Rect, private val direction: ResolvedTextDirection) {
     fun appendTo(path: Path, fraction: Float) {
         val width = bounds.width * fraction
+        if (width <= 0f || bounds.height <= 0f) return
         val left = if (direction == ResolvedTextDirection.Ltr) bounds.left else bounds.right - width
         val right = left + width
         path.moveTo(left, bounds.top)
