@@ -33,15 +33,19 @@ import senada.resources.developer_title
 import senada.resources.state_active
 import senada.resources.state_off
 
-/** Uji audio untuk pengembang: memutar sampel yang ikut di aplikasi atau dari HTTPS, di luar antrean. */
+/** Uji audio untuk pengembang: di build debug memutar sampel lokal atau dari HTTPS, di luar antrean. */
 @Composable
 internal fun DeveloperSection(playback: PlaybackController, audioEffects: AudioEffectsController?) {
+    // Sampel audio hanya ada di build debug; build rilis hanya menyisakan uji efek.
+    val showSamples = isDebugBuild()
     SettingsCard(appString(Res.string.developer_title)) {
-        Text(
-            appString(Res.string.developer_audio_sample_label, DemoCatalog.tracks.first().title),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (showSamples) {
+            Text(
+                appString(Res.string.developer_audio_sample_label, DemoCatalog.debugTracks.first().title),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -51,18 +55,20 @@ internal fun DeveloperSection(playback: PlaybackController, audioEffects: AudioE
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            FilledTonalButton(
-                onClick = { playback.play(sampleAudioSelection(SampleAudioSource.Local)) },
-                shape = CircleShape,
-                colors = buttonColors,
-                modifier = Modifier.minTouchTarget(),
-            ) { Text(appString(Res.string.developer_play_local)) }
-            FilledTonalButton(
-                onClick = { playback.play(sampleAudioSelection(SampleAudioSource.Https)) },
-                shape = CircleShape,
-                colors = buttonColors,
-                modifier = Modifier.minTouchTarget(),
-            ) { Text(appString(Res.string.developer_play_https)) }
+            if (showSamples) {
+                FilledTonalButton(
+                    onClick = { playback.play(sampleAudioSelection(SampleAudioSource.Local)) },
+                    shape = CircleShape,
+                    colors = buttonColors,
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text(appString(Res.string.developer_play_local)) }
+                FilledTonalButton(
+                    onClick = { playback.play(sampleAudioSelection(SampleAudioSource.Https)) },
+                    shape = CircleShape,
+                    colors = buttonColors,
+                    modifier = Modifier.minTouchTarget(),
+                ) { Text(appString(Res.string.developer_play_https)) }
+            }
             if (audioEffects != null) {
                 val current by audioEffects.effects.collectAsState()
                 val active = current.copy(customPresets = emptyList()) == DeveloperTestEffects
