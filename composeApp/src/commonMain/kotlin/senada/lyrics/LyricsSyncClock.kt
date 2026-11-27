@@ -2,18 +2,21 @@ package senada.lyrics
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.ceil
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import senada.playback.PlaybackController
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
@@ -38,18 +41,9 @@ internal class LyricsPositionFilter {
             lastDisplayedMs = raw
             return raw
         }
-        // Menahan jitter kecil dari timestamp audio hardware (< 40 ms) agar sorotan tidak berkedip mundur.
-        val filtered = if (raw < lastDisplayedMs && lastDisplayedMs - raw <= BACKWARD_JITTER_GUARD_MS) {
-            lastDisplayedMs
-        } else {
-            raw
-        }
-        lastDisplayedMs = filtered
-        return filtered
-    }
-
-    private companion object {
-        const val BACKWARD_JITTER_GUARD_MS = 40L
+        // Backward seeks increment the discontinuity version above. Other corrections can wait for audio to catch up.
+        lastDisplayedMs = maxOf(lastDisplayedMs, raw)
+        return lastDisplayedMs
     }
 }
 
@@ -66,34 +60,39 @@ internal fun nextCueWaitWallMs(
 }
 
 @Composable
-internal fun rememberSyncedPlaybackPositionMs(playback: PlaybackController): State<Long> {
-    val audio by remember(playback) {
-        playback.state.map { it.audio }.distinctUntilChanged()
-    }.collectAsState(playback.state.value.audio)
+internal fun rememberLyricsFramePosition(playback: PlaybackController): LongState {
     val filter = remember(playback) { LyricsPositionFilter() }
     val positionMs = remember(playback) {
-        mutableLongStateOf(filter.resolve(audio, playback.monotonicTimeMs()))
+        mutableLongStateOf(filter.resolve(playback.state.value.audio, playback.monotonicTimeMs()))
     }
-    LaunchedEffect(
-        playback,
-        audio.selection?.queueEntryId,
-        audio.selection?.uri,
-        audio.status,
-        audio.positionMs,
-        audio.sampledAtMs,
-        audio.playbackSpeed,
-        audio.discontinuityVersion,
-    ) {
-        positionMs.longValue = filter.resolve(audio, playback.monotonicTimeMs())
-        if (audio.status == SampleAudioStatus.Playing && audio.selection?.isPending != true) {
-            while (isActive) {
-                withFrameNanos {
-                    positionMs.longValue = filter.resolve(audio, playback.monotonicTimeMs())
+    LaunchedEffect(playback) {
+        var frameLoop: Job? = null
+        playback.state.map { it.audio }.distinctUntilChanged().collect {
+            val audio = playback.state.value.audio
+            positionMs.longValue = filter.resolve(audio, playback.monotonicTimeMs())
+            if (audio.status == SampleAudioStatus.Playing && audio.selection?.isPending != true) {
+                if (frameLoop == null) frameLoop = launch {
+                    while (isActive) {
+                        withFrameNanos {
+                            positionMs.longValue = filter.resolve(playback.state.value.audio, playback.monotonicTimeMs())
+                        }
+                    }
                 }
+            } else {
+                frameLoop?.cancel()
+                frameLoop = null
             }
         }
     }
     return positionMs
+}
+
+@Composable
+internal fun rememberActiveLyricIndex(lines: List<LyricLine>, positionMs: LongState): Int {
+    val index by remember(lines, positionMs) {
+        derivedStateOf { activeLineIndex(lines, positionMs.longValue) }
+    }
+    return index
 }
 
 @Composable

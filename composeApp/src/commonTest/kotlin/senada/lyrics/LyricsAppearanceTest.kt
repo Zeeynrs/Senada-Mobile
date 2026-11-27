@@ -19,29 +19,18 @@ class LyricsAppearanceTest {
     }
 
     @Test
-    fun olderSettingsUseDesktopDefaultsAndInvalidFieldsDoNotDiscardOtherChoices() {
+    fun olderSettingsDefaultToKaraokeAndKeepExplicitChoices() {
         fun load(json: String) = AppearanceStore({ json }, {}).load().lyricsAppearance
 
         assertEquals(LyricsAppearance(), load("""{"version":3,"mode":"Dark","accent":"senada"}"""))
+        assertEquals(LyricsHighlight.Karaoke, load("""{"version":3,"mode":"Dark","accent":"senada"}""").highlight)
+        assertEquals(
+            LyricsHighlight.Bright,
+            load("""{"version":3,"mode":"Dark","accent":"senada","lyricsAppearance":{"highlight":"bright"}}""").highlight,
+        )
         assertEquals(
             LyricsAppearance(alignment = LyricsAlignment.Center, highlight = LyricsHighlight.Karaoke),
             load("""{"version":3,"mode":"Light","accent":"mint","lyricsAppearance":{"size":6,"font":"other","alignment":"center","highlight":"karaoke"}}"""),
         )
-    }
-
-    @Test
-    fun karaokeProgressFollowsLineTimestampsAndClampsToTheLine() {
-        assertEquals(0f, lyricProgress(positionMs = 900, startMs = 1_000, nextStartMs = 3_000))
-        assertEquals(.5f, lyricProgress(positionMs = 2_000, startMs = 1_000, nextStartMs = 3_000))
-        assertEquals(1f, lyricProgress(positionMs = 4_000, startMs = 1_000, nextStartMs = 3_000))
-        assertEquals(.5f, lyricProgress(positionMs = 3_000, startMs = 1_000, nextStartMs = null))
-    }
-
-    @Test
-    fun karaokeHighlightKeepsSurrogatePairsTogether() {
-        val text = "A🎵B"
-        assertEquals(1, sungTextEnd(text, .5f))
-        assertEquals(3, sungTextEnd(text, .75f))
-        assertEquals(text.length, sungTextEnd(text, 1f))
     }
 }

@@ -147,6 +147,7 @@ class LyricsSyncMeasurementTest {
     @Test
     fun afterFixSyncErrorAcrossSpeedsIsWithinOneMillisecond() = runTest {
         val lines = fixtureLines()
+        val timings = lines.mapIndexed { index, line -> karaokeTiming(line, lines.getOrNull(index + 1)?.startMs) }
         val track = Track("demo:track:hujan", "Selepas Hujan", listOf("Senada"), 12_000L, source = "demo")
 
         for (speed in listOf(0.5f, 1.0f, 2.0f)) {
@@ -189,11 +190,10 @@ class LyricsSyncMeasurementTest {
                 }
                 lastShownActive = shownActive
                 if (shownActive >= 0) {
-                    val line = lines[shownActive]
-                    val nextStart = lines.getOrNull(shownActive + 1)?.startMs ?: 12_000L
-                    val sungEnd = karaokeSungEnd(line, line.text, syncedPos, nextStart)
-                    val renderedFraction = sungEnd.toDouble() / line.text.length.coerceAtLeast(1).toDouble()
-                    val effectiveKaraokePos = line.startMs + (renderedFraction * (nextStart - line.startMs)).roundToLong()
+                    val words = timings[shownActive].words
+                    val renderedFraction = words.sumOf { it.graphemesAt(syncedPos) } / words.sumOf { it.graphemeCount }
+                    val start = words.first().startMs
+                    val effectiveKaraokePos = start + (renderedFraction * (words.last().endMs - start)).roundToLong()
                     karaokeErrors += (effectiveKaraokePos - trueAudioPos)
                 }
                 if (activeLineIndex(lines, trueAudioPos) >= lines.lastIndex) break
@@ -209,8 +209,7 @@ class LyricsSyncMeasurementTest {
             )
             assertTrue(stats.maxAbsErrorMs <= 1L, "Expected <=1ms pos error at ${speed}x, got ${stats.maxAbsErrorMs}ms")
             assertTrue(cueStats.maxAbsErrorMs <= 32L, "Expected frame-granularity cue latency at ${speed}x, got ${cueStats.maxAbsErrorMs}ms")
-            // Character quantization is +/- 0.5 char (~+/-55ms on a 18-char/1.75s line), zero systematic lag.
-            assertTrue(abs(karaokeStats.meanSignedErrorMs) <= 25.0, "Expected near-zero mean karaoke error, got ${karaokeStats.meanSignedErrorMs}")
+            assertTrue(karaokeStats.maxAbsErrorMs <= 2L, "Expected smooth karaoke within 2ms, got ${karaokeStats.maxAbsErrorMs}ms")
         }
     }
 
@@ -258,7 +257,7 @@ class LyricsSyncMeasurementTest {
             runCurrent()
             val posAfter = filter.resolve(controller.state.value.audio, testScheduler.currentTime)
             assertEquals(1, activeLineIndex(lines, posAfter), "After cue at ${speed}x")
-            assertTrue(karaokeSungEnd(lines[1], lines[1].text, posAfter, lines[2].startMs) > 0)
+            assertTrue(karaokeTiming(lines[1], lines[2].startMs).words.first().graphemesAt(posAfter) > 0)
         }
     }
 
@@ -289,11 +288,12 @@ class LyricsSyncMeasurementTest {
         controller.pause()
         runCurrent()
         val pausedPos = filter.resolve(controller.state.value.audio, testScheduler.currentTime)
-        val pausedSung = karaokeSungEnd(lines[0], lines[0].text, pausedPos, lines[1].startMs)
+        val firstWord = karaokeTiming(lines[0], lines[1].startMs).words.first()
+        val pausedSung = firstWord.graphemesAt(pausedPos)
         advanceTimeBy(3_000L)
         runCurrent()
         assertEquals(pausedPos, filter.resolve(controller.state.value.audio, testScheduler.currentTime))
-        assertEquals(pausedSung, karaokeSungEnd(lines[0], lines[0].text, filter.resolve(controller.state.value.audio, testScheduler.currentTime), lines[1].startMs))
+        assertEquals(pausedSung, firstWord.graphemesAt(filter.resolve(controller.state.value.audio, testScheduler.currentTime)))
 
         // Resume -> advance 350 ms -> 1250 ms (inside word 2 "mulai ")
         controller.resume()

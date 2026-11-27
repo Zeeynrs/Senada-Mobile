@@ -6,6 +6,7 @@ saat layar mati. Screenshot, dumpsys dan logcat disimpan di folder keluaran.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -1724,6 +1725,86 @@ def check_browse_light_theme() -> None:
         time.sleep(1.0)
 
 
+def check_karaoke() -> None:
+    """Use the downloaded-song format to exercise real and estimated cues without a network provider."""
+    title = "Karaoke Senada"
+    timed_line = "Langit biru 家族 한글"
+    estimated_line = "e\u0301lan pagi 다시 빛"
+    fixture_id = "karaoke-fixture"
+    directory = f"files/offline-audio/{fixture_id}"
+    manifest = {
+        "id": f"yt:track:{fixture_id}",
+        "title": title,
+        "artists": ["Senada"],
+        "trackDurationMs": 12_000,
+        "audioDurationMs": 12_000,
+        "lyrics": {"type": "synced", "lines": [
+            {"time": 0, "end": 5_900, "text": timed_line, "words": [
+                {"t": 0, "d": 4_000, "text": "Langit "},
+                {"t": 4_000, "d": 900, "text": "biru "},
+                {"t": 4_900, "d": 600, "text": "家族 "},
+                {"t": 5_500, "d": 400, "text": "한글"},
+            ]},
+            {"time": 6_000, "text": estimated_line},
+            {"time": 10_500, "text": "Cahaya kembali"},
+        ]},
+    }
+
+    def write_song_file(filename: str, data: bytes) -> None:
+        subprocess.run(
+            ["adb", "shell", "-T", f"run-as {PKG} sh -c 'cat > {directory}/{filename}'"],
+            input=data, check=True,
+        )
+
+    shell(f"am force-stop {PKG}")
+    shell(f"run-as {PKG} mkdir -p {directory}")
+    write_song_file("audio.m4a", Path("composeApp/src/commonMain/composeResources/files/selepas-hujan.m4a").read_bytes())
+    write_song_file("song.json", json.dumps(manifest).encode("utf-8"))
+    shell(f"am start -W -n {ACTIVITY}")
+
+    if not check(
+        wait_for(lambda: desc_point("Library"), 10) and open_tab("Library")
+        and tap_desc("Filter Library Offline") and tap_text(title),
+        "Lagu karaoke fixture dapat diputar dari Library Offline",
+    ):
+        return
+    if not check(
+        pause_for_setup(title) and open_now_playing() and tap_desc("Lirik")
+        and wait_for(lambda: is_selected_label(timed_line), 5),
+        "Lirik dengan timing kata menandai baris aktif saat dijeda",
+    ):
+        screenshot("karaoke-timed-unavailable")
+        return
+
+    # Freeze playback inside the timed word so its partial fill is visible in the artifact.
+    shell("cmd media_session dispatch play")
+    if not check(
+        wait_session("PLAYING", title, 5, min_ms=2_100) and pause_for_setup(title)
+        and wait_session("PAUSED", title, 3, min_ms=2_100, max_ms=3_900),
+        "Karaoke dijeda di tengah kata dengan timing asli",
+        session(),
+    ):
+        return
+    screenshot("v2-61a-karaoke-source-timing")
+
+    if not check(
+        tap_text(estimated_line, scrolls=0) and wait_session("PAUSED", title, 4, min_ms=5_950, max_ms=6_050)
+        and wait_for(lambda: is_selected_label(estimated_line), 5),
+        "Mengetuk baris karaoke menggeser audio dan memilih baris baru",
+        session(),
+    ):
+        return
+    shell("cmd media_session dispatch play")
+    if check(
+        wait_session("PLAYING", title, 5, min_ms=7_500) and pause_for_setup(title)
+        and wait_session("PAUSED", title, 3, min_ms=7_500, max_ms=9_500)
+        and is_selected_label(estimated_line),
+        "Karaoke tanpa timing kata tetap memilih baris estimasi saat diputar dan dijeda",
+        session(),
+    ):
+        screenshot("v2-61b-karaoke-estimated-timing")
+
+
 def min_touch_px() -> int:
     # Toleransi 1 px untuk pembulatan piksel pada kepadatan layar non-bulat (mis. 420 dpi).
     return int(48 * screen_density() / 160) - 1
@@ -2351,6 +2432,7 @@ def scenario() -> None:
     check_now_playing_queue()
     check_home_hero_play()
     check_browse_light_theme()
+    check_karaoke()
 
 
 def main() -> int:

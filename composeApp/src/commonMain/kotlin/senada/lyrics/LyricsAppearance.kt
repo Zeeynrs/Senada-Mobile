@@ -1,6 +1,5 @@
 package senada.lyrics
 
-import kotlin.math.roundToInt
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -65,7 +64,7 @@ internal data class LyricsAppearance(
     val size: LyricsSize = LyricsSize.Medium,
     val font: LyricsFont = LyricsFont.Sans,
     val alignment: LyricsAlignment = LyricsAlignment.Left,
-    val highlight: LyricsHighlight = LyricsHighlight.Bright,
+    val highlight: LyricsHighlight = LyricsHighlight.Karaoke,
     val romanization: Boolean = false,
 )
 
@@ -75,7 +74,7 @@ internal fun lyricsAppearanceFromJson(value: JsonElement?): LyricsAppearance {
         size = json.enumValue("size", LyricsSize.Medium),
         font = json.enumValue("font", LyricsFont.Sans),
         alignment = json.enumValue("alignment", LyricsAlignment.Left),
-        highlight = json.enumValue("highlight", LyricsHighlight.Bright),
+        highlight = json.enumValue("highlight", LyricsHighlight.Karaoke),
         romanization = (json["romanization"] as? JsonPrimitive)?.booleanOrNull ?: false,
     )
 }
@@ -92,54 +91,3 @@ internal fun LyricsAppearance.toJson(): JsonObject = buildJsonObject {
     put("highlight", highlight.name.lowercase())
     put("romanization", romanization)
 }
-
-internal fun lyricProgress(positionMs: Long, startMs: Long, nextStartMs: Long?): Float {
-    if (positionMs <= startMs) return 0f
-    val durationMs = nextStartMs?.takeIf { it > startMs }?.minus(startMs) ?: 4_000L
-    return ((positionMs - startMs).toDouble() / durationMs).coerceAtMost(1.0).toFloat()
-}
-
-internal fun sungTextEnd(text: String, progress: Float): Int {
-    val end = (text.length * progress.coerceIn(0f, 1f)).roundToInt()
-    return clampSurrogateBoundary(text, end)
-}
-
-/**
- * Menghitung indeks akhir karakter yang sudah dinyanyikan pada baris [line].
- * Memakai timing per kata nyata jika tersedia, dan jatuh ke interpolasi baris untuk LRC standar.
- */
-internal fun karaokeSungEnd(
-    line: LyricLine,
-    displayText: String,
-    positionMs: Long,
-    nextStartMs: Long?,
-): Int {
-    if (positionMs <= line.startMs) return 0
-    if (line.words.isEmpty() || displayText != line.text) {
-        val endMs = line.endMs?.takeIf { it > line.startMs } ?: nextStartMs
-        return sungTextEnd(displayText, lyricProgress(positionMs, line.startMs, endMs))
-    }
-    var sungChars = 0
-    for (word in line.words) {
-        val wordEnd = word.endMs
-        if (positionMs >= wordEnd) {
-            sungChars += word.text.length
-            continue
-        }
-        if (positionMs > word.startMs && word.durationMs > 0L) {
-            val activeLen = word.text.trimEnd().length
-            val fraction = ((positionMs - word.startMs).toDouble() / word.durationMs.toDouble())
-                .coerceIn(0.0, 1.0)
-            sungChars += (activeLen * fraction).roundToInt()
-        }
-        break
-    }
-    return clampSurrogateBoundary(displayText, sungChars.coerceIn(0, displayText.length))
-}
-
-private fun clampSurrogateBoundary(text: String, end: Int): Int =
-    if (end in 1 until text.length && text[end - 1].isHighSurrogate() && text[end].isLowSurrogate()) {
-        end - 1
-    } else {
-        end
-    }
