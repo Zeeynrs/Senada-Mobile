@@ -118,7 +118,14 @@ internal class SampleAudioPlayer(
     /** Selama alamat audio dicari, status pemutar native tidak mewakili lagu yang dipilih. */
     private var awaitingSource = false
 
+    /**
+     * Pengguna atau antrean meminta audio berjalan. Selama true, Paused dari pemutar native hanya
+     * dianggap sementara: statusnya terus dibaca agar Playing dan akhir lagu tidak terlewat.
+     */
+    private var playRequested = false
+
     fun restorePaused(entry: QueueItem, positionMs: Long) {
+        playRequested = false
         state = SampleAudioState(
             selection = SampleAudioSelection.pending(entry.track.title, entry.id),
             status = SampleAudioStatus.Paused,
@@ -139,6 +146,7 @@ internal class SampleAudioPlayer(
         output.clearSelection()
         output.consumeDiscontinuity()
         awaitingSource = true
+        playRequested = true
         state = SampleAudioState(
             selection = selection,
             status = SampleAudioStatus.Loading,
@@ -152,6 +160,7 @@ internal class SampleAudioPlayer(
     /** Alamat audio tidak dapat disiapkan; pilihan tetap ada agar bisa dicoba lagi. */
     fun failPreparing() {
         awaitingSource = false
+        playRequested = false
         state = state.copy(status = SampleAudioStatus.Failed, sampledAtMs = monotonicNow())
     }
 
@@ -159,6 +168,7 @@ internal class SampleAudioPlayer(
     fun play(selection: SampleAudioSelection, startAtMs: Long = 0, forceRestart: Boolean = false) {
         awaitingSource = false
         refresh()
+        playRequested = true
         val sameSelection = !forceRestart && state.selection == selection
         if (sameSelection && state.isActive) return
 
@@ -190,6 +200,18 @@ internal class SampleAudioPlayer(
     fun pause() {
         val nowMono = monotonicNow()
         val rate = output.playbackRate.sanitizedPlaybackRate()
+        val wasNativePause = playRequested && state.status == SampleAudioStatus.Paused
+        playRequested = false
+        if (wasNativePause) {
+            // Status sudah Paused dari pemutar native; pastikan audio benar-benar berhenti.
+            output.pause()
+            state = state.copy(
+                positionMs = output.positionMs.coerceIn(0, state.durationMs ?: Long.MAX_VALUE),
+                playbackSpeed = rate,
+                sampledAtMs = nowMono,
+            )
+            return
+        }
         if (awaitingSource) {
             awaitingSource = false
             state = state.copy(status = SampleAudioStatus.Paused, playbackSpeed = rate, sampledAtMs = nowMono)
@@ -209,6 +231,7 @@ internal class SampleAudioPlayer(
     }
 
     fun pauseAtEnd() {
+        playRequested = false
         output.pause()
         state = state.copy(
             status = SampleAudioStatus.Paused,
@@ -222,7 +245,7 @@ internal class SampleAudioPlayer(
         if (awaitingSource) return
         val nowMono = monotonicNow()
         val rate = output.playbackRate.sanitizedPlaybackRate()
-        if (!state.isActive) {
+        if (!state.isActive && !isNativePause) {
             if (rate != state.playbackSpeed || nativeDiscontinuity) {
                 val position = if (nativeDiscontinuity && state.selection?.isPending == false) {
                     output.positionMs.coerceIn(0, state.durationMs ?: Long.MAX_VALUE)
@@ -286,9 +309,14 @@ internal class SampleAudioPlayer(
         )
     }
 
+    /** Paused yang dilaporkan pemutar native tanpa permintaan jeda; bisa berubah lagi kapan saja. */
+    private val isNativePause: Boolean
+        get() = playRequested && state.status == SampleAudioStatus.Paused && state.selection?.isPending == false
+
     fun onQueueEntryRemoved(entryId: Long) {
         if (state.selection?.queueEntryId != entryId) return
         awaitingSource = false
+        playRequested = false
         output.pause()
         output.clearSelection()
         output.consumeDiscontinuity()

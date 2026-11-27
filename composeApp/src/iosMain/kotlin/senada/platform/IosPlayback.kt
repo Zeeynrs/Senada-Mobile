@@ -406,6 +406,8 @@ private class AvAudioOutput(initialEffects: AudioEffects) : SampleAudioOutput {
             }
         }
         if (player.currentItem() != null) {
+            // Sesi aktif menjadikan Senada aplikasi "Now Playing", sehingga kontrol layar kunci muncul.
+            AVAudioSession.sharedInstance().setActive(true, null)
             player.setDefaultRate(currentEffects.speed)
             player.play()
             if (player.rate() != currentEffects.speed) {
