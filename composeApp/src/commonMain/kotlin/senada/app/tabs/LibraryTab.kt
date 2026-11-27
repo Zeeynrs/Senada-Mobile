@@ -6,23 +6,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import coil3.compose.LocalPlatformContext
 import senada.app.AppLanguage
 import senada.app.AppStrings
+import senada.app.AudioImportController
 import senada.app.CollectionPlayButtons
 import senada.app.CompactCollectionHeader
 import senada.app.ImportAudioButton
@@ -40,13 +38,11 @@ import senada.app.favoritesTab
 import senada.app.historyTab
 import senada.app.offlineSongsTab
 import senada.app.playlistsTab
-import senada.app.rememberAudioImportController
 import senada.app.sumKnownDurationMs
 import senada.library.FollowedArtist
 import senada.library.Playlist
 import senada.model.Track
 import senada.offline.OfflineState
-import senada.platform.importedAudioStorage
 import senada.resources.Res
 import senada.resources.import_audio_button
 import senada.resources.import_audio_copying
@@ -95,6 +91,8 @@ internal fun LazyListScope.libraryTab(
     openedPlaylist: Playlist?,
     artists: List<FollowedArtist>?,
     downloadState: OfflineState?,
+    importedTracks: List<Track>,
+    importController: AudioImportController?,
     profileName: String,
     profilePhoto: String?,
     onOpenProfile: () -> Unit,
@@ -150,7 +148,9 @@ internal fun LazyListScope.libraryTab(
             onToggleReorder = onToggleReorderPlaylist,
         )
         LibraryFilter.History -> historyTab(library, actions, onOpenSearch)
-        LibraryFilter.Imported -> importedTracksTab(library, actions)
+        LibraryFilter.Imported -> if (importController != null) {
+            importedTracksTab(importedTracks, importController, library, actions)
+        }
     }
 }
 
@@ -179,60 +179,55 @@ private fun LibraryFilterChips(selected: LibraryFilter, onSelect: (LibraryFilter
 }
 
 /** Daftar file audio yang diimpor pengguna ke library. */
-private fun LazyListScope.importedTracksTab(library: LibraryState, actions: LibraryActions) {
-    item(key = "library-imported") {
-        val context = LocalPlatformContext.current
-        val storage = remember(context) { importedAudioStorage(context) }
-        LaunchedEffect(actions, storage) { actions.syncImportedFiles(storage) }
-        val tracks by remember(actions) { actions.localTracks() }.collectAsState(emptyList())
-        ImportedTracksContent(tracks, library, actions)
-    }
-}
-
-@Composable
-private fun ImportedTracksContent(
+private fun LazyListScope.importedTracksTab(
     tracks: List<Track>,
+    importController: AudioImportController,
     library: LibraryState,
     actions: LibraryActions,
 ) {
-    val importController = rememberAudioImportController(onImported = actions::addImportedTrack)
-    val language = LocalAppLanguage.current
-    val meta = remember(tracks, language) {
-        collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks), language = language)
-    }
-    val importedTitle = appString(Res.string.library_shortcut_imported)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        CompactCollectionHeader(
-            title = importedTitle,
-            meta = meta,
-            eyebrow = appString(Res.string.library_imported_eyebrow),
-        ) {
-            CollectionPlayButtons(
-                title = importedTitle,
-                canPlay = tracks.isNotEmpty(),
-                onPlay = { actions.playImportedTracks(tracks) },
-                onShuffle = { actions.shuffleImportedTracks(tracks) },
-            )
+    item(key = "library-imported-header") {
+        val language = LocalAppLanguage.current
+        val meta = remember(tracks, language) {
+            collectionMeta(trackCount = tracks.size, totalDurationMs = sumKnownDurationMs(tracks), language = language)
         }
-        if (tracks.isEmpty()) {
-            LibraryEmptyState(
-                message = appString(Res.string.library_imported_empty_short),
-                actionLabel = appString(if (importController.busy) Res.string.import_audio_copying else Res.string.import_audio_button),
-                actionEnabled = !importController.busy,
-                onAction = importController::launchImport,
-            )
-            importController.message?.let { ImportAudioStatusMessage(it) }
-        } else {
-            ImportAudioButton(controller = importController)
-            for ((index, track) in tracks.withIndex()) {
-                TrackRow(
-                    track = track,
-                    favorite = track.id in library.favoriteIds,
-                    onClick = { actions.playImportedTracks(tracks, startIndex = index) },
-                ) {
-                    TrackMenu(track, library, actions)
-                }
+        val importedTitle = appString(Res.string.library_shortcut_imported)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            CompactCollectionHeader(
+                title = importedTitle,
+                meta = meta,
+                eyebrow = appString(Res.string.library_imported_eyebrow),
+            ) {
+                CollectionPlayButtons(
+                    title = importedTitle,
+                    canPlay = tracks.isNotEmpty(),
+                    onPlay = { actions.playImportedTracks(tracks) },
+                    onShuffle = { actions.shuffleImportedTracks(tracks) },
+                )
             }
+            if (tracks.isEmpty()) {
+                LibraryEmptyState(
+                    message = appString(Res.string.library_imported_empty_short),
+                    actionLabel = appString(if (importController.busy) Res.string.import_audio_copying else Res.string.import_audio_button),
+                    actionEnabled = !importController.busy,
+                    onAction = importController::launchImport,
+                )
+                importController.message?.let { ImportAudioStatusMessage(it) }
+            } else {
+                ImportAudioButton(controller = importController)
+            }
+        }
+    }
+    itemsIndexed(
+        items = tracks,
+        key = { _, track -> "library-imported-${track.id}" },
+        contentType = { _, _ -> "imported-track" },
+    ) { index, track ->
+        TrackRow(
+            track = track,
+            favorite = track.id in library.favoriteIds,
+            onClick = { actions.playImportedTracks(tracks, startIndex = index) },
+        ) {
+            TrackMenu(track, library, actions)
         }
     }
 }

@@ -13,6 +13,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -27,12 +29,14 @@ private val GlassBlur = 18.dp
 private const val GlassTintAlpha = 0.72f
 private const val GlassFallbackAlpha = 0.94f
 private const val GlassBorderAlpha = 0.08f
+internal expect val glassBlurInputScale: Float
 
 /**
  * Permukaan kaca buram untuk mini player dan navigasi: isi di belakangnya diburamkan lalu diberi lapisan
  * warna permukaan yang tembus pandang. Bila efek kaca dimatikan, memakai permukaan padat `#1D1F23`
  * (atau padanan tema terang) tanpa blur Haze.
  */
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 internal fun GlassSurface(shape: Shape, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -49,7 +53,9 @@ internal fun GlassSurface(shape: Shape, modifier: Modifier = Modifier, content: 
                 noiseFactor = 0f,
                 fallbackTint = HazeTint(tint.copy(alpha = GlassFallbackAlpha)),
             ),
-        )
+        ) {
+            inputScale = HazeInputScale.Fixed(glassBlurInputScale)
+        }
     } else {
         Modifier.background(tint)
     }

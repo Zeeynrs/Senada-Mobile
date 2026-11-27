@@ -70,6 +70,7 @@ import senada.app.SenadaSources
 import senada.app.UiText
 import senada.app.UserProfileController
 import senada.app.appString
+import senada.app.rememberAudioImportController
 import senada.app.browseDisplayTitleStyle
 import senada.resources.Res
 import senada.resources.error_playlist_save_failed
@@ -84,6 +85,7 @@ import senada.app.offlineDownloads
 import senada.app.profilePhotoModel
 import senada.app.userProfileStore
 import senada.app.nowplaying.NowPlayingScreen
+import senada.app.nowplaying.PlayerBackdropBitmaps
 import senada.app.nowplaying.PlaySourceState
 import senada.app.tabs.CatalogDetailStore
 import senada.app.tabs.CatalogPlaylistSaveOutcome
@@ -270,6 +272,12 @@ internal fun AppShell(
     val currentCatalogRoute = navigator.currentCatalogRoute
     val libraryRoot = navigator.destination == AppDestination.Library && currentCatalogRoute == null && openedPlaylistId == null
     val downloadState = if (libraryRoot && librarySection == LibraryFilter.Offline) downloads.state.collectAsState().value else null
+    val importedFilesOpen = libraryRoot && librarySection == LibraryFilter.Imported
+    val importedTracks = if (importedFilesOpen) {
+        LaunchedEffect(actions, importedStorage) { actions.syncImportedFiles(importedStorage) }
+        remember(actions) { actions.localTracks() }.collectAsState(emptyList()).value
+    } else emptyList()
+    val importController = if (importedFilesOpen) rememberAudioImportController(actions::addImportedTrack) else null
     val catalogPage = rememberCatalogPageState(currentCatalogRoute, catalogStore)
     val metered by remember(platformContext) { meteredNetwork(platformContext) }.collectAsState()
     val saveData = dataSaverActive(appearance.settings?.saveMobileData == true, metered)
@@ -430,6 +438,7 @@ internal fun AppShell(
     }
     // Isi tab menjadi sumber blur untuk mini player dan navigasi kaca yang mengambang di atasnya.
     val glassState = remember { HazeState() }
+    val playerBackdropBitmaps = remember { PlayerBackdropBitmaps() }
     val look = LocalSenadaLook.current
     val pageKey = ShellPageKey(
         destination = navigator.destination,
@@ -669,6 +678,8 @@ internal fun AppShell(
                         openedPlaylist = openedPlaylist,
                         artists = followedArtistsState,
                         downloadState = downloadState,
+                        importedTracks = importedTracks,
+                        importController = importController,
                         profileName = profile.name,
                         profilePhoto = profilePhoto,
                         onOpenProfile = { navigator.select(AppDestination.Profile) },
@@ -776,6 +787,7 @@ internal fun AppShell(
                     },
                     panel = nowPlayingPanel,
                     immersive = navigator.nowPlayingOpen,
+                    backdropBitmaps = playerBackdropBitmaps,
                     backdropFromCover = LocalSenadaLook.current.playerBackdropFromCover,
                     modifier = Modifier.graphicsLayer { translationY = (1f - nowPlayingPanel.progress) * size.height },
                 )
