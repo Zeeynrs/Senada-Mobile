@@ -1895,15 +1895,27 @@ def check_now_playing_queue() -> None:
     x1, y1, x2, y2 = rows[0][0]
     tap(((x1 + x2) // 2, (y1 + y2) // 2))
     playing = wait_session("PLAYING", SECOND, 5)
-    marked = playing and wait_for(
+    # Lagu yang diputar pindah ke atas daftar; lagu sebelumnya disembunyikan tapi tetap di antrean.
+    active_rows = playing and wait_for(
         lambda: find_interactive(f"{row_label}, Sedang diputar", attribute="content-desc"), 5,
     )
-    check(playing and marked, "Ketukan pada baris Antrean memutar lagu dan mengumumkan 'Sedang diputar'", session())
-    tap(((x1 + x2) // 2, (y1 + y2) // 2))
+    check(playing and active_rows, "Ketukan pada baris Antrean memutar lagu dan mengumumkan 'Sedang diputar'", session())
+    if active_rows:
+        ax1, ay1, ax2, ay2 = active_rows[0][0]
+        tap(((ax1 + ax2) // 2, (ay1 + ay2) // 2))
     check(wait_session("PAUSED", SECOND, 5), "Ketukan pada lagu aktif di Antrean menjeda lagu", session())
 
     first_menu = f"Buka menu {FIRST}"
-    if not check(tap_desc(first_menu), "Menu ⋯ pada baris pertama Antrean dapat dibuka"):
+    hidden = wait_for(
+        lambda: (tree := ui_tree()) is not None
+        and not find_interactive(first_menu, attribute="content-desc", root=tree)
+        and find_interactive(menu_label, attribute="content-desc", root=tree),
+        5,
+    )
+    check(hidden, "Lagu yang sudah diputar tidak tampil lagi di Antrean")
+
+    if not check(tap_desc(menu_label), "Menu ⋯ pada lagu aktif di Antrean dapat dibuka"):
+        tap_desc("Tutup antrean")
         return
     menu = ui_tree(save_as="11-queue-menu-ui.xml")
     remove_label = "Hapus dari antrean"
@@ -1913,11 +1925,14 @@ def check_now_playing_queue() -> None:
         remove and enqueue and remove[0][0][1] < enqueue[0][0][1],
         "Hapus dari antrean berada di atas aksi Tambahkan ke antrean pada menu ⋯",
     ):
+        shell("input keyevent KEYCODE_BACK")
+        tap_desc("Tutup antrean")
         return
+    # Tanpa lagu aktif, seluruh antrean tampil lagi: lagu pertama muncul kembali.
     removed = tap_text(remove_label, scrolls=0) and wait_for(
         lambda: (tree := ui_tree()) is not None
-        and not find_interactive(first_menu, attribute="content-desc", root=tree)
-        and find_interactive(menu_label, attribute="content-desc", root=tree),
+        and not find_interactive(menu_label, attribute="content-desc", root=tree)
+        and find_interactive(first_menu, attribute="content-desc", root=tree),
         5,
     )
     check(removed, "Hapus dari antrean hanya menghapus baris yang dipilih")
