@@ -16,6 +16,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -61,10 +63,15 @@ internal fun LyricsSettingsSection(preferences: AppearancePreferences) {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LyricsLineText(appString(Res.string.lyrics_sample_1), appearance, LyricLineState.Past, baseSize = 18f)
+                    val sample = if (appearance.romanization) "함께 노래해" else appString(Res.string.lyrics_sample_2)
+                    val timing = if (appearance.highlight == LyricsHighlight.Karaoke) {
+                        remember(sample) { karaokeTiming(LyricLine(0L, sample), 1_000L) }
+                    } else {
+                        null
+                    }
                     LyricsLineText(
-                        if (appearance.romanization) "함께 노래해" else appString(Res.string.lyrics_sample_2),
-                        appearance, LyricLineState.Active,
-                        baseSize = 18f, progress = .55f,
+                        sample, appearance, LyricLineState.Active, baseSize = 18f,
+                        timing = timing, positionMs = remember { mutableLongStateOf(550L) },
                     )
                     LyricsLineText(appString(Res.string.lyrics_sample_3), appearance, LyricLineState.Upcoming, baseSize = 18f)
                 }

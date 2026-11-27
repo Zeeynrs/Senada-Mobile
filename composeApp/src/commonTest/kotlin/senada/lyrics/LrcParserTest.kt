@@ -137,31 +137,4 @@ class LrcParserTest {
             line.words,
         )
     }
-
-    @Test
-    fun karaokeSungEndUsesRealWordTimingAndFallsBackForLineLrc() {
-        val wordLine = LyricLine(
-            startMs = 1_000L,
-            text = "Hai dunia 🌙",
-            words = listOf(
-                LyricWord(1_000L, 400L, "Hai "),
-                LyricWord(2_000L, 1_000L, "dunia "),
-                LyricWord(3_000L, 500L, "🌙"),
-            ),
-            endMs = 3_500L,
-        )
-        // Before cue
-        assertEquals(0, karaokeSungEnd(wordLine, wordLine.text, 999L, 4_000L))
-        // Gap between "Hai" (ends 1400) and "dunia" (starts 2000): holds at end of "Hai " (4 chars)
-        assertEquals(4, karaokeSungEnd(wordLine, wordLine.text, 1_700L, 4_000L))
-        // Mid-way through "dunia" (2500ms -> 50% of 5 non-space chars = 3 chars -> 4 + 3 = 7)
-        assertEquals(7, karaokeSungEnd(wordLine, wordLine.text, 2_500L, 4_000L))
-        // Mid-way through surrogate pair emoji -> keeps surrogate pair intact
-        assertEquals(10, karaokeSungEnd(wordLine, wordLine.text, 3_100L, 4_000L))
-        assertEquals(wordLine.text.length, karaokeSungEnd(wordLine, wordLine.text, 3_500L, 4_000L))
-
-        // Line-based LRC fallback
-        val plainLine = LyricLine(startMs = 1_000L, text = "Satu dua")
-        assertEquals(4, karaokeSungEnd(plainLine, plainLine.text, 2_000L, 3_000L))
-    }
 }

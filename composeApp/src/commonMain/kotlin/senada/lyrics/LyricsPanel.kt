@@ -16,15 +16,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -33,8 +39,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,10 +46,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import senada.app.AppLanguage
 import senada.app.AppStrings
 import senada.app.LocalAppLanguage
@@ -185,27 +194,19 @@ internal fun LyricsLineText(
     state: LyricLineState,
     modifier: Modifier = Modifier,
     baseSize: Float = 28f,
-    progress: Float? = null,
-    sungEnd: Int? = null,
+    timing: KaraokeTiming? = null,
+    positionMs: LongState? = null,
     romanization: String? = null,
 ) {
-    val highlighting = (progress != null || sungEnd != null) && state == LyricLineState.Active &&
-        appearance.highlight == LyricsHighlight.Karaoke
+    val highlighting = timing != null && positionMs != null
     val color = Color.White.copy(
         alpha = when (state) {
             LyricLineState.Plain -> .85f
-            LyricLineState.Upcoming -> .36f
-            LyricLineState.Past -> .42f
-            LyricLineState.Active -> if (highlighting) .45f else 1f
+            LyricLineState.Upcoming -> .40f
+            LyricLineState.Past -> .32f
+            LyricLineState.Active -> if (highlighting) .56f else 1f
         },
     )
-    val highlightEnd = if (highlighting) sungEnd ?: sungTextEnd(text, progress ?: 0f) else 0
-    val annotated = remember(text, highlightEnd) {
-        buildAnnotatedString {
-            append(text)
-            if (highlightEnd > 0) addStyle(SpanStyle(color = Color.White), 0, highlightEnd)
-        }
-    }
     val glow = if (state == LyricLineState.Active && appearance.highlight == LyricsHighlight.Glow) {
         Shadow(
             color = MaterialTheme.colorScheme.primary.copy(alpha = .8f),
@@ -217,15 +218,19 @@ internal fun LyricsLineText(
     val size = baseSize * appearance.size.scale
     val font = if (appearance.font == LyricsFont.Serif) FontFamily.Serif else MaterialTheme.typography.bodyLarge.fontFamily
     val alignment = if (appearance.alignment == LyricsAlignment.Center) TextAlign.Center else TextAlign.Left
+    val style = MaterialTheme.typography.bodyLarge.copy(
+        fontSize = size.sp, lineHeight = (size * 1.25f).sp, fontWeight = FontWeight.Bold,
+        fontFamily = font, textAlign = alignment, shadow = glow,
+    )
     val reading = remember(text, romanization, appearance.romanization) {
         if (appearance.romanization) lyricRomanization(text, romanization) else null
     }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            annotated, Modifier.fillMaxWidth(), color = color, fontSize = size.sp,
-            lineHeight = (size * 1.25f).sp, fontWeight = FontWeight.Bold,
-            fontFamily = font, textAlign = alignment, style = MaterialTheme.typography.bodyLarge.copy(shadow = glow),
-        )
+        if (timing != null && positionMs != null) {
+            KaraokeText(timing, positionMs, color, style, Modifier.fillMaxWidth())
+        } else {
+            Text(text, Modifier.fillMaxWidth(), color = color, style = style)
+        }
         if (reading != null) {
             val readingSize = (size * .65f).coerceAtLeast(12f)
             Text(
@@ -246,32 +251,54 @@ private fun SyncedLyrics(
     topPadding: Dp,
     bottomPadding: Dp,
 ) {
-    val active = rememberActiveLyricIndex(lines, playback)
+    val positionMs = rememberLyricsFramePosition(playback)
+    val active = rememberActiveLyricIndex(lines, positionMs)
     val discontinuityVersion by remember(playback) {
         playback.state.map { it.audio.discontinuityVersion }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio.discontinuityVersion)
     val canSeek by remember(playback) {
         playback.state.map { it.audio.canSeek }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio.canSeek)
-    val look = LocalSenadaLook.current
+    val instantScroll = LocalSenadaLook.current.durationMillis(220) == 0
     val seekLineLabel = appString(Res.string.lyrics_seek_line)
     val activeLineLabel = appString(Res.string.lyrics_active_line)
     val list = rememberLazyListState(initialFirstVisibleItemIndex = active.coerceAtLeast(0))
+    val manualScrolls = remember(list) { Channel<Unit>(Channel.CONFLATED) }
+    var following by remember(list) { mutableStateOf(true) }
+    var snapToActive by remember(list) { mutableStateOf(false) }
+    val detectManualScroll = remember(manualScrolls) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) manualScrolls.trySend(Unit)
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(list, manualScrolls) {
+        manualScrolls.receiveAsFlow().collectLatest {
+            following = false
+            snapToActive = true
+            snapshotFlow { list.isScrollInProgress }.first { !it }
+            delay(3_000L)
+            following = true
+        }
+    }
+
     LazyColumn(
-        Modifier.fillMaxSize(), state = list,
+        Modifier.fillMaxSize().nestedScroll(detectManualScroll), state = list,
         contentPadding = PaddingValues(top = topPadding, bottom = bottomPadding),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         itemsIndexed(lines) { index, line ->
             val current = index == active
-            val displayText = line.text.ifBlank { "♪" }
-            val sungEnd = if (current && appearance.highlight == LyricsHighlight.Karaoke) {
-                rememberKaraokeSungEnd(playback, line, displayText, lines.getOrNull(index + 1)?.startMs)
+            val timing = if (current && appearance.highlight == LyricsHighlight.Karaoke) {
+                val nextStartMs = lines.getOrNull(index + 1)?.startMs
+                remember(line, nextStartMs) { karaokeTiming(line, nextStartMs) }
             } else {
                 null
             }
             LyricsLineText(
-                text = displayText,
+                text = line.text.ifBlank { "♪" },
                 appearance = appearance,
                 state = when {
                     current -> LyricLineState.Active
@@ -281,37 +308,30 @@ private fun SyncedLyrics(
                 modifier = Modifier.heightIn(min = 48.dp)
                     .clickable(enabled = canSeek, role = Role.Button, onClickLabel = seekLineLabel) {
                         playback.seekTo(line.startMs)
+                        following = true
                     }
                     .semantics {
                         selected = current
-                        if (current) stateDescription = activeLineLabel
+                        if (current) {
+                            stateDescription = activeLineLabel
+                            liveRegion = LiveRegionMode.Polite
+                        }
                     },
-                sungEnd = sungEnd,
+                timing = timing,
+                positionMs = if (timing != null) positionMs else null,
                 romanization = line.romanization,
             )
         }
     }
     var lastScrollDiscontinuity by remember(lines, playback) { mutableStateOf(discontinuityVersion) }
-    LaunchedEffect(active, discontinuityVersion) {
-        val jumped = discontinuityVersion != lastScrollDiscontinuity
+    LaunchedEffect(active, discontinuityVersion, following, instantScroll) {
+        if (!following || lines.isEmpty()) return@LaunchedEffect
+        val snap = snapToActive || discontinuityVersion != lastScrollDiscontinuity || instantScroll
+        snapToActive = false
         lastScrollDiscontinuity = discontinuityVersion
         val target = active.coerceAtLeast(0)
-        if (jumped) {
-            list.scrollToItem(target)
-        } else if (!list.isScrollInProgress) {
-            if (look.durationMillis(220) == 0) list.scrollToItem(target)
-            else list.animateScrollToItem(target)
+        if (target != list.firstVisibleItemIndex || list.firstVisibleItemScrollOffset != 0) {
+            if (snap) list.scrollToItem(target) else list.animateScrollToItem(target)
         }
     }
-}
-
-@Composable
-private fun rememberKaraokeSungEnd(
-    playback: PlaybackController,
-    line: LyricLine,
-    displayText: String,
-    nextStartMs: Long?,
-): Int {
-    val position by rememberSyncedPlaybackPositionMs(playback)
-    return karaokeSungEnd(line, displayText, position, nextStartMs)
 }
