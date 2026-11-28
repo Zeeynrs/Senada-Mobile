@@ -6,6 +6,8 @@ Mockup: [Senada Mobile — Arah Visual v2](https://claude.ai/artifact/9gQ2977S4T
 
 Referensi: [Mochy Music](https://github.com/realidkroo/Mochy-Music) dan [BitChord](https://github.com/kushagrasinghx/BitChord). Keduanya berlisensi **GPL-3.0**, sedangkan Senada berlisensi **MIT**. Karena itu keduanya hanya dipakai sebagai inspirasi visual. **Kode, aset, logo, ikon, dan teks dari kedua repo tidak boleh disalin.**
 
+Catatan 2026-11-28: Senada kini berlisensi GPL-3.0-or-later, lihat LICENSE dan NOTICE.md.
+
 ## Maksud
 
 Pemilik ingin UI dirombak menjadi gabungan dua referensi tersebut. Tombol paling kanan di navigasi bawah diganti menjadi **Profil**. Di dalam Profil ada statistik mendengar dan semua pengaturan: tema dan tampilan, equalizer, efek suara, dan lainnya.
