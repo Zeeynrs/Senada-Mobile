@@ -28,6 +28,13 @@ class LyricsRepositoryTest {
             reply(request)
         }))
 
+    private fun timedCandidate(duration: Double, lyrics: String, artist: String = track.artists.first()) = buildJsonObject {
+        put("trackName", track.title)
+        put("artistName", artist)
+        put("duration", duration)
+        put("syncedLyrics", lyrics)
+    }
+
     @Test
     fun fetchesMatchingRomanizationWithoutReplacingTheOriginalTiming() = runTest {
         val ttml = """
@@ -101,6 +108,7 @@ class LyricsRepositoryTest {
 
     @Test
     fun clearingCacheFetchesLyricsAgainForTheSameTrack() = runTest {
+        val track = track.copy(durationMs = null)
         val repo = repository {
             if (requests.size == 1) respond("""{"plainLyrics":"Jendela biru"}""")
             else respond("""{"plainLyrics":"Jendela jingga"}""")
@@ -235,8 +243,9 @@ class LyricsRepositoryTest {
 
     @Test
     fun serverErrorsCanBeRetried() = runTest {
-        val repo = repository {
+        val repo = repository { request ->
             if (requests.size == 1) respond("{}", HttpStatusCode.ServiceUnavailable)
+            else if (request.url.encodedPath == "/api/search") respond("[]")
             else respond("""{"plainLyrics":"Langit jingga"}""")
         }
         assertFailsWith<LyricsException> { repo.get(track) }
@@ -245,9 +254,10 @@ class LyricsRepositoryTest {
 
     @Test
     fun connectionFailureHasAUserMessageAndCanBeRetried() = runTest {
-        val repo = repository {
+        val repo = repository { request ->
             if (requests.size == 1) throw IllegalStateException("offline")
-            respond("""{"plainLyrics":"Langit jingga"}""")
+            if (request.url.encodedPath == "/api/search") respond("[]")
+            else respond("""{"plainLyrics":"Langit jingga"}""")
         }
         val error = assertFailsWith<LyricsException> { repo.get(track) }
         assertEquals("Cannot connect to the lyrics service. Check your internet connection.", error.userMessage)
@@ -292,6 +302,142 @@ class LyricsRepositoryTest {
             }
         }
         assertEquals(LyricsDocument.Synced(listOf(LyricLine(5_000L, "Versi studio cocok"))), repo.get(track))
+    }
+
+    @Test
+    fun rejectedExactMatchSearchesAndPicksTheOneSecondMatchOverNineSeconds() = runTest {
+        val far = timedCandidate(100.7, "[00:05.00]<00:05.00>Far<00:06.00>")
+        val near = timedCandidate(90.7, "[00:02.00]Near")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond(far.toString())
+            else respond("[$far,$near]")
+        }
+
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2_000, "Near"))), repo.get(track))
+        assertEquals(listOf("/api/get", "/api/search"), requests.map { it.url.encodedPath })
+    }
+
+    @Test
+    fun searchReturnsPlainWhenTheOnlySyncedCandidateIsNineSecondsOff() = runTest {
+        val far = timedCandidate(100.7, "[00:05.00]Far")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("", HttpStatusCode.NotFound)
+            else respond("[$far]")
+        }
+
+        assertEquals(LyricsDocument.Plain(listOf("Far")), repo.get(track))
+    }
+
+    @Test
+    fun searchAcceptsFourSecondsButPrefersOneSecondOverWordTiming() = runTest {
+        val usable = timedCandidate(95.7, "[00:05.00]<00:05.00>Usable<00:06.00>")
+        val near = timedCandidate(92.7, "[00:02.00]Near")
+        var matches = "[$usable,$near]"
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("""{"plainLyrics":"Plain"}""")
+            else respond(matches)
+        }
+
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2_000, "Near"))), repo.get(track))
+        assertEquals(listOf("/api/get", "/api/search"), requests.map { it.url.encodedPath })
+        matches = "[$usable]"
+        val accepted = repo.get(track.copy(id = "yt:track:b")) as LyricsDocument.Synced
+        assertEquals("Usable", accepted.lines.single().text)
+    }
+
+    @Test
+    fun searchPrefersTheRightArtistWithinThePreferredDurationRange() = runTest {
+        val wrongArtist = timedCandidate(92.2, "[00:05.00]Wrong artist", artist = "Another artist")
+        val rightArtist = timedCandidate(93.2, "[00:02.00]Right artist")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("", HttpStatusCode.NotFound)
+            else respond("[$wrongArtist,$rightArtist]")
+        }
+
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2_000, "Right artist"))), repo.get(track))
+    }
+
+    @Test
+    fun searchUsesTheClosestDurationWhenTheBucketAndMetadataTie() = runTest {
+        val farther = timedCandidate(93.7, "[00:05.00]Farther")
+        val closer = timedCandidate(92.2, "[00:02.00]Closer")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("", HttpStatusCode.NotFound)
+            else respond("[$farther,$closer]")
+        }
+
+        assertEquals(LyricsDocument.Synced(listOf(LyricLine(2_000, "Closer"))), repo.get(track))
+    }
+
+    @Test
+    fun exactPlainLyricsRemainAvailableWhenSearchHasNoCompatibleSync() = runTest {
+        val far = timedCandidate(100.7, "[00:05.00]Far")
+        for (searchStatus in listOf(HttpStatusCode.OK, HttpStatusCode.ServiceUnavailable)) {
+            requests.clear()
+            val repo = repository { request ->
+                if (request.url.encodedPath == "/api/get") respond("""{"plainLyrics":"Exact"}""")
+                else respond("[$far]", searchStatus)
+            }
+
+            assertEquals(LyricsDocument.Plain(listOf("Exact")), repo.get(track))
+            assertEquals(listOf("/api/get", "/api/search"), requests.map { it.url.encodedPath })
+        }
+    }
+
+    @Test
+    fun unknownDurationsStillRankSyncedLyricsByMetadataAndWordTiming() = runTest {
+        val near = timedCandidate(92.7, "[00:02.00]Near")
+        val timed = timedCandidate(100.7, "[01:40.00]<01:40.00>Timed<01:41.00>")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond("", HttpStatusCode.NotFound)
+            else respond("[$near,$timed]")
+        }
+
+        for (duration in listOf(null, 0L)) {
+            val result = repo.get(track.copy(id = "unknown:$duration", durationMs = duration)) as LyricsDocument.Synced
+            assertEquals("Timed", result.lines.single().text)
+        }
+    }
+
+    @Test
+    fun durationChangeForTheSameTrackRechecksTheCachedLyricsChoice() = runTest {
+        val far = timedCandidate(100.7, "[00:05.00]Far")
+        val repo = repository { request ->
+            if (request.url.encodedPath == "/api/get") respond(far.toString())
+            else respond("[]")
+        }
+
+        val unknownDuration = track.copy(durationMs = null)
+        val original = LyricsDocument.Synced(listOf(LyricLine(5_000, "Far")))
+        assertEquals(original, repo.get(unknownDuration))
+        assertEquals(original, repo.get(unknownDuration))
+        assertEquals(LyricsDocument.Plain(listOf("Far")), repo.get(track))
+        assertEquals(LyricsDocument.Plain(listOf("Far")), repo.get(track))
+        assertEquals(listOf("/api/get", "/api/get", "/api/search"), requests.map { it.url.encodedPath })
+    }
+
+    @Test
+    fun firstAndLastLineTimingLimitsAreInclusive() = runTest {
+        val shortTrack = track.copy(durationMs = 20_000L)
+        val cases = listOf(
+            "[00:12.000]First\n[00:23.000]Last" to true,
+            "[00:12.001]First\n[00:23.000]Last" to false,
+            "[00:00.000]First\n[00:23.001]Last" to false,
+        )
+        for ((lrc, synced) in cases) {
+            val candidate = timedCandidate(25.0, lrc)
+            val repo = repository { request ->
+                if (request.url.encodedPath == "/api/get") respond(candidate.toString())
+                else respond("[]")
+            }
+
+            val result = repo.get(shortTrack)
+            if (synced) {
+                assertEquals(listOf(12_000L, 23_000L), (result as LyricsDocument.Synced).lines.map { it.startMs })
+            } else {
+                assertEquals(LyricsDocument.Plain(listOf("First", "Last")), result)
+            }
+        }
     }
 
     @Test
