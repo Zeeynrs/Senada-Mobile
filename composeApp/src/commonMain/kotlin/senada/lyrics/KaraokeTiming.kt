@@ -48,6 +48,19 @@ internal class KaraokeTiming(
         }
     }
 
+    /**
+     * How lit a line timed only by line is, 0..1, or null for word-timed lines.
+     *
+     * Without word timing there is nothing to sweep by: a guessed sweep stretched across the gap to the
+     * next line and was still running after the line had been sung. Such a line lights up whole instead.
+     */
+    fun lineLightAt(positionMs: Long): Float? {
+        if (!isEstimated) return null
+        val startMs = words.firstOrNull()?.startMs ?: return 1f
+        val t = ((positionMs - startMs).toFloat() / LINE_LIGHT_UP_MS).coerceIn(0f, 1f)
+        return t * t * (3f - 2f * t)
+    }
+
     fun headAt(positionMs: Long): Float {
         if (sweepSpans.isEmpty() || positionMs < sweepSpans.first().startMs) return 0f
         val span = sweepSpans.firstOrNull { positionMs < it.endMs } ?: return offsets.lastIndex.toFloat()
@@ -143,4 +156,5 @@ internal expect fun graphemeOffsets(text: String): IntArray
 private const val DEFAULT_ESTIMATED_DURATION_MS = 4_000L
 private const val MAX_ESTIMATED_DURATION_MS = 8_000L
 private const val SHORT_GAP_MS = 30L
+private const val LINE_LIGHT_UP_MS = 200f
 private const val SPACE_TIME_WEIGHT = 0.4

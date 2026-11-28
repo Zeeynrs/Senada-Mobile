@@ -45,7 +45,8 @@ internal fun KaraokeText(
 ) {
     var layout by remember(timing.text) { mutableStateOf<TextLayoutResult?>(null) }
     val animationScale = LocalSenadaLook.current.animationScale
-    val motionEnabled = animationScale > 0f
+    // Lines timed only by line light up whole (see KaraokeTiming.lineLightAt), so they have no letters to move.
+    val motionEnabled = animationScale > 0f && !timing.isEstimated
     val measured = if (motionEnabled) layout else null
     val motionWords = remember(timing, motionEnabled) {
         if (motionEnabled) karaokeVisualWords(timing.text, timing.offsets) else emptyList()
@@ -108,6 +109,12 @@ internal fun KaraokeText(
                 motionLayer?.topLeft = IntOffset(-bleed, -bleed)
                 onDrawWithContent {
                     val position = positionMs.longValue
+                    val light = timing.lineLightAt(position)
+                    if (light != null) {
+                        drawContent()
+                        if (light > 0f) drawText(textLayout, LINE_LIGHT_COLOR.copy(alpha = light))
+                        return@onDrawWithContent
+                    }
                     val activeOutline = words.getOrNull(timing.activeWordIndex(position))
                     val head = timing.headAt(position)
                     fill.rewind()
@@ -240,3 +247,4 @@ internal class KaraokeSweepRow(
 private const val EDGE_LEAD_PX = 6f
 private const val FEATHER_EM = 0.55f
 private const val LIGATURES_OFF = "liga 0, clig 0"
+private val LINE_LIGHT_COLOR = Color.White
