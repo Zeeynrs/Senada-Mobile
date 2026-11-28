@@ -68,4 +68,6 @@ Versi dependensi lainnya tercatat di [version catalog](gradle/libs.versions.toml
 
 ## Lisensi
 
-Repositori ini menggunakan [MIT License](LICENSE). Informasi asal dan lisensi proyek pembanding tercatat dalam dokumen studi.
+Senada Mobile berlisensi [GNU General Public License v3.0 or later](LICENSE), hak cipta © 2026 Zeeynrs.
+
+Rilis hingga dan termasuk versi 1.0.2 diterbitkan di bawah lisensi MIT. Kode dari [Mochy Music](https://github.com/realidkroo/Mochy-Music) (GPL-3.0) dapat diadaptasi, dan asal-usulnya dicatat pada header file terkait serta di [NOTICE.md](NOTICE.md).
