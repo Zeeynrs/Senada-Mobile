@@ -2,6 +2,7 @@
 package senada.lyrics
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -9,7 +10,6 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextRange
 import kotlin.math.abs
 
 internal class KaraokeMotionLayout(
@@ -26,17 +26,16 @@ internal class KaraokeMotionLayout(
     private var uniformDrop: Float? = 0f
 
     init {
-        val length = layout.layoutInput.text.length
-        val boxes = FloatArray(length * 4)
-        layout.multiParagraph.fillBoundingBoxes(TextRange(0, length), boxes, 0)
+        // Not MultiParagraph.fillBoundingBoxes: Compose Multiplatform (iOS) leaves it unimplemented and
+        // returns zeros (CMP-720), which silently left every iPhone line without letters to move.
+        val extents = graphemeExtents(offsets) { offset -> layout.getBoundingBox(offset) }
         lines = rows.mapIndexed { index, row ->
             val glyphs = buildList {
                 for (grapheme in row.startGrapheme until row.endGrapheme) {
                     val owner = motion.cellForGrapheme[grapheme]
                     if (owner < 0) continue
-                    val box = offsets[grapheme] * 4
-                    val left = boxes[box]
-                    val right = boxes[box + 2]
+                    val left = extents[grapheme * 2]
+                    val right = extents[grapheme * 2 + 1]
                     if (left.isFinite() && right > left && right.isFinite()) add(Glyph(owner, left, right))
                 }
             }.sortedBy { it.center }
@@ -163,3 +162,26 @@ private class MotionLine(val row: KaraokeSweepRow, val baseline: Float, val slic
 
 private const val SWELL_SCALE = 0.075f
 private const val MERGE_PX = 0.05f
+
+/**
+ * Left and right edge of every grapheme, as pairs, from the boxes of the code units it spans.
+ * A grapheme made of several code units (an accent, an emoji) is the union of their boxes.
+ */
+internal fun graphemeExtents(offsets: IntArray, boxOf: (Int) -> Rect): FloatArray {
+    val extents = FloatArray((offsets.size - 1).coerceAtLeast(0) * 2) { Float.NaN }
+    for (grapheme in 0 until offsets.lastIndex) {
+        var left = Float.POSITIVE_INFINITY
+        var right = Float.NEGATIVE_INFINITY
+        for (offset in offsets[grapheme] until offsets[grapheme + 1]) {
+            val box = boxOf(offset)
+            if (box.width <= 0f) continue
+            left = minOf(left, box.left)
+            right = maxOf(right, box.right)
+        }
+        if (right > left) {
+            extents[grapheme * 2] = left
+            extents[grapheme * 2 + 1] = right
+        }
+    }
+    return extents
+}

@@ -1,6 +1,7 @@
 package senada.lyrics
 
 import androidx.compose.runtime.MonotonicFrameClock
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.runtime.mutableLongStateOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -155,5 +156,18 @@ class KaraokeMotionTest {
         val words = karaokeVisualWords("سلام عالم नमस्ते ภาษาไทย")
         assertEquals(4, words.size)
         assertEquals(words.map { it.start to it.end }, karaokeMotionCells(words).map { it.start to it.end })
+    }
+
+    @Test
+    fun graphemeExtentsUnionMultiUnitGraphemesAndSkipEmptyBoxes() {
+        // "é" is one grapheme of two code units, then a space, then "x".
+        val offsets = intArrayOf(0, 2, 3, 4)
+        val boxes = mapOf(0 to Rect(0f, 0f, 8f, 10f), 1 to Rect(2f, 0f, 9f, 10f), 2 to Rect(9f, 0f, 9f, 10f), 3 to Rect(12f, 0f, 20f, 10f))
+
+        val extents = graphemeExtents(offsets) { boxes.getValue(it) }
+
+        assertEquals(listOf(0f, 9f), listOf(extents[0], extents[1]))
+        assertTrue(extents[2].isNaN() && extents[3].isNaN(), "a zero-width box gives no glyph")
+        assertEquals(listOf(12f, 20f), listOf(extents[4], extents[5]))
     }
 }
