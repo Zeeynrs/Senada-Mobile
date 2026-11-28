@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,6 +52,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -71,6 +73,7 @@ import senada.resources.Res
 import senada.resources.a11y_pause_track
 import senada.resources.a11y_play_track
 import senada.resources.player_lyrics_settings
+import senada.resources.player_lyrics_sync
 import senada.resources.queue_drag_handle
 import senada.resources.queue_empty_period
 import senada.resources.queue_item_position
@@ -83,6 +86,9 @@ internal fun PlayerSheetContent(
     closeLabel: String,
     onClose: () -> Unit,
     onOpenSettings: (() -> Unit)? = null,
+    onOpenLyricsSync: (() -> Unit)? = null,
+    lyricsSyncActive: Boolean = false,
+    lyricsSyncLabel: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -92,13 +98,23 @@ internal fun PlayerSheetContent(
     ) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 title, modifier = Modifier.weight(1f).semantics { heading() },
                 color = PlayerWhite, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+            if (onOpenLyricsSync != null) {
+                PlayerGlassButton(
+                    SenadaIcons.LyricsSync,
+                    lyricsSyncLabel ?: appString(Res.string.player_lyrics_sync),
+                    scale = 1f,
+                    tint = if (lyricsSyncActive) MaterialTheme.colorScheme.primary else PlayerWhite,
+                    onClick = onOpenLyricsSync,
+                )
+            }
             if (onOpenSettings != null) {
                 PlayerGlassButton(SenadaIcons.Settings, appString(Res.string.player_lyrics_settings), scale = 1f, onClick = onOpenSettings)
             }

@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +89,8 @@ import senada.resources.player_close_lyrics
 import senada.resources.player_close_queue
 import senada.resources.player_like
 import senada.resources.player_lyrics_button
+import senada.resources.player_lyrics_sync
+import senada.resources.player_lyrics_sync_active_a11y
 import senada.resources.player_now_playing
 import senada.resources.player_open_artist
 import senada.resources.player_open_artist_named
@@ -109,9 +112,12 @@ import senada.catalog.canOpenArtist
 import senada.catalog.youtube.resizeGoogleArtwork
 import senada.lyrics.LyricsAppearance
 import senada.lyrics.LyricsDocument
+import senada.lyrics.LyricsOffsetController
+import senada.lyrics.LyricsOffsetSheet
 import senada.lyrics.LyricsPanel
 import senada.lyrics.LyricsPanelResult
 import senada.lyrics.LyricsSettingsSheet
+import senada.lyrics.formatLyricsOffset
 import senada.lyrics.rememberActiveLyricIndex
 import senada.lyrics.rememberLyrics
 import senada.lyrics.lyricRomanization
@@ -165,6 +171,7 @@ internal fun NowPlayingScreen(
     library: LibraryState,
     actions: LibraryActions,
     appearance: AppearancePreferences,
+    lyricsOffsets: LyricsOffsetController,
     screenVisible: Boolean,
     onClose: () -> Unit,
     onOpenAudioLab: () -> Unit,
@@ -180,7 +187,10 @@ internal fun NowPlayingScreen(
     var sheet by rememberSaveable { mutableStateOf<PlayerSheet?>(null) }
     var themePickerOpen by rememberSaveable { mutableStateOf(false) }
     var vinylLyricsSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var lyricsSyncOpen by rememberSaveable { mutableStateOf(false) }
     var lyricsAttempt by remember(track?.id) { mutableStateOf(0) }
+    val allOffsets by lyricsOffsets.state.collectAsState()
+    val lyricsOffsetMs = track?.id?.let { allOffsets[it] } ?: 0
     val downloads = actions.downloads
     val localLyrics = remember(downloads) { downloads?.let { it::lyrics } }
     val lyricsAppearance = appearance.settings?.lyricsAppearance ?: LyricsAppearance()
@@ -190,10 +200,20 @@ internal fun NowPlayingScreen(
     )
     val coverUrl = rememberOfflineArtwork(track?.id, downloads) ?: track?.artworkUrl
     val synced = (lyrics as? LyricsPanelResult.Ready)?.document as? LyricsDocument.Synced
+    val canSyncLyrics = synced != null && track != null
     val fullViewTheme = appearance.settings?.fullViewTheme ?: FullViewTheme.Standard
     val showThemePicker = { if (appearance.settings != null) themePickerOpen = true }
     val language = LocalAppLanguage.current
     val sourceLabel = source.label(language)
+    val lyricsSyncLabel = if (lyricsOffsetMs != 0) {
+        appString(Res.string.player_lyrics_sync_active_a11y, formatLyricsOffset(lyricsOffsetMs, language))
+    } else {
+        appString(Res.string.player_lyrics_sync)
+    }
+    LaunchedEffect(track?.id, canSyncLyrics, sheet, fullViewTheme) {
+        val inLyricsContext = (fullViewTheme == FullViewTheme.Vinyl && sheet == null) || sheet == PlayerSheet.Lyrics
+        if (!canSyncLyrics || !inLyricsContext) lyricsSyncOpen = false
+    }
 
     if (immersive) NowPlayingSystemBars()
     val back: () -> Unit = { if (sheet == null) onClose() else sheet = null }
@@ -226,10 +246,17 @@ internal fun NowPlayingScreen(
                                 visible = screenVisible && immersive && sheet == null,
                                 safeTop = safeTop, safeBottom = safeBottom, panel = panel,
                                 onClose = onClose, onTheme = showThemePicker,
+                                onLyricsSync = if (canSyncLyrics) ({ lyricsSyncOpen = true }) else null,
+                                lyricsSyncActive = lyricsOffsetMs != 0,
+                                lyricsSyncLabel = lyricsSyncLabel,
                                 onLyricsSettings = { vinylLyricsSettingsOpen = true },
                                 onQueue = { sheet = PlayerSheet.Queue },
                                 lyrics = {
-                                    LyricsPanel(track, lyrics, playback, lyricsAppearance, showTrackHeader = false) {
+                                    LyricsPanel(
+                                        track, lyrics, playback, lyricsAppearance,
+                                        offsetMs = lyricsOffsetMs,
+                                        showTrackHeader = false,
+                                    ) {
                                         lyricsAttempt++
                                     }
                                 },
@@ -247,6 +274,7 @@ internal fun NowPlayingScreen(
                                 onLyrics = { sheet = PlayerSheet.Lyrics }, onQueue = { sheet = PlayerSheet.Queue },
                                 onOpenAudioLab = onOpenAudioLab, scale = scale, viewportHeight = maxHeight,
                                 lyricsAppearance = lyricsAppearance,
+                                lyricsOffsetMs = lyricsOffsetMs,
                                 safeTop = safeTop, safeBottom = safeBottom,
                             )
                         } else {
@@ -257,9 +285,14 @@ internal fun NowPlayingScreen(
                                 closeLabel = appString(if (isLyrics) Res.string.player_close_lyrics else Res.string.player_close_queue),
                                 onClose = { sheet = null },
                                 onOpenSettings = if (isLyrics) ({ settingsOpen = true }) else null,
+                                onOpenLyricsSync = if (isLyrics && canSyncLyrics) ({ lyricsSyncOpen = true }) else null,
+                                lyricsSyncActive = lyricsOffsetMs != 0,
+                                lyricsSyncLabel = lyricsSyncLabel,
                             ) {
                                 if (isLyrics) {
-                                    LyricsPanel(track, lyrics, playback, lyricsAppearance) { lyricsAttempt++ }
+                                    LyricsPanel(track, lyrics, playback, lyricsAppearance, offsetMs = lyricsOffsetMs) {
+                                        lyricsAttempt++
+                                    }
                                 } else {
                                     PlayerQueue(state, playback, library, actions)
                                 }
@@ -274,6 +307,15 @@ internal fun NowPlayingScreen(
                     }
                     if (immersive && fullViewTheme == FullViewTheme.Vinyl && vinylLyricsSettingsOpen) {
                         LyricsSettingsSheet(appearance) { vinylLyricsSettingsOpen = false }
+                    }
+                    val activeTrackId = track?.id
+                    if (immersive && lyricsSyncOpen && canSyncLyrics && activeTrackId != null) {
+                        LyricsOffsetSheet(
+                            offsetMs = lyricsOffsetMs,
+                            onAdjust = { delta -> lyricsOffsets.adjustOffset(activeTrackId, delta) },
+                            onReset = { lyricsOffsets.resetOffset(activeTrackId) },
+                            onDismiss = { lyricsSyncOpen = false },
+                        )
                     }
                 }
             }
@@ -300,6 +342,7 @@ private fun PlayerMainContent(
     onOpenAudioLab: () -> Unit,
     scale: Float,
     lyricsAppearance: LyricsAppearance,
+    lyricsOffsetMs: Int,
     viewportHeight: Dp,
     safeTop: Dp,
     safeBottom: Dp,
@@ -326,7 +369,7 @@ private fun PlayerMainContent(
             )
             Spacer(Modifier.height(4.dp * scale))
             Column(Modifier.padding(horizontal = inset)) {
-                PlayerActiveLyric(synced, playback, scale, lyricsAppearance, onLyrics)
+                PlayerActiveLyric(synced, playback, scale, lyricsAppearance, lyricsOffsetMs, onLyrics)
                 NowPlayingPosition(state.audio, playback, scale)
                 Spacer(Modifier.height((70.dp * scale - (48.dp * scale).coerceAtLeast(48.dp)).coerceAtLeast(0.dp)))
                 NowPlayingControls(state, playback, scale)
@@ -507,10 +550,11 @@ private fun PlayerActiveLyric(
     playback: PlaybackController,
     scale: Float,
     appearance: LyricsAppearance,
+    offsetMs: Int,
     onClick: () -> Unit,
 ) {
     val line = if (synced != null) {
-        val index = rememberActiveLyricIndex(synced.lines, playback)
+        val index = rememberActiveLyricIndex(synced.lines, playback, offsetMs)
         synced.lines.getOrNull(index)?.takeIf { it.text.isNotBlank() }
     } else {
         null

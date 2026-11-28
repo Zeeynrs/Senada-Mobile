@@ -124,7 +124,9 @@ import senada.library.listeningStats
 import senada.library.mostPlayed
 import senada.library.oldestListeningStartedAt
 import senada.library.recentHomeItems
+import senada.lyrics.LyricsOffsetController
 import senada.lyrics.LyricsSettingsSection
+import senada.lyrics.lyricsOffsetStore
 import senada.platform.importedAudioStorage
 import senada.playback.PlaybackController
 import senada.playback.PlaybackState
@@ -188,6 +190,8 @@ internal fun AppShell(
         LibraryActions(library, playback, uiScope, onOpenArtist = artistOpener::open, downloads = downloads)
     }
     val profileController = remember(platformContext) { UserProfileController(userProfileStore(platformContext)) }
+    val lyricsOffsets = remember(platformContext) { LyricsOffsetController(lyricsOffsetStore(platformContext)) }
+    LaunchedEffect(lyricsOffsets) { lyricsOffsets.restore() }
     val profile by profileController.state.collectAsState()
     val profilePhoto = remember(platformContext, profile.photoPath) {
         profile.photoPath?.let { profilePhotoModel(platformContext, it) }
@@ -779,6 +783,7 @@ internal fun AppShell(
                     library = libraryState,
                     actions = actions,
                     appearance = appearance,
+                    lyricsOffsets = lyricsOffsets,
                     screenVisible = screenVisible,
                     onClose = navigator::closeNowPlaying,
                     onOpenAudioLab = {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +28,7 @@ import senada.resources.Res
 import senada.resources.action_close
 import senada.resources.appearance_full_view_theme_title
 import senada.resources.player_lyrics_settings
+import senada.resources.player_lyrics_sync
 import senada.resources.player_queue_button
 
 @Composable
@@ -40,6 +42,9 @@ internal fun VinylNowPlaying(
     panel: NowPlayingPanelState,
     onClose: () -> Unit,
     onTheme: () -> Unit,
+    onLyricsSync: (() -> Unit)? = null,
+    lyricsSyncActive: Boolean = false,
+    lyricsSyncLabel: String? = null,
     onLyricsSettings: () -> Unit,
     onQueue: () -> Unit,
     lyrics: @Composable () -> Unit,
@@ -61,6 +66,15 @@ internal fun VinylNowPlaying(
                     PlayerGlassButton(SenadaIcons.Close, appString(Res.string.action_close), scale = .85f, onClick = onClose)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         PlayerGlassButton(SenadaIcons.Appearance, appString(Res.string.appearance_full_view_theme_title), scale = .85f, onClick = onTheme)
+                        if (onLyricsSync != null) {
+                            PlayerGlassButton(
+                                SenadaIcons.LyricsSync,
+                                lyricsSyncLabel ?: appString(Res.string.player_lyrics_sync),
+                                scale = .85f,
+                                tint = if (lyricsSyncActive) MaterialTheme.colorScheme.primary else PlayerWhite,
+                                onClick = onLyricsSync,
+                            )
+                        }
                         PlayerGlassButton(SenadaIcons.Settings, appString(Res.string.player_lyrics_settings), scale = .85f, onClick = onLyricsSettings)
                         SleepTimerButton(timer, state.audio.canStopAfterTrack, playback, scale = .85f)
                         PlayerGlassButton(NowPlayingIcons.Queue, appString(Res.string.player_queue_button), scale = .85f, onClick = onQueue)

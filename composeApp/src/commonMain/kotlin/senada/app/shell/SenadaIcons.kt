@@ -69,6 +69,13 @@ internal object SenadaIcons {
     val ChevronRight = stroke("ChevronRight", "M9 6l6 6-6 6")
     val ProfileChevron = icon("ProfileChevron", filled = false, paths = arrayOf("M6 3l5 5-5 5"), viewport = 16)
     val Clock = stroke("Clock", "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18Z", "M12 7v5l3.5 2")
+    val LyricsSync = stroke(
+        "LyricsSync",
+        "M9.5 2.5h5",
+        "M12 2.5v3.5",
+        "M12 6a7.5 7.5 0 1 0 0 15a7.5 7.5 0 1 0 0-15Z",
+        "M12 13.5l3-3",
+    )
     val Import = stroke(
         "Import",
         "M12 3v12",
