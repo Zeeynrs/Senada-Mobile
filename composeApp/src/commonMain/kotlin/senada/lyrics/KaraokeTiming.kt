@@ -18,9 +18,44 @@ internal class KaraokeTiming(
     val text: String,
     val words: List<KaraokeWord>,
     val isEstimated: Boolean,
+    val offsets: IntArray = graphemeOffsets(text),
 ) {
+    private val sweepSpans = buildList {
+        var startMs = words.firstOrNull()?.startMs ?: return@buildList
+        for ((index, word) in words.withIndex()) {
+            val next = words.getOrNull(index + 1)
+            val nextStartMs = next?.startMs?.coerceAtLeast(startMs)
+            // Hand the single head to the next cue at its start even if the source cues overlap.
+            val endMs = word.endMs.coerceIn(startMs, nextStartMs ?: Long.MAX_VALUE)
+            val start = offsets.boundaryAtOrAfter(word.graphemeOffsets.first())
+            val end = start + word.graphemeCount
+            val nextStart = next?.let { offsets.boundaryAtOrAfter(it.graphemeOffsets.first()) } ?: offsets.lastIndex
+            val hasGap = nextStartMs != null && nextStartMs - endMs > SHORT_GAP_MS
+            val prefix = if (index == 0) start else 0
+            val tail = if (hasGap) 0 else nextStart - end
+
+            val timePerGrapheme = (endMs - startMs).toDouble() /
+                (word.graphemeCount + (prefix + tail) * SPACE_TIME_WEIGHT)
+            val wordStartMs = startMs + prefix * SPACE_TIME_WEIGHT * timePerGrapheme
+            val wordEndMs = endMs - tail * SPACE_TIME_WEIGHT * timePerGrapheme
+            if (prefix > 0) add(SweepSpan(startMs.toDouble(), wordStartMs, 0, start))
+            add(SweepSpan(wordStartMs, wordEndMs, start, end))
+            if (tail > 0) add(SweepSpan(wordEndMs, endMs.toDouble(), end, nextStart))
+            if (nextStartMs != null && nextStartMs > endMs) {
+                add(SweepSpan(endMs.toDouble(), nextStartMs.toDouble(), end + tail, nextStart, ease = hasGap))
+            }
+            startMs = nextStartMs ?: endMs
+        }
+    }
+
+    fun headAt(positionMs: Long): Float {
+        if (sweepSpans.isEmpty() || positionMs < sweepSpans.first().startMs) return 0f
+        val span = sweepSpans.firstOrNull { positionMs < it.endMs } ?: return offsets.lastIndex.toFloat()
+        return span.headAt(positionMs)
+    }
+
     fun activeWordIndex(positionMs: Long): Int {
-        // Some TTML backing vocals overlap. Keep filling both, and emphasize the word that started last.
+        // Some TTML backing vocals overlap. Emphasize the word that started last.
         var active = -1
         var latestStart = Long.MIN_VALUE
         for (index in words.indices) {
@@ -31,6 +66,20 @@ internal class KaraokeTiming(
             }
         }
         return active
+    }
+}
+
+private class SweepSpan(
+    val startMs: Double,
+    val endMs: Double,
+    private val start: Int,
+    private val end: Int,
+    private val ease: Boolean = false,
+) {
+    fun headAt(positionMs: Long): Float {
+        val fraction = (positionMs - startMs) / (endMs - startMs)
+        val progress = if (ease) fraction * fraction * (3.0 - 2.0 * fraction) else fraction
+        return (start + (end - start) * progress).toFloat()
     }
 }
 
@@ -51,7 +100,7 @@ internal fun karaokeTiming(line: LyricLine, nextStartMs: Long?): KaraokeTiming {
             if (end > first) add(KaraokeWord(word.startMs, word.endMs, offsets.copyOfRange(first, end + 1)))
         }
     }
-    if (sourceWords.isNotEmpty()) return KaraokeTiming(text, sourceWords, isEstimated = false)
+    if (sourceWords.isNotEmpty()) return KaraokeTiming(text, sourceWords, isEstimated = false, offsets = offsets)
 
     val tokens = buildList {
         var index = 0
@@ -76,10 +125,10 @@ internal fun karaokeTiming(line: LyricLine, nextStartMs: Long?): KaraokeTiming {
         val endMs = line.startMs + (durationMs * graphemes + totalGraphemes / 2) / totalGraphemes
         KaraokeWord(startMs, endMs, token).also { startMs = endMs }
     }
-    return KaraokeTiming(text, estimatedWords, isEstimated = true)
+    return KaraokeTiming(text, estimatedWords, isEstimated = true, offsets = offsets)
 }
 
-private fun IntArray.boundaryAtOrAfter(offset: Int): Int {
+internal fun IntArray.boundaryAtOrAfter(offset: Int): Int {
     var low = 0
     var high = lastIndex
     while (low < high) {
@@ -93,3 +142,5 @@ internal expect fun graphemeOffsets(text: String): IntArray
 
 private const val DEFAULT_ESTIMATED_DURATION_MS = 4_000L
 private const val MAX_ESTIMATED_DURATION_MS = 8_000L
+private const val SHORT_GAP_MS = 30L
+private const val SPACE_TIME_WEIGHT = 0.4
