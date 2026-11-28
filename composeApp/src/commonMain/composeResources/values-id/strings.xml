@@ -305,6 +305,8 @@
     <string name="player_open_full_lyrics">Buka lirik penuh</string>
     <string name="player_open_audiolab">Buka Audio Lab</string>
     <string name="player_lyrics_settings">Pengaturan lirik</string>
+    <string name="player_lyrics_sync">Sinkronkan lirik</string>
+    <string name="player_lyrics_sync_active_a11y">Sinkronkan lirik, %1$s</string>
     <string name="player_close_lyrics">Tutup lirik</string>
     <string name="player_close_queue">Tutup antrean</string>
     <string name="player_lyrics_button">Lirik</string>
@@ -342,6 +344,13 @@
     <string name="lyrics_loading">Memuat lirik…</string>
     <string name="lyrics_preview_heading">Pratinjau</string>
     <string name="lyrics_settings_sheet_title">Tampilan lirik</string>
+    <string name="lyrics_offset_sheet_title">Sinkronkan lirik</string>
+    <string name="lyrics_offset_seconds">%1$s dtk</string>
+    <string name="lyrics_offset_hint">Lirik terlambat? Tekan +</string>
+    <string name="lyrics_offset_earlier_a11y">Tampilkan lirik %1$s lebih awal</string>
+    <string name="lyrics_offset_later_a11y">Tampilkan lirik %1$s lebih lambat</string>
+    <string name="lyrics_offset_current_a11y">Pergeseran saat ini %1$s</string>
+    <string name="lyrics_offset_reset_a11y">Atur ulang sinkronisasi lirik</string>
     <string name="lyrics_instrumental">Instrumental</string>
     <string name="lyrics_unavailable">Lirik tidak tersedia</string>
     <string name="lyrics_seek_line">Putar dari baris ini</string>

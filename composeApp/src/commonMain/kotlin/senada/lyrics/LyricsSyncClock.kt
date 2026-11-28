@@ -1,6 +1,7 @@
 package senada.lyrics
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.IntState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.collectAsState
@@ -92,22 +93,57 @@ internal fun nextCueWaitWallMs(
     return ceil(remainingAudioMs.toDouble() / rate.toDouble()).toLong().coerceAtLeast(1L)
 }
 
+/** Applies a per-song lyrics offset in ms. Positive values show lyrics earlier. */
+internal fun applyLyricsOffset(positionMs: Long, offsetMs: Int): Long =
+    positionMs + offsetMs.toLong()
+
+/** Resolves the smoothed playback position and applies [offsetMs] after [LyricsPositionFilter]. */
+internal fun LyricsPositionFilter.resolveWithOffset(
+    audio: SampleAudioState,
+    monotonicMs: Long,
+    offsetMs: Int,
+): Long = applyLyricsOffset(resolve(audio, monotonicMs), offsetMs)
+
+/** Active lyric line index at [positionMs] shifted by [offsetMs]. */
+internal fun activeLineIndex(lines: List<LyricLine>, positionMs: Long, offsetMs: Int): Int =
+    activeLineIndex(lines, applyLyricsOffset(positionMs, offsetMs))
+
+/** Audio playback seek position that lands on [lineStartMs] when [offsetMs] is active. */
+internal fun lyricSeekPositionMs(lineStartMs: Long, offsetMs: Int): Long =
+    (lineStartMs - offsetMs.toLong()).coerceAtLeast(0L)
+
+private class OffsetLongState(
+    private val base: LongState,
+    private val offsetMs: IntState,
+) : LongState {
+    override val longValue: Long
+        get() = applyLyricsOffset(base.longValue, offsetMs.intValue)
+}
+
 @Composable
-internal fun rememberLyricsFramePosition(playback: PlaybackController): LongState {
+internal fun rememberLyricsFramePosition(
+    playback: PlaybackController,
+    offsetMs: Int = 0,
+): LongState {
     val filter = remember(playback) { LyricsPositionFilter() }
-    val positionMs = remember(playback) {
+    val rawPositionMs = remember(playback) {
         mutableLongStateOf(filter.resolve(playback.state.value.audio, playback.monotonicTimeMs()))
+    }
+    val offsetState = remember(playback) { mutableIntStateOf(offsetMs) }
+    offsetState.intValue = offsetMs
+    val positionMs = remember(rawPositionMs, offsetState) {
+        OffsetLongState(rawPositionMs, offsetState)
     }
     LaunchedEffect(playback) {
         var frameLoop: Job? = null
         playback.state.map { it.audio }.distinctUntilChanged().collect {
             val audio = playback.state.value.audio
-            positionMs.longValue = filter.resolve(audio, playback.monotonicTimeMs())
+            rawPositionMs.longValue = filter.resolve(audio, playback.monotonicTimeMs())
             if (audio.status == SampleAudioStatus.Playing && audio.selection?.isPending != true) {
                 if (frameLoop == null) frameLoop = launch {
                     while (isActive) {
                         withFrameNanos {
-                            positionMs.longValue = filter.resolve(playback.state.value.audio, playback.monotonicTimeMs())
+                            rawPositionMs.longValue = filter.resolve(playback.state.value.audio, playback.monotonicTimeMs())
                         }
                     }
                 }
@@ -129,17 +165,22 @@ internal fun rememberActiveLyricIndex(lines: List<LyricLine>, positionMs: LongSt
 }
 
 @Composable
-internal fun rememberActiveLyricIndex(lines: List<LyricLine>, playback: PlaybackController): Int {
+internal fun rememberActiveLyricIndex(
+    lines: List<LyricLine>,
+    playback: PlaybackController,
+    offsetMs: Int = 0,
+): Int {
     val audio by remember(playback) {
         playback.state.map { it.audio }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio)
     val filter = remember(playback) { LyricsPositionFilter() }
     val activeIndex = remember(lines, playback) {
-        mutableIntStateOf(activeLineIndex(lines, filter.resolve(audio, playback.monotonicTimeMs())))
+        mutableIntStateOf(activeLineIndex(lines, filter.resolveWithOffset(audio, playback.monotonicTimeMs(), offsetMs)))
     }
     LaunchedEffect(
         lines,
         playback,
+        offsetMs,
         audio.selection?.queueEntryId,
         audio.selection?.uri,
         audio.status,
@@ -148,14 +189,14 @@ internal fun rememberActiveLyricIndex(lines: List<LyricLine>, playback: Playback
         audio.playbackSpeed,
         audio.discontinuityVersion,
     ) {
-        var pos = filter.resolve(audio, playback.monotonicTimeMs())
+        var pos = filter.resolveWithOffset(audio, playback.monotonicTimeMs(), offsetMs)
         var idx = activeLineIndex(lines, pos)
         activeIndex.intValue = idx
         if (audio.status == SampleAudioStatus.Playing && audio.selection?.isPending != true) {
             while (isActive) {
                 val waitWallMs = nextCueWaitWallMs(lines, idx, pos, audio.playbackSpeed) ?: break
                 delay(waitWallMs)
-                pos = filter.resolve(audio, playback.monotonicTimeMs())
+                pos = filter.resolveWithOffset(audio, playback.monotonicTimeMs(), offsetMs)
                 idx = activeLineIndex(lines, pos)
                 activeIndex.intValue = idx
             }

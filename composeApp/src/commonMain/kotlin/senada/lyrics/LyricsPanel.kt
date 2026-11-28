@@ -140,6 +140,7 @@ internal fun LyricsPanel(
     shown: LyricsPanelResult,
     playback: PlaybackController,
     appearance: LyricsAppearance,
+    offsetMs: Int = 0,
     showTrackHeader: Boolean = true,
     onRetry: () -> Unit,
 ) {
@@ -171,7 +172,7 @@ internal fun LyricsPanel(
             is LyricsPanelResult.Ready -> key(track?.id) {
                 when (val document = shown.document) {
                     is LyricsDocument.Synced -> BoxWithConstraints(Modifier.fillMaxSize()) {
-                        SyncedLyrics(document.lines, playback, appearance, maxHeight * .34f, maxHeight * .58f)
+                        SyncedLyrics(document.lines, playback, appearance, offsetMs, maxHeight * .34f, maxHeight * .58f)
                     }
                     is LyricsDocument.Plain -> LazyColumn(
                         Modifier.fillMaxWidth(),
@@ -351,10 +352,11 @@ private fun SyncedLyrics(
     lines: List<LyricLine>,
     playback: PlaybackController,
     appearance: LyricsAppearance,
+    offsetMs: Int,
     topPadding: Dp,
     bottomPadding: Dp,
 ) {
-    val positionMs = rememberLyricsFramePosition(playback)
+    val positionMs = rememberLyricsFramePosition(playback, offsetMs)
     val active = rememberActiveLyricIndex(lines, positionMs)
     val lineAlignments = remember(lines, appearance.alignment) {
         resolveLineAlignments(lines, appearance.alignment)
@@ -426,7 +428,7 @@ private fun SyncedLyrics(
                 },
                 modifier = Modifier.heightIn(min = 48.dp)
                     .clickable(enabled = canSeek, role = Role.Button, onClickLabel = seekLineLabel) {
-                        playback.seekTo(line.startMs)
+                        playback.seekTo(lyricSeekPositionMs(line.startMs, offsetMs))
                         following = true
                     }
                     .semantics {

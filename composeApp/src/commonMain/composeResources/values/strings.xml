@@ -327,6 +327,8 @@
     <string name="player_open_full_lyrics">Open full lyrics</string>
     <string name="player_open_audiolab">Open Audio Lab</string>
     <string name="player_lyrics_settings">Lyrics settings</string>
+    <string name="player_lyrics_sync">Sync lyrics</string>
+    <string name="player_lyrics_sync_active_a11y">Sync lyrics, %1$s</string>
     <string name="player_close_lyrics">Close lyrics</string>
     <string name="player_close_queue">Close queue</string>
     <string name="player_lyrics_button">Lyrics</string>
@@ -364,6 +366,13 @@
     <string name="lyrics_loading">Loading lyrics…</string>
     <string name="lyrics_preview_heading">Preview</string>
     <string name="lyrics_settings_sheet_title">Lyrics display</string>
+    <string name="lyrics_offset_sheet_title">Sync lyrics</string>
+    <string name="lyrics_offset_seconds">%1$s s</string>
+    <string name="lyrics_offset_hint">Lyrics late? Tap +</string>
+    <string name="lyrics_offset_earlier_a11y">Show lyrics %1$s earlier</string>
+    <string name="lyrics_offset_later_a11y">Show lyrics %1$s later</string>
+    <string name="lyrics_offset_current_a11y">Current offset %1$s</string>
+    <string name="lyrics_offset_reset_a11y">Reset lyrics sync</string>
     <string name="lyrics_instrumental">Instrumental</string>
     <string name="lyrics_unavailable">Lyrics not available</string>
     <string name="lyrics_seek_line">Play from this line</string>
