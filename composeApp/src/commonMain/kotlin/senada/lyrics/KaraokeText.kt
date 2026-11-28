@@ -2,6 +2,7 @@ package senada.lyrics
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,9 +17,11 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.CompositingStrategy
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.text.TextLayoutResult
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
+import senada.app.theme.LocalSenadaLook
 
 @Composable
 internal fun KaraokeText(
@@ -40,8 +44,30 @@ internal fun KaraokeText(
     modifier: Modifier = Modifier,
 ) {
     var layout by remember(timing.text) { mutableStateOf<TextLayoutResult?>(null) }
+    val animationScale = LocalSenadaLook.current.animationScale
+    val motionEnabled = animationScale > 0f
+    val measured = if (motionEnabled) layout else null
+    val motionWords = remember(timing, motionEnabled) {
+        if (motionEnabled) karaokeVisualWords(timing.text, timing.offsets) else emptyList()
+    }
+    val cells = remember(measured, motionWords) {
+        if (measured == null) emptyList() else karaokeMotionCells(motionWords) { word ->
+            val offset = timing.offsets[word.start]
+            measured.getParagraphDirection(offset) == ResolvedTextDirection.Rtl ||
+                measured.getBidiRunDirection(offset) == ResolvedTextDirection.Rtl
+        }
+    }
+    val usesLetters = cells.size > motionWords.size
+    val textStyle = if (usesLetters) style.copy(fontFeatureSettings = LIGATURES_OFF) else style
+    val motion = remember(timing, motionWords, cells) {
+        if (cells.isEmpty()) null else KaraokeMotion(timing, motionWords, cells)
+    }
+    val motionLayer = if (motion != null) rememberGraphicsLayer() else null
+    if (motion != null) LaunchedEffect(motion, positionMs, animationScale) {
+        motion.follow(positionMs, animationScale)
+    }
     val litLayer = rememberGraphicsLayer()
-    val sweep = remember(timing, positionMs, litLayer) {
+    val sweep = remember(timing, positionMs, color, usesLetters, motion, motionLayer, litLayer) {
         Modifier.drawWithCache {
             val textLayout = layout
             if (textLayout == null) {
@@ -62,18 +88,27 @@ internal fun KaraokeText(
                 val wordColor = Color.White.copy(alpha = if (timing.isEstimated) .25f else .40f)
                 val fillColor = Color.White.copy(alpha = if (timing.isEstimated) .88f else 1f)
                 val fontSize = textLayout.layoutInput.style.fontSize
-                val featherMax = (if (fontSize.isSp) fontSize else 14.sp).toPx() * FEATHER_EM
+                val fontPx = (if (fontSize.isSp) fontSize else 14.sp).toPx()
+                val featherMax = fontPx * FEATHER_EM
+                val ligaturesReady = !usesLetters || textLayout.layoutInput.style.fontFeatureSettings == LIGATURES_OFF
+                val motionLayout = if (motion != null && ligaturesReady) {
+                    val fontScale = fontPx / 28.dp.toPx()
+                    KaraokeMotionLayout(
+                        textLayout, timing.offsets, rows, motion, fontPx,
+                        dropPx = 3.dp.toPx() * fontScale,
+                        liftPx = 2.5.dp.toPx() * fontScale,
+                    )
+                } else {
+                    null
+                }
                 // An offscreen buffer clips to its own size, so reserve room for outer glyph overhang.
                 val layerSize = IntSize(textLayout.size.width + 2 * bleed, textLayout.size.height + 2 * bleed)
                 litLayer.compositingStrategy = CompositingStrategy.Offscreen
                 litLayer.topLeft = IntOffset(-bleed, -bleed)
+                motionLayer?.topLeft = IntOffset(-bleed, -bleed)
                 onDrawWithContent {
-                    drawContent()
-                    // This is the only per-frame read by the text. Shape and layout are cached.
                     val position = positionMs.longValue
-                    val active = timing.activeWordIndex(position)
-                    if (active >= 0) clipPath(words[active]) { drawText(textLayout, wordColor) }
-
+                    val activeOutline = words.getOrNull(timing.activeWordIndex(position))
                     val head = timing.headAt(position)
                     fill.rewind()
                     var edgeRow: KaraokeSweepRow? = null
@@ -84,36 +119,57 @@ internal fun KaraokeText(
                             break
                         }
                     }
-                    if (fill.isEmpty) return@onDrawWithContent
-
-                    litLayer.record(this, layoutDirection, layerSize) {
-                        translate(bleed.toFloat(), bleed.toFloat()) {
-                            clipPath(fill) { drawText(textLayout, fillColor) }
-                            edgeRow?.let { row ->
-                                val headX = row.headXAt(head)
-                                val width = minOf(abs(headX - row.headXAt(head - 1f)), featherMax)
-                                val fromX = headX - row.flow * width
-                                val toX = headX + row.flow * EDGE_LEAD_PX
-                                drawRect(
-                                    brush = Brush.horizontalGradient(
-                                        0f to Color.Black,
-                                        1f to Color.Transparent,
-                                        startX = fromX,
-                                        endX = toX,
-                                    ),
-                                    topLeft = Offset(minOf(fromX, toX), row.bounds.top),
-                                    size = Size(abs(toX - fromX), row.bounds.height),
-                                    blendMode = BlendMode.DstIn,
-                                )
+                    val lit = if (fill.isEmpty) null else litLayer.apply {
+                        record(this@onDrawWithContent, layoutDirection, layerSize) {
+                            translate(bleed.toFloat(), bleed.toFloat()) {
+                                clipPath(fill) { drawText(textLayout, fillColor) }
+                                edgeRow?.let { row -> maskSweepEdge(row, head, featherMax) }
                             }
                         }
                     }
-                    drawLayer(litLayer)
+
+                    val uniformDrop = motionLayout?.prepare()
+                    if (motionLayer != null && motionLayout != null && uniformDrop == null) {
+                        motionLayer.record(this, layoutDirection, layerSize) {
+                            translate(bleed.toFloat(), bleed.toFloat()) {
+                                drawText(textLayout, color)
+                                drawSweepOverlays(textLayout, activeOutline, wordColor, lit)
+                            }
+                        }
+                        with(motionLayout) { drawMotion(motionLayer, head) }
+                    } else {
+                        withKaraokeDrop(uniformDrop ?: 0f) {
+                            this@onDrawWithContent.drawContent()
+                            drawSweepOverlays(textLayout, activeOutline, wordColor, lit)
+                        }
+                    }
                 }
             }
         }
     }
-    Text(timing.text, modifier.then(sweep), color = color, style = style, onTextLayout = { layout = it })
+    Text(timing.text, modifier.then(sweep), color = color, style = textStyle, onTextLayout = { layout = it })
+}
+
+private fun DrawScope.maskSweepEdge(row: KaraokeSweepRow, head: Float, featherMax: Float) {
+    val headX = row.headXAt(head)
+    val width = minOf(abs(headX - row.headXAt(head - 1f)), featherMax)
+    val fromX = headX - row.flow * width
+    val toX = headX + row.flow * EDGE_LEAD_PX
+    drawRect(
+        brush = Brush.horizontalGradient(0f to Color.Black, 1f to Color.Transparent, startX = fromX, endX = toX),
+        topLeft = Offset(minOf(fromX, toX), row.bounds.top),
+        size = Size(abs(toX - fromX), row.bounds.height),
+        blendMode = BlendMode.DstIn,
+    )
+}
+
+private fun DrawScope.drawSweepOverlays(layout: TextLayoutResult, active: Path?, color: Color, lit: GraphicsLayer?) {
+    if (active != null) clipPath(active) { drawText(layout, color) }
+    if (lit != null) drawLayer(lit)
+}
+
+private inline fun DrawScope.withKaraokeDrop(drop: Float, draw: DrawScope.() -> Unit) {
+    if (drop == 0f) draw() else translate(0f, drop, draw)
 }
 
 private fun TextLayoutResult.sweepRows(offsets: IntArray, bleed: Float): List<KaraokeSweepRow> =
@@ -148,7 +204,7 @@ private fun TextLayoutResult.sweepRows(offsets: IntArray, bleed: Float): List<Ka
     }
 
 internal class KaraokeSweepRow(
-    private val startGrapheme: Int,
+    val startGrapheme: Int,
     private val carets: FloatArray,
     lineBounds: Rect,
     private val rtl: Boolean,
@@ -183,3 +239,4 @@ internal class KaraokeSweepRow(
 
 private const val EDGE_LEAD_PX = 6f
 private const val FEATHER_EM = 0.55f
+private const val LIGATURES_OFF = "liga 0, clig 0"
