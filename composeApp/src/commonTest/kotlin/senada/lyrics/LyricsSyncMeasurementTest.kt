@@ -423,7 +423,9 @@ class LyricsSyncMeasurementTest {
         output.injectRawPosition(985L)
         output.onEvent?.invoke()
         runCurrent()
-        assertEquals(1_000L, filter.resolve(controller.state.value.audio, testScheduler.currentTime))
+        // The clock never runs backward, and eases toward the player's 985 ms instead of racing on to 1100 ms.
+        val afterJitter = filter.resolve(controller.state.value.audio, testScheduler.currentTime)
+        assertTrue(afterJitter in 1_000L..1_030L, "shown $afterJitter ms")
 
         // A large native backward jump (>50ms) triggers discontinuity and snaps immediately.
         output.injectRawPosition(800L)

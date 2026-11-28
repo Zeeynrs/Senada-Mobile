@@ -11,6 +11,8 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.ceil
+import kotlin.math.exp
+import kotlin.math.roundToLong
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -21,29 +23,60 @@ import senada.playback.PlaybackController
 import senada.playback.SampleAudioState
 import senada.playback.SampleAudioStatus
 
+/**
+ * The playback position the lyrics draw with.
+ *
+ * Each player report re-anchors [SampleAudioState.positionAt], so the raw estimate steps by the report's jitter.
+ * This clock instead moves on by the time since the last read and eases the gap to the raw estimate away,
+ * so the karaoke sweep glides. It never runs backward while playing: backward seeks bump the discontinuity
+ * version and restart it.
+ */
 internal class LyricsPositionFilter {
     private var lastDiscontinuity = Long.MIN_VALUE
     private var lastSelectionKey: Any? = null
     private var lastStatus: SampleAudioStatus? = null
-    private var lastDisplayedMs: Long = 0L
+    private var lastReadMs = Long.MIN_VALUE
+    private var shownMs = 0.0
 
     fun resolve(audio: SampleAudioState, monotonicMs: Long): Long {
         val raw = audio.positionAt(monotonicMs)
         val selectionKey = audio.selection?.queueEntryId ?: audio.selection?.uri
+        val elapsedMs = monotonicMs - lastReadMs
         val reset = audio.discontinuityVersion != lastDiscontinuity ||
             selectionKey != lastSelectionKey ||
             audio.status != SampleAudioStatus.Playing ||
-            lastStatus != SampleAudioStatus.Playing
+            lastStatus != SampleAudioStatus.Playing ||
+            lastReadMs == Long.MIN_VALUE ||
+            elapsedMs !in 0..STALE_READ_MS
         lastDiscontinuity = audio.discontinuityVersion
         lastSelectionKey = selectionKey
         lastStatus = audio.status
+        lastReadMs = monotonicMs
         if (reset) {
-            lastDisplayedMs = raw
+            shownMs = raw.toDouble()
             return raw
         }
-        // Backward seeks increment the discontinuity version above. Other corrections can wait for audio to catch up.
-        lastDisplayedMs = maxOf(lastDisplayedMs, raw)
-        return lastDisplayedMs
+        val rate = audio.playbackSpeed.takeIf { it.isFinite() && it > 0f } ?: 1f
+        val predicted = shownMs + elapsedMs * rate.toDouble()
+        val gap = raw - predicted
+        val next = if (gap > SNAP_FORWARD_MS) {
+            raw.toDouble()
+        } else {
+            predicted + gap * (1.0 - exp(-elapsedMs / PULL_TIME_MS))
+        }
+        shownMs = maxOf(shownMs, next)
+        return shownMs.roundToLong()
+    }
+
+    private companion object {
+        /** A gap larger than this is a skip the player made on its own, so the clock jumps with it. */
+        const val SNAP_FORWARD_MS = 250.0
+
+        /** Time constant for easing the gap to the player's position away. */
+        const val PULL_TIME_MS = 60.0
+
+        /** Reads further apart than this mean nobody was drawing, so start again from the player. */
+        const val STALE_READ_MS = 200L
     }
 }
 
