@@ -69,6 +69,25 @@ class KaraokeTimingTest {
     }
 
     @Test
+    fun lineOnlyTimingLightsTheWholeLineQuicklyInsteadOfGuessingASweep() {
+        val lineOnly = karaokeTiming(LyricLine(1_000L, "Some words"), 9_000L)
+
+        assertEquals(0f, lineOnly.lineLightAt(999L))
+        assertEquals(0f, lineOnly.lineLightAt(1_000L))
+        assertEquals(0.5f, lineOnly.lineLightAt(1_100L))
+        assertEquals(1f, lineOnly.lineLightAt(1_200L))
+        // Fully lit long before the next line, however long the instrumental gap is.
+        assertEquals(1f, lineOnly.lineLightAt(5_000L))
+    }
+
+    @Test
+    fun wordTimedLinesDoNotUseTheWholeLineLight() {
+        val line = LrcParser.parse("[00:01.00]<00:01.00>Day <00:02.00>break<00:03.00>").first()
+
+        assertNull(karaokeTiming(line, null).lineLightAt(1_500L))
+    }
+
+    @Test
     fun lineOnlyTimingHonorsShorterEndsAndCapsLongGaps() {
         val line = LyricLine(1_000L, "Some words")
 
