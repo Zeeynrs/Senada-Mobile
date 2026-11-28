@@ -12,6 +12,9 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -28,6 +31,8 @@ import senada.app.AppLanguage
 import senada.app.AppStrings
 import senada.app.UiText
 import senada.local.LOCAL_FILE_SOURCE
+import senada.lyrics.sources.LyricsCandidate
+import senada.lyrics.sources.LyricsSource
 import senada.model.Track
 import senada.resources.Res
 import senada.resources.error_lyrics_http
@@ -53,7 +58,11 @@ internal class LyricsException(
         get() = userMessage()
 }
 
-internal class LyricsRepository(private val http: HttpClient) {
+internal class LyricsRepository(
+    private val http: HttpClient,
+    /** Extra providers, best first. Word-timed lyrics from them are tried before LRCLIB. */
+    private val wordSources: List<LyricsSource> = emptyList(),
+) {
     private data class LyricsCacheKey(val trackId: String, val durationMs: Long?)
 
     private val cache = mutableMapOf<LyricsCacheKey, LyricsDocument>()
@@ -118,6 +127,39 @@ internal class LyricsRepository(private val http: HttpClient) {
     }
 
     private suspend fun fetch(track: Track): LyricsDocument {
+        // LRCLIB is nearly always timed by line only. Karaoke needs word timing, so ask the other sources first.
+        val sourced = searchSources(track)
+        sourced.best(track, wordTimed = true)?.let { return it }
+        val lrclib = try {
+            fetchLrclib(track)
+        } catch (error: LyricsException) {
+            return sourced.best(track, wordTimed = false) ?: throw error
+        }
+        if (lrclib is LyricsDocument.Synced) return lrclib
+        return sourced.best(track, wordTimed = false) ?: lrclib
+    }
+
+    private suspend fun searchSources(track: Track): List<LyricsCandidate> {
+        if (wordSources.isEmpty() || track.artists.firstOrNull().isNullOrBlank()) return emptyList()
+        return coroutineScope {
+            wordSources.map { source ->
+                async {
+                    withTimeoutOrNull(SOURCE_TIMEOUT_MS) {
+                        try {
+                            source.search(track)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            // One provider being down or refusing must never hide lyrics from the others.
+                            emptyList()
+                        }
+                    }.orEmpty()
+                }
+            }.awaitAll().flatten()
+        }
+    }
+
+    private suspend fun fetchLrclib(track: Track): LyricsDocument {
         val original = fetchByTitle(queryTrack = track, referenceTrack = track)
         if (original != LyricsDocument.Unavailable) return original
 
@@ -217,6 +259,27 @@ internal class LyricsRepository(private val http: HttpClient) {
         }
     }
 }
+
+/** The best of [this] (already in source order) that fits [track], as a synced document. */
+private fun List<LyricsCandidate>.best(track: Track, wordTimed: Boolean): LyricsDocument.Synced? {
+    var best: CandidateEvaluation.CompatibleSynced? = null
+    for (candidate in this) {
+        if (candidate.wordSynced != wordTimed || candidate.lines.none { it.text.isNotEmpty() }) continue
+        val delta = track.lyricsDurationMs?.let { trackMs -> candidate.durationMs?.takeIf { it > 0L }?.let { abs(trackMs - it) } }
+        if (!isTimingCompatible(track, candidate.title, delta, candidate.lines)) continue
+        val evaluated = CandidateEvaluation.CompatibleSynced(
+            LyricsDocument.Synced(candidate.lines),
+            delta,
+            scoreCandidate(track, candidate.title, candidate.artist, candidate.lines),
+        )
+        // Strictly better only: on a full tie the earlier, preferred source keeps its place.
+        val current = best
+        if (current == null || compareSyncedCandidates(evaluated, current) > 0) best = evaluated
+    }
+    return best?.document
+}
+
+private const val SOURCE_TIMEOUT_MS = 4_000L
 
 private sealed interface CandidateEvaluation {
     data class CompatibleSynced(

@@ -20,6 +20,7 @@ import senada.catalog.youtube.YouTubeMusicPlaylists
 import senada.catalog.youtube.YouTubeMusicResolver
 import senada.catalog.youtube.YouTubePlaylistSource
 import senada.lyrics.LyricsRepository
+import senada.lyrics.sources.defaultLyricsSources
 
 /** Sumber katalog dan audio bersama untuk seluruh proses, termasuk pemutaran di latar belakang. */
 internal object SenadaSources {
@@ -45,5 +46,5 @@ internal object SenadaSources {
     val spotifyPlaylists: SpotifyPlaylistSource by lazy { SpotifyPlaylistReader(http) }
     val candidateSearcher: CandidateSearcher by lazy { InnertubeCandidateSearcher(innertube) }
     val streams: StreamResolver by lazy { YouTubeMusicResolver(innertube) }
-    val lyrics by lazy { LyricsRepository(http) }
+    val lyrics by lazy { LyricsRepository(http, wordSources = defaultLyricsSources(http)) }
 }

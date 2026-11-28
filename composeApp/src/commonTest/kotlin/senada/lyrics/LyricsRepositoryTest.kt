@@ -16,6 +16,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import senada.lyrics.sources.LyricsCandidate
+import senada.lyrics.sources.LyricsSource
+import senada.lyrics.sources.LyricsSourceException
 import senada.model.Track
 
 class LyricsRepositoryTest {
@@ -482,5 +485,88 @@ class LyricsRepositoryTest {
             }
         }
         assertEquals(LyricsDocument.Plain(listOf("Di luar durasi", "Jauh lewat")), repo.get(shortTrack))
+    }
+
+    private class FakeSource(
+        override val id: String,
+        private val result: () -> List<LyricsCandidate>,
+    ) : LyricsSource {
+        var calls = 0
+        override suspend fun search(track: Track): List<LyricsCandidate> {
+            calls++
+            return result()
+        }
+    }
+
+    private fun wordLine(startMs: Long, vararg words: String): LyricLine = LyricLine(
+        startMs = startMs,
+        text = words.joinToString(" "),
+        words = words.mapIndexed { index, word -> LyricWord(startMs + index * 300L, 300L, word) },
+    )
+
+    private fun wordCandidate(sourceId: String, durationMs: Long?, firstWord: String = "Hujan") = LyricsCandidate(
+        sourceId = sourceId,
+        lines = listOf(wordLine(1_000L, firstWord, "turun"), wordLine(4_000L, "lagi", "pagi")),
+        wordSynced = true,
+        title = track.title,
+        artist = track.artists.first(),
+        durationMs = durationMs,
+    )
+
+    private fun repositoryWith(vararg sources: LyricsSource) = LyricsRepository(
+        HttpClient(MockEngine { request ->
+            requests += request
+            // LRCLIB has nothing for this track: no exact match, an empty search.
+            respond(if (request.url.encodedPath == "/api/get") "null" else "[]")
+        }),
+        wordSources = sources.toList(),
+    )
+
+    @Test
+    fun wordTimedSourceWinsOverLrclibWhenItsDurationMatches() = runTest {
+        val source = FakeSource("betterlyrics") { listOf(wordCandidate("betterlyrics", 92_000L)) }
+        val document = repositoryWith(source).get(track) as LyricsDocument.Synced
+
+        assertEquals("Hujan turun", document.lines.first().text)
+        assertEquals(2, document.lines.first().words.size)
+        assertEquals(emptyList(), requests.map { it.url.host })
+    }
+
+    @Test
+    fun wordTimedCandidateFromAnotherRecordingIsSkipped() = runTest {
+        val tooLong = FakeSource("betterlyrics") { listOf(wordCandidate("betterlyrics", 110_000L, firstWord = "Salah")) }
+        val good = FakeSource("lyricsplus") { listOf(wordCandidate("lyricsplus", 91_000L)) }
+        val document = repositoryWith(tooLong, good).get(track) as LyricsDocument.Synced
+
+        assertEquals("Hujan turun", document.lines.first().text)
+    }
+
+    @Test
+    fun closerDurationBucketBeatsSourceOrderAndSourceOrderBreaksTies() = runTest {
+        val farther = FakeSource("betterlyrics") { listOf(wordCandidate("betterlyrics", 94_500L, firstWord = "Jauh")) }
+        val closer = FakeSource("lyricsplus") { listOf(wordCandidate("lyricsplus", 91_900L, firstWord = "Dekat")) }
+        val sameBucket = FakeSource("simpmusic") { listOf(wordCandidate("simpmusic", 92_500L, firstWord = "Kedua")) }
+
+        assertEquals("Dekat turun", (repositoryWith(farther, closer).get(track) as LyricsDocument.Synced).lines.first().text)
+        assertEquals("Dekat turun", (repositoryWith(closer, sameBucket).get(track.copy(id = "yt:track:b")) as LyricsDocument.Synced).lines.first().text)
+    }
+
+    @Test
+    fun failingSourcesAreSkippedAndLineOnlySourcesBackUpLrclib() = runTest {
+        val broken = FakeSource("simpmusic") { throw LyricsSourceException("simpmusic", "HTTP 403") }
+        val lineOnly = FakeSource("netease") { listOf(wordCandidate("netease", 91_700L).copy(wordSynced = false)) }
+        val document = repositoryWith(broken, lineOnly).get(track) as LyricsDocument.Synced
+
+        // LRCLIB is asked first for line timing, and only when it has nothing is the line-only source used.
+        assertEquals(listOf("lrclib.net"), requests.map { it.url.host }.distinct())
+        assertEquals("Hujan turun", document.lines.first().text)
+    }
+
+    @Test
+    fun wordCandidateWithoutDurationMustStillFitTheTrack() = runTest {
+        val overEnd = wordCandidate("kugou", null).copy(lines = listOf(wordLine(200_000L, "Lewat", "akhir")))
+        val source = FakeSource("kugou") { listOf(overEnd) }
+
+        assertEquals(LyricsDocument.Unavailable, repositoryWith(source).get(track))
     }
 }
