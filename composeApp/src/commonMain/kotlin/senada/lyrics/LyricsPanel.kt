@@ -1,13 +1,22 @@
 package senada.lyrics
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,16 +27,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -39,6 +51,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -187,6 +200,11 @@ private fun LyricsMessage(message: String) {
 
 internal enum class LyricLineState { Plain, Upcoming, Past, Active }
 
+private const val BACKING_VOCAL_SIZE_RATIO = 2f / 3f
+private const val BACKING_VOCAL_ALPHA = 0.72f
+private const val BACKING_VOCAL_ENTER_MS = 280
+private const val BACKING_VOCAL_EXIT_MS = 340
+
 @Composable
 internal fun LyricsLineText(
     text: String,
@@ -197,6 +215,10 @@ internal fun LyricsLineText(
     timing: KaraokeTiming? = null,
     positionMs: LongState? = null,
     romanization: String? = null,
+    lineAlignment: LyricLineAlignment = defaultLineAlignment(appearance.alignment),
+    background: LyricLine? = null,
+    showBackground: Boolean = false,
+    backgroundNextStartMs: Long? = null,
 ) {
     val highlighting = timing != null && positionMs != null
     val color = Color.White.copy(
@@ -217,7 +239,16 @@ internal fun LyricsLineText(
     }
     val size = baseSize * appearance.size.scale
     val font = if (appearance.font == LyricsFont.Serif) FontFamily.Serif else MaterialTheme.typography.bodyLarge.fontFamily
-    val alignment = if (appearance.alignment == LyricsAlignment.Center) TextAlign.Center else TextAlign.Left
+    val alignment = when (lineAlignment) {
+        LyricLineAlignment.Start -> TextAlign.Start
+        LyricLineAlignment.Center -> TextAlign.Center
+        LyricLineAlignment.End -> TextAlign.End
+    }
+    val horizontalAlignment = when (lineAlignment) {
+        LyricLineAlignment.Start -> Alignment.Start
+        LyricLineAlignment.Center -> Alignment.CenterHorizontally
+        LyricLineAlignment.End -> Alignment.End
+    }
     val style = MaterialTheme.typography.bodyLarge.copy(
         fontSize = size.sp, lineHeight = (size * 1.25f).sp, fontWeight = FontWeight.Bold,
         fontFamily = font, textAlign = alignment, shadow = glow,
@@ -225,11 +256,17 @@ internal fun LyricsLineText(
     val reading = remember(text, romanization, appearance.romanization) {
         if (appearance.romanization) lyricRomanization(text, romanization) else null
     }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (timing != null && positionMs != null) {
-            KaraokeText(timing, positionMs, color, style, Modifier.fillMaxWidth())
-        } else {
-            Text(text, Modifier.fillMaxWidth(), color = color, style = style)
+    Column(
+        modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = horizontalAlignment,
+    ) {
+        if (text.isNotEmpty() || background == null) {
+            if (timing != null && positionMs != null) {
+                KaraokeText(timing, positionMs, color, style, Modifier.fillMaxWidth())
+            } else {
+                Text(text, Modifier.fillMaxWidth(), color = color, style = style)
+            }
         }
         if (reading != null) {
             val readingSize = (size * .65f).coerceAtLeast(12f)
@@ -239,6 +276,72 @@ internal fun LyricsLineText(
                 fontSize = readingSize.sp, lineHeight = (readingSize * 1.25f).sp,
                 fontFamily = font, textAlign = alignment,
             )
+        }
+        if (background != null) {
+            BackingVocalLine(
+                background = background,
+                visible = showBackground,
+                appearance = appearance,
+                size = size,
+                style = style,
+                positionMs = positionMs,
+                nextStartMs = backgroundNextStartMs,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackingVocalLine(
+    background: LyricLine,
+    visible: Boolean,
+    appearance: LyricsAppearance,
+    size: Float,
+    style: TextStyle,
+    positionMs: LongState?,
+    nextStartMs: Long?,
+) {
+    val look = LocalSenadaLook.current
+    val enterMs = look.durationMillis(BACKING_VOCAL_ENTER_MS)
+    val exitMs = look.durationMillis(BACKING_VOCAL_EXIT_MS)
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(durationMillis = enterMs, easing = FastOutSlowInEasing)) +
+            expandVertically(
+                animationSpec = tween(durationMillis = enterMs, easing = FastOutSlowInEasing),
+                expandFrom = Alignment.Top,
+            ),
+        exit = fadeOut(tween(durationMillis = exitMs, easing = FastOutSlowInEasing)) +
+            shrinkVertically(
+                animationSpec = tween(durationMillis = exitMs, easing = FastOutSlowInEasing),
+                shrinkTowards = Alignment.Top,
+            ),
+    ) {
+        val bgSize = (size * BACKING_VOCAL_SIZE_RATIO).coerceAtLeast(12f)
+        val bgStyle = style.copy(
+            fontSize = bgSize.sp,
+            lineHeight = (bgSize * 1.25f).sp,
+            fontWeight = FontWeight.SemiBold,
+            shadow = null,
+        )
+        val useKaraoke = appearance.highlight == LyricsHighlight.Karaoke && positionMs != null
+        val bgTiming = if (useKaraoke) {
+            remember(background, nextStartMs) { karaokeTiming(background, nextStartMs) }
+        } else {
+            null
+        }
+        val bgColor = Color.White.copy(alpha = if (bgTiming != null) .56f else .85f)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp)
+                .graphicsLayer { alpha = BACKING_VOCAL_ALPHA },
+        ) {
+            if (bgTiming != null && positionMs != null) {
+                KaraokeText(bgTiming, positionMs, bgColor, bgStyle, Modifier.fillMaxWidth())
+            } else {
+                Text(background.text, Modifier.fillMaxWidth(), color = bgColor, style = bgStyle)
+            }
         }
     }
 }
@@ -253,6 +356,9 @@ private fun SyncedLyrics(
 ) {
     val positionMs = rememberLyricsFramePosition(playback)
     val active = rememberActiveLyricIndex(lines, positionMs)
+    val lineAlignments = remember(lines, appearance.alignment) {
+        resolveLineAlignments(lines, appearance.alignment)
+    }
     val discontinuityVersion by remember(playback) {
         playback.state.map { it.audio.discontinuityVersion }.distinctUntilChanged()
     }.collectAsState(playback.state.value.audio.discontinuityVersion)
@@ -291,14 +397,27 @@ private fun SyncedLyrics(
     ) {
         itemsIndexed(lines) { index, line ->
             val current = index == active
-            val timing = if (current && appearance.highlight == LyricsHighlight.Karaoke) {
-                val nextStartMs = lines.getOrNull(index + 1)?.startMs
+            val nextStartMs = lines.getOrNull(index + 1)?.startMs
+            val useKaraoke = appearance.highlight == LyricsHighlight.Karaoke
+            val timing = if (current && useKaraoke) {
                 remember(line, nextStartMs) { karaokeTiming(line, nextStartMs) }
             } else {
                 null
             }
+            val background = line.background
+            val backgroundEndFallback = line.endMs ?: nextStartMs
+            val showBackground by remember(current, background, backgroundEndFallback, positionMs) {
+                derivedStateOf {
+                    background != null && isBackgroundVocalVisible(
+                        parentActive = current,
+                        background = background,
+                        parentEndMs = backgroundEndFallback,
+                        positionMs = positionMs.longValue,
+                    )
+                }
+            }
             LyricsLineText(
-                text = line.text.ifBlank { "♪" },
+                text = if (line.text.isNotBlank()) line.text else if (background != null) "" else "♪",
                 appearance = appearance,
                 state = when {
                     current -> LyricLineState.Active
@@ -318,8 +437,12 @@ private fun SyncedLyrics(
                         }
                     },
                 timing = timing,
-                positionMs = if (timing != null) positionMs else null,
+                positionMs = if (timing != null || (background != null && useKaraoke)) positionMs else null,
                 romanization = line.romanization,
+                lineAlignment = lineAlignments[index],
+                background = background,
+                showBackground = showBackground,
+                backgroundNextStartMs = backgroundEndFallback,
             )
         }
     }
